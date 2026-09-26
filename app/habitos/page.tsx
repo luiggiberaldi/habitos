@@ -121,7 +121,7 @@ export default function GestionHabitos() {
           </div>
         ) : (
           habitosVisibles.map((habit) => (
-            <article key={habit.id} className="card flex flex-wrap items-center gap-3 sm:gap-4 p-4 transition-shadow hover:shadow-md">
+            <article key={habit.id} className={`card flex flex-wrap items-center gap-3 sm:gap-4 p-4 transition-shadow hover:shadow-md ${habit.estado !== "activo" ? "opacity-60" : ""}`}>
               <div
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
                 style={{ backgroundColor: `${habit.color}1f`, color: habit.color }}
@@ -152,6 +152,29 @@ export default function GestionHabitos() {
                 </div>
               ) : (
                 <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={habit.estado === "activo"}
+                    aria-label={`${habit.estado === "activo" ? "Pausar" : "Reactivar"} ${habit.nombre || "hábito"}`}
+                    title={habit.estado === "activo" ? "Pausar" : "Reactivar"}
+                    onClick={() =>
+                      guardarHabit({
+                        ...habit,
+                        estado: habit.estado === "activo" ? "pausado" : "activo",
+                      })
+                    }
+                    className="flex min-h-[44px] min-w-[56px] shrink-0 items-center justify-center"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`relative h-7 w-12 rounded-full transition-colors ${habit.estado === "activo" ? "bg-accent" : "bg-border"}`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${habit.estado === "activo" ? "translate-x-5" : "translate-x-0"}`}
+                      />
+                    </span>
+                  </button>
                   <button type="button" onClick={() => setFormulario(habit)} className="btn-icon min-h-[40px] min-w-[40px]" title="Editar" aria-label="Editar">
                     <IconEditar className="h-4 w-4" />
                   </button>
