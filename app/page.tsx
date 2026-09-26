@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStoreActions, useStoreState } from "../lib/store-context";
 import { PUNTOS_OBJETIVO_DIARIO, PUNTOS_POR_REGISTRO, puntosTotalesParaFecha, rachaActual, resumenSemanal } from "../lib/gamificacion";
 import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, todayKey } from "../lib/dates";
 import Logo from "../components/Logo";
-import { IconAlerta, IconCategoria, IconCheck, IconEstrella, IconFuego, IconObjetivo } from "../lib/icons";
+import { IconAlerta, IconCategoria, IconCheck, IconChevronAbajo, IconEstrella, IconFuego, IconObjetivo } from "../lib/icons";
 import type { CompletionEvent, Habit, Moment } from "../lib/types";
 
 function etiquetaMoment(moment: Moment): string {
@@ -18,12 +18,59 @@ export default function Inicio() {
   const [marcando, setMarcando] = useState<string | null>(null);
   const [subtareasTemp, setSubtareasTemp] = useState<Record<string, string[]>>({});
   const [expandedMoment, setExpandedMoment] = useState<string | null>(null);
+  const [mostrarCompletados, setMostrarCompletados] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const deepLinkProcesado = useRef(false);
 
   const hoy = todayKey();
   const habitosHoy = useMemo(
     () => state.habits.filter((h) => h.estado === "activo" && !esDescanso(h, hoy)),
     [state.habits, hoy],
   );
+
+  // Completados del día se colapsan: menos scroll, el foco queda en lo pendiente.
+  const habitosPendientes = useMemo(
+    () => habitosHoy.filter((h) => completadosPara(h, hoy, state.completions).size < h.objetivo),
+    [habitosHoy, hoy, state.completions],
+  );
+  const habitosCompletados = useMemo(
+    () => habitosHoy.filter((h) => completadosPara(h, hoy, state.completions).size >= h.objetivo),
+    [habitosHoy, hoy, state.completions],
+  );
+
+  // Deep link del botón "Listo" de la notificación push: auto-registra el momento.
+  useEffect(() => {
+    if (deepLinkProcesado.current) return;
+    deepLinkProcesado.current = true;
+    const complete = new URLSearchParams(window.location.search).get("complete");
+    if (!complete) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    const [habitId, momentId] = complete.split("|");
+    const habit = state.habits.find((h) => h.id === habitId && h.estado === "activo");
+    if (!habit) return;
+    let mensaje: string | null = null;
+    if (habit.tipo === "cantidad" || !momentId || !habit.momentos.some((m) => m.id === momentId)) {
+      registrar(habit.id, undefined, hoy);
+      mensaje = `"${habit.nombre}" registrado`;
+    } else {
+      const eventId = `${habit.id}|${momentId}|${hoy}`;
+      if (state.completions.some((c) => c.eventId === eventId)) {
+        mensaje = `"${habit.nombre}" ya estaba registrado`;
+      } else {
+        registrar(habit.id, momentId, hoy);
+        mensaje = `"${habit.nombre}" registrado`;
+      }
+    }
+    // Diferido: react-hooks/set-state-in-effect no permite setState síncrono en el efecto.
+    if (mensaje) window.setTimeout(() => setToast(mensaje), 0);
+  }, [state.habits, state.completions, registrar, hoy]);
+
+  // El toast de confirmación se oculta solo.
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   const puntosDia = useMemo(
     () => puntosTotalesParaFecha(state.habits, hoy, state.completions),
@@ -218,24 +265,68 @@ export default function Inicio() {
           <p className="mt-1 text-sm text-muted">Crea nuevos hábitos o disfruta tu día libre.</p>
         </section>
       ) : (
-        <section className="flex flex-col gap-4">
-          {habitosHoy.map((habit) => (
-            <HabitCard
-              key={habit.id}
-              habit={habit}
-              fecha={hoy}
-              completions={state.completions}
-              marcando={marcando}
-              expandedMoment={expandedMoment}
-              subtareasTemp={subtareasTemp}
-              onMarcar={alMarcar}
-              onDeshacer={deshacer}
-              onToggleSubtarea={toggleSubtarea}
-              onExpand={(id) => setExpandedMoment(id)}
-              onRegistrarCantidad={alRegistrarCantidad}
-            />
-          ))}
-        </section>
+        <>
+          <section className="flex flex-col gap-4">
+            {habitosPendientes.map((habit) => (
+              <HabitCard
+                key={habit.id}
+                habit={habit}
+                fecha={hoy}
+                completions={state.completions}
+                marcando={marcando}
+                expandedMoment={expandedMoment}
+                subtareasTemp={subtareasTemp}
+                onMarcar={alMarcar}
+                onDeshacer={deshacer}
+                onToggleSubtarea={toggleSubtarea}
+                onExpand={(id) => setExpandedMoment(id)}
+                onRegistrarCantidad={alRegistrarCantidad}
+              />
+            ))}
+          </section>
+          {habitosCompletados.length > 0 && (
+            <section className="card overflow-hidden" aria-label="Hábitos completados hoy">
+              <button
+                type="button"
+                onClick={() => setMostrarCompletados((v) => !v)}
+                aria-expanded={mostrarCompletados}
+                className="flex w-full items-center justify-between gap-2 px-5 py-4 text-left"
+              >
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-muted">
+                  <IconCheck className="h-4 w-4 text-accent" />
+                  Completados hoy ({habitosCompletados.length})
+                </span>
+                <IconChevronAbajo className={`h-4 w-4 shrink-0 text-muted transition-transform ${mostrarCompletados ? "rotate-180" : ""}`} />
+              </button>
+              {mostrarCompletados && (
+                <div className="flex flex-col gap-4 border-t border-border p-4">
+                  {habitosCompletados.map((habit) => (
+                    <HabitCard
+                      key={habit.id}
+                      habit={habit}
+                      fecha={hoy}
+                      completions={state.completions}
+                      marcando={marcando}
+                      expandedMoment={expandedMoment}
+                      subtareasTemp={subtareasTemp}
+                      onMarcar={alMarcar}
+                      onDeshacer={deshacer}
+                      onToggleSubtarea={toggleSubtarea}
+                      onExpand={(id) => setExpandedMoment(id)}
+                      onRegistrarCantidad={alRegistrarCantidad}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </>
+      )}
+      {toast && (
+        <div role="status" className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-foreground px-4 py-2.5 text-sm font-medium text-background shadow-lg">
+          <IconCheck className="h-4 w-4 shrink-0" />
+          {toast}
+        </div>
       )}
     </div>
   );
@@ -472,42 +563,33 @@ function CantidadCard({
   const hoyEventos = completions
     .filter((c) => c.habitId === habit.id && c.fecha === fecha)
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  const ultimo = hoyEventos[hoyEventos.length - 1];
 
   return (
-    <>
+    <div className="mt-4 flex items-center justify-center gap-5" role="group" aria-label={`Contador de ${habit.nombre}: ${hoyEventos.length} ${habit.unidad || "registros"}`}>
+      <button
+        type="button"
+        onClick={() => ultimo && onDeshacer(ultimo)}
+        disabled={!ultimo || pulsando}
+        aria-label="Quitar un registro"
+        className="btn-secondary h-12 w-12 !rounded-full !p-0 text-2xl font-bold leading-none disabled:opacity-40"
+      >
+        −
+      </button>
+      <div className="min-w-20 text-center">
+        <p className="text-3xl font-bold tabular-nums" aria-live="polite">{hoyEventos.length}</p>
+        <p className="text-xs text-muted">{habit.unidad || "registros"}</p>
+      </div>
       <button
         type="button"
         onClick={() => onRegistrarCantidad(habit)}
         disabled={pulsando}
-        className="mt-4 btn-primary w-full justify-center !py-3 !text-base"
+        aria-label="Añadir un registro"
+        className="btn-primary h-12 w-12 !rounded-full !p-0 text-2xl font-bold leading-none"
       >
-        {pulsando ? "…" : `+1 ${habit.unidad || "registro"}`}
+        +
       </button>
-
-      {hoyEventos.length > 0 && (
-        <div className="mt-4 rounded-xl border border-border bg-surface-2/50 p-3">
-          <p className="mb-2 text-xs font-medium text-muted">Registros de hoy ({hoyEventos.length})</p>
-          <ul className="flex flex-col gap-1.5">
-            {hoyEventos.map((ev, i) => (
-              <li key={ev.id} className="flex items-center justify-between gap-2 text-sm">
-                <span className="inline-flex items-center gap-1.5 text-muted">
-                  <IconCheck className="h-3.5 w-3.5 text-accent" />
-                  Registro n.º {i + 1}
-                </span>
-                <span className="text-xs tabular-nums">{formatHoraA12(ev.timestamp.slice(11, 16))} · {ev.timestamp.slice(8, 10)}/{ev.timestamp.slice(5, 7)}</span>
-                <button
-                  type="button"
-                  onClick={() => onDeshacer(ev)}
-                  className="text-xs text-danger hover:underline"
-                >
-                  Deshacer
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   crearEstadoInicial,
+  cambiarEstadoTodos,
   deshacerCumplimiento,
   guardarHabit,
   normalizarEstado,
@@ -33,6 +34,8 @@ interface StoreContextValue {
   guardarSettings: (settings: Settings) => void;
   registrar: (habitId: string, momentId: string | undefined, fecha: string, subtareasCompletadas?: string[]) => void;
   deshacer: (event: CompletionEvent) => void;
+  /** Modo vacaciones: pausa o reanuda todos los hábitos no archivados de una vez. */
+  cambiarEstadoTodos: (estado: "activo" | "pausado") => void;
   rehidratar: () => Promise<void>;
   /** E3: reenvía la cola pendiente ahora (p. ej. antes de cerrar sesión). */
   sincronizarAhora: () => Promise<void>;
@@ -438,6 +441,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           );
         }
         logEvent("COMPLETION_UNDONE", "completion", event.eventId, { habitId: event.habitId, fecha: event.fecha });
+      },
+      cambiarEstadoTodos: (estado) => {
+        const afectados = stateRef.current.habits.filter((h) => h.estado !== "archivado" && h.estado !== estado);
+        if (afectados.length === 0) return;
+        setState((s) => cambiarEstadoTodos(s, estado));
+        const supabase = getSupabase();
+        if (supabase && userId) {
+          for (const h of afectados) {
+            const habit = { ...h, estado, actualizadoEn: new Date().toISOString() };
+            const payload = { id: habit.id, user_id: userId, data: habit };
+            void sincronizar(
+              { kind: "upsert_habit", payload },
+              () => supabase.from("habits").upsert(payload).then((r) => ({ error: r.error })),
+              "actualizar hábito",
+            );
+          }
+        }
       },
     }),
     [userId, sincronizar, rehidratarFn, reenviarPendientes],

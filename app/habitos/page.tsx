@@ -10,9 +10,12 @@ import {
   IconBorrar,
   IconCategoria,
   IconCheck,
+  IconDescanso,
+  IconDuplicar,
   IconEditar,
   IconFlechaAtras,
   IconPlus,
+  IconRayo,
   IconX,
 } from "../../lib/icons";
 
@@ -27,6 +30,25 @@ const CATEGORIAS: { valor: Categoria; etiqueta: string }[] = [
 
 const COLORES = ["#328b78", "#6366f1", "#d28a4d", "#ef4444", "#3b82f6", "#a855f7", "#22c55e", "#eab308"];
 
+interface Plantilla {
+  nombre: string;
+  categoria: Categoria;
+  color: string;
+  tipo: TipoHabit;
+  objetivo: number;
+  unidad?: string;
+  momentos: { tipo: "hora" | "ventana"; hora?: string; ventana?: string }[];
+}
+
+/** Plantillas de un tap: crear sin pasar por el formulario completo. */
+const PLANTILLAS: Plantilla[] = [
+  { nombre: "Tomar agua", categoria: "salud", color: "#3b82f6", tipo: "cantidad", objetivo: 8, unidad: "vasos", momentos: [] },
+  { nombre: "Leer", categoria: "crecimiento", color: "#a855f7", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "noche" }] },
+  { nombre: "Caminar", categoria: "salud", color: "#22c55e", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "manana" }] },
+  { nombre: "Meditar", categoria: "bienestar", color: "#6366f1", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "manana" }] },
+  { nombre: "Ejercicio", categoria: "salud", color: "#ef4444", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "tarde" }] },
+];
+
 function uid(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -35,10 +57,12 @@ function uid(): string {
 
 export default function GestionHabitos() {
   const { state } = useStoreState();
-  const { guardarHabit, eliminarHabit } = useStoreActions();
+  const { guardarHabit, eliminarHabit, cambiarEstadoTodos } = useStoreActions();
   const [formulario, setFormulario] = useState<Habit | null>(null);
   const [confirmarBorrado, setConfirmarBorrado] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<"todos" | EstadoHabit>("todos");
+  const [creacionRapida, setCreacionRapida] = useState(false);
+  const [nombreRapido, setNombreRapido] = useState("");
 
   const habitosVisibles = useMemo(
     () => state.habits.filter((h) => filtro === "todos" || h.estado === filtro),
@@ -75,6 +99,43 @@ export default function GestionHabitos() {
     setFormulario(null);
   }
 
+  /** Creación rápida: solo el nombre, el resto va por defecto (todos los días, un momento flexible). */
+  function crearRapido() {
+    const nombre = nombreRapido.trim();
+    if (!nombre) return;
+    guardarHabit({ ...nuevaPlantilla(), nombre });
+    setNombreRapido("");
+    setCreacionRapida(false);
+  }
+
+  function crearDesdePlantilla(p: Plantilla) {
+    guardarHabit({
+      ...nuevaPlantilla(),
+      nombre: p.nombre,
+      categoria: p.categoria,
+      color: p.color,
+      tipo: p.tipo,
+      objetivo: p.objetivo,
+      unidad: p.unidad,
+      momentos: p.momentos.map((m) => ({ id: uid(), ...m })),
+    });
+    setCreacionRapida(false);
+  }
+
+  /** Duplica un hábito con momentos nuevos e ids frescos. */
+  function duplicar(habit: Habit) {
+    const ahora = new Date().toISOString();
+    guardarHabit({
+      ...habit,
+      id: uid(),
+      nombre: `${habit.nombre || "Hábito"} (copia)`,
+      momentos: habit.momentos.map((m) => ({ ...m, id: uid() })),
+      estado: "activo",
+      creadoEn: ahora,
+      actualizadoEn: ahora,
+    });
+  }
+
   if (formulario) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -97,10 +158,51 @@ export default function GestionHabitos() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Hábitos</h1>
           <p className="mt-1 text-sm text-muted">Gestiona y configura tus hábitos.</p>
         </div>
-        <button type="button" onClick={() => setFormulario(nuevaPlantilla())} className="btn-primary min-h-11 shrink-0">
-          <IconPlus className="h-4 w-4" /> Nuevo
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {contadores.activo > 0 && (
+            <button type="button" onClick={() => cambiarEstadoTodos("pausado")} className="btn-secondary min-h-11 shrink-0" title="Pausar todos los hábitos (modo vacaciones)">
+              <IconDescanso className="h-4 w-4" /> Pausar todos
+            </button>
+          )}
+          {contadores.activo === 0 && contadores.pausado > 0 && (
+            <button type="button" onClick={() => cambiarEstadoTodos("activo")} className="btn-secondary min-h-11 shrink-0" title="Reanudar todos los hábitos pausados">
+              <IconCheck className="h-4 w-4" /> Reanudar todos
+            </button>
+          )}
+          <button type="button" onClick={() => setCreacionRapida((v) => !v)} aria-expanded={creacionRapida} className="btn-secondary min-h-11 shrink-0" title="Crear un hábito con un solo campo">
+            <IconRayo className="h-4 w-4" /> Rápido
+          </button>
+          <button type="button" onClick={() => setFormulario(nuevaPlantilla())} className="btn-primary min-h-11 shrink-0">
+            <IconPlus className="h-4 w-4" /> Nuevo
+          </button>
+        </div>
       </header>
+
+      {creacionRapida && (
+        <section className="card p-4" aria-label="Creación rápida de hábito">
+          <div className="flex gap-2">
+            <input
+              value={nombreRapido}
+              onChange={(e) => setNombreRapido(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") crearRapido(); }}
+              placeholder="Nombre del hábito (ej. Meditar)"
+              aria-label="Nombre del hábito"
+              className="input-field min-h-11 min-w-0 flex-1"
+            />
+            <button type="button" onClick={crearRapido} disabled={!nombreRapido.trim()} className="btn-primary min-h-11 shrink-0">
+              Crear
+            </button>
+          </div>
+          <p className="mb-2 mt-4 text-xs font-medium text-muted">O empieza con una plantilla:</p>
+          <div className="flex flex-wrap gap-2">
+            {PLANTILLAS.map((p) => (
+              <button key={p.nombre} type="button" onClick={() => crearDesdePlantilla(p)} className="chip min-h-10 hover:border-accent hover:text-accent" title={`Crear "${p.nombre}"`}>
+                <IconCategoria categoria={p.categoria} className="h-3.5 w-3.5" /> {p.nombre}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {(["todos", "activo", "pausado", "archivado"] as const).map((f) => (
@@ -175,6 +277,9 @@ export default function GestionHabitos() {
                         className={`absolute top-1 left-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${habit.estado === "activo" ? "translate-x-5" : "translate-x-0"}`}
                       />
                     </span>
+                  </button>
+                  <button type="button" onClick={() => duplicar(habit)} className="btn-icon min-h-[40px] min-w-[40px]" title="Duplicar" aria-label={`Duplicar ${habit.nombre || "hábito"}`}>
+                    <IconDuplicar className="h-4 w-4" />
                   </button>
                   <button type="button" onClick={() => setFormulario(habit)} className="btn-icon min-h-[40px] min-w-[40px]" title="Editar" aria-label="Editar">
                     <IconEditar className="h-4 w-4" />

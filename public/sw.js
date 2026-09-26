@@ -52,6 +52,7 @@ self.addEventListener("push", (event) => {
       badge: "/icon.svg",
       tag: `habito-${habitId}-${momentId}-${new Date().toISOString().slice(0, 16)}`,
       data: data.data || { url: "/" },
+      actions: data.actions || [],
       vibrate: [120, 80, 120],
     }),
   );
@@ -64,6 +65,14 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       const existing = clients.find((client) => client.url.startsWith(self.registration.scope));
+      // Acción "hecho": la URL lleva ?complete=... y la app auto-registra el
+      // momento al abrir. Si ya hay ventana abierta, navegarla ahí.
+      if (event.action === "hecho") {
+        if (existing && "navigate" in existing) {
+          return existing.navigate(target).then((c) => c.focus());
+        }
+        return self.clients.openWindow(target);
+      }
       if (existing) return existing.focus();
       return self.clients.openWindow(target);
     }),

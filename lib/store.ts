@@ -111,8 +111,21 @@ export function guardarHabit(state: AppState, habit: Habit): AppState {
   return { ...state, habits };
 }
 
-export function eliminarHabit(state: AppState, habitId: string): AppState {
-  return {
+/**
+ * Modo vacaciones: cambia activo<->pausado en masa.
+ * No toca archivados (otra intención) ni los que ya están en el estado pedido.
+ * Reutiliza guardarHabit para que cada cambio mueva su marca LWW.
+ */
+export function cambiarEstadoTodos(state: AppState, estado: "activo" | "pausado"): AppState {
+  let s = state;
+  for (const h of state.habits) {
+    if (h.estado === "archivado" || h.estado === estado) continue;
+    s = guardarHabit(s, { ...h, estado });
+  }
+  return s;
+}
+
+export function eliminarHabit(state: AppState, habitId: string): AppState {  return {
     ...state,
     habits: state.habits.filter((item) => item.id !== habitId),
     completions: state.completions.filter((event) => event.habitId !== habitId),

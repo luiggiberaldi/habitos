@@ -210,14 +210,16 @@ async function calcularDebidos(): Promise<
       momentId: d.momentId,
       nombre: d.nombre,
       body: `Es momento de "${d.nombre}". ¡A por ello!`,
-      url: "/",
+      // Deep link de auto-registro: el botón "Listo" de la notificación abre
+      // la app y registra el momento sin más taps (ver notificationclick en sw.js).
+      url: `/?complete=${d.habitId}|${d.momentId}`,
       fecha, // P1.9: fecha en la zona del usuario (para push_log).
     }));
 }
 
 async function enviarPush(
   row: { endpoint: string; p256dh?: string | null; auth?: string | null },
-  payload: { title: string; body: string; data: { habitId: string; momentId: string; url: string } },
+  payload: { title: string; body: string; actions?: { action: string; title: string }[]; data: { habitId: string; momentId: string; url: string } },
 ): Promise<boolean> {
   try {
     // Schema real (0001): p256dh/auth son columnas planas, no JSONB "keys".
@@ -280,7 +282,12 @@ async function run(req: Request): Promise<Response> {
     if (userSubs.length === 0) continue;
 
     const fecha = d.fecha; // P1.9: ya calculada en la zona del usuario.
-    const payload = { title: "Recordatorio de hábito", body: d.body, data: { habitId: d.habitId, momentId: d.momentId, url: d.url } };
+    const payload = {
+      title: "Recordatorio de hábito",
+      body: d.body,
+      actions: [{ action: "hecho", title: "Listo" }],
+      data: { habitId: d.habitId, momentId: d.momentId, url: d.url },
+    };
 
     let exito = false;
     for (const sub of userSubs) {
