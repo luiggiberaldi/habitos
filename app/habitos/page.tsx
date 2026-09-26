@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useStoreActions, useStoreState } from "../../lib/store-context";
+import { Select } from "../../components/Select";
 import { DIAS_SEMANA } from "../../lib/dates";
 import type { Categoria, Habit, EstadoHabit, TipoHabit } from "../../lib/types";
 import {
@@ -416,33 +417,40 @@ function HabitForm({
         <div className="flex flex-col gap-2">
           {draft.momentos.map((moment) => (
             <div key={moment.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-2">
-              <select
+              <Select
                 value={moment.tipo}
-                aria-label="Tipo de momento"
-                onChange={(e) =>
+                ariaLabel="Tipo de momento"
+                options={[
+                  { value: "hora", label: "Hora fija" },
+                  { value: "ventana", label: "Ventana" },
+                ]}
+                onChange={(v) =>
                   setDraft((prev) => ({
                     ...prev,
                     momentos: prev.momentos.map((m) =>
                       m.id === moment.id
-                        ? { ...m, tipo: e.target.value as "hora" | "ventana", hora: e.target.value === "hora" ? m.hora ?? "09:00" : undefined, ventana: e.target.value === "ventana" ? m.ventana ?? "cualquier" : undefined }
+                        ? { ...m, tipo: v as "hora" | "ventana", hora: v === "hora" ? m.hora ?? "09:00" : undefined, ventana: v === "ventana" ? m.ventana ?? "cualquier" : undefined }
                         : m,
                     ),
                   }))
                 }
-                className="input-field !py-1.5 min-w-0 flex-1 basis-28"
-              >
-                <option value="hora">Hora fija</option>
-                <option value="ventana">Ventana</option>
-              </select>
+                className="min-w-0 flex-1 basis-28"
+              />
               {moment.tipo === "hora" ? (
                 <input type="time" aria-label="Hora del momento" value={moment.hora ?? "09:00"} onChange={(e) => setDraft((prev) => ({ ...prev, momentos: prev.momentos.map((m) => (m.id === moment.id ? { ...m, hora: e.target.value } : m)) }))} className="input-field !py-1.5 min-w-0 flex-1 basis-28" />
               ) : (
-                <select value={moment.ventana ?? "cualquier"} aria-label="Ventana del momento" onChange={(e) => setDraft((prev) => ({ ...prev, momentos: prev.momentos.map((m) => (m.id === moment.id ? { ...m, ventana: e.target.value } : m)) }))} className="input-field !py-1.5 min-w-0 flex-1 basis-28">
-                  <option value="manana">Mañana</option>
-                  <option value="tarde">Tarde</option>
-                  <option value="noche">Noche</option>
-                  <option value="cualquier">Cualquier momento</option>
-                </select>
+                <Select
+                  value={moment.ventana ?? "cualquier"}
+                  ariaLabel="Ventana del momento"
+                  options={[
+                    { value: "manana", label: "Mañana" },
+                    { value: "tarde", label: "Tarde" },
+                    { value: "noche", label: "Noche" },
+                    { value: "cualquier", label: "Cualquier momento" },
+                  ]}
+                  onChange={(v) => setDraft((prev) => ({ ...prev, momentos: prev.momentos.map((m) => (m.id === moment.id ? { ...m, ventana: v } : m)) }))}
+                  className="min-w-0 flex-1 basis-28"
+                />
               )}
               <button type="button" onClick={() => alternarMomento(moment.id)} className="btn-icon ml-auto min-h-[36px] min-w-[36px] hover:!text-danger" title="Quitar" aria-label="Quitar momento">
                 <IconX className="h-4 w-4" />
