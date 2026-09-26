@@ -26,8 +26,7 @@ interface StoreContextValue {
 
 const StoreContext = createContext<StoreContextValue | null>(null);
 
-function cargarEstado(): AppState {
-  if (typeof window === "undefined") return crearEstadoInicial();
+function cargarEstadoGuardado(): AppState {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     return raw ? normalizarEstado(JSON.parse(raw)) : crearEstadoInicial();
@@ -37,15 +36,22 @@ function cargarEstado(): AppState {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(cargarEstado);
+  const [state, setState] = useState<AppState>(crearEstadoInicial);
+  const [estadoCargado, setEstadoCargado] = useState(false);
 
   useEffect(() => {
+    setState(cargarEstadoGuardado());
+    setEstadoCargado(true);
+  }, []);
+
+  useEffect(() => {
+    if (!estadoCargado) return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       /* almacenamiento no disponible */
     }
-  }, [state]);
+  }, [state, estadoCargado]);
 
   const value = useMemo<StoreContextValue>(
     () => ({
