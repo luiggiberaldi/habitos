@@ -223,3 +223,41 @@ Criterio: `tsc` y `lint` en 0 errores antes de cerrar cada fase (los 5 warnings 
 *Nota de entorno: la copia de trabajo vive en `~/workspace/habitos` (se movió desde `/tmp` porque el tmpfs estaba al 100%). `.env.local` está configurado localmente (gitignored, no commitear). No aplicar migraciones ni pushear sin autorización explícita.*
 
 *Nota 2026-09-26 (Fase P0): `npm run build` NO corre en esta VM — el binario nativo de SWC (`@next/swc-linux-x64-gnu`) muere con SIGBUS ("Bus error") al cargarse, incluso recién reinstalado. Es un problema del entorno, no del código. Validación sustituta: `tsc --noEmit` (0 errores propios; persisten los 5 TS2306 preexistentes de `node_modules/next/*.d.ts`, ver P3.2), `eslint` (0 errores, 0 warnings) y smoke tests de runtime de `lib/event-id.ts` + `lib/store.ts` (8/8 asserts OK).*`
+
+---
+
+## 9. Implementación del plan de verificación (2026-09-26)
+
+Tras la verificación profunda, luigi autorizó implementar todo el plan (fases A–E).
+
+### Fase A — Visibilidad
+- `app/ajustes/page.tsx`: nueva tarjeta "Sincronización" que muestra `errorSync` (antes invisible) con botón "Reintentar" → `rehidratar()`.
+
+### Fase B — Control conversacional (código listo; falta ejecutar en Supabase)
+- `supabase/migrations/0008_rpc_conversacional.sql`: funciones `SECURITY DEFINER` (`rpc_habitos_list`, `rpc_habitos_completions`, `rpc_habitos_upsert`, `rpc_habitos_complete`, `rpc_habitos_delete`) + validador `rpc_habitos_secret_ok()`. El secreto viaja en el header `x-habitos-rpc-secret` (se lee de `request.headers`), se configura con `ALTER DATABASE postgres SET app.habitos_rpc_secret = '...'` y **nunca** va en el repo. Grants: solo `anon, authenticated`.
+- Skill `supabase-habitos`: `bin/habitos.py` reescrito para RPC (doble sustituto: `apikey` + `x-habitos-rpc-secret` vía bóveda); sin flags de secreto. Comandos: `habits`, `today`, `complete`, `create`, `delete`.
+- Pendiente (requiere a luigi): correr la migración + `ALTER DATABASE` en el dashboard, y entregar el secreto vía bóveda segura.
+
+### Fase C — Push (código listo; falta desplegar)
+- Eliminada `supabase/functions/push-subscriptions` (código muerto, referenciaba columna `keys` inexistente).
+- `push-notifications`: paginación del scheduler (P3.4) en `push_subscriptions` y `habits`.
+- `scripts/deploy-push.sh`: despliega la función y configura secretos (`VAPID_*`, `CRON_SECRET`).
+- `supabase/push-cron.sql`: `pg_cron` cada minuto con `x-cron-secret` (correr en dashboard).
+- Pendiente (requiere a luigi): token de acceso Supabase o correr el script él mismo + SQL del cron.
+
+### Fase D — Robustez del sync
+- **D1** (`lib/store.ts`): ids demo con sufijo aleatorio por instalación (`demo-agua-<rand>`); la PK de `habits.id` es global.
+- **D2**: `eliminarHabit` borra también las completions remotas (nueva op `delete_completions_of_habit` con reintento correcto por `habit_id`); `fusionarHidratacion` filtra completions huérfanas.
+- **D3** (`rehidratar`): tras reenviar la cola y descargar tombstones, **sube el diff local** (hábitos ausentes en remoto o con `actualizadoEn >= updated_at`), saltando ids con tombstone. Antes, lo local nunca llegaba a la nube.
+- **D4** (`sync-merge.ts`): cuando gana el remoto, `actualizadoEn` se refresca desde `updated_at` (no se mezclan relojes en la próxima ronda).
+- **D5**: si falla la descarga de tombstones se aborta el rehydrate (antes seguía sin ellos y resucitaba borrados).
+
+### Fase E — Higiene
+- **E1** (`estadisticas`): los días del calendario ahora seleccionan y muestran su detalle (`aria-pressed` + live region); antes eran botones enfocables sin acción.
+- **E2**: `encolar` avisa vía `errorSync` cuando la cola pasa de 200 ops y se descarta la más antigua.
+- **E3**: `sincronizarAhora()` expuesta en el contexto; `Nav` la llama antes de `cerrarSesion` (la cola ya no queda huérfana).
+- **E4**: `delete_push` y `desuscribirPush` filtran por `user_id` además de `endpoint`.
+- **E5** (`lib/logger.ts`): `logEvent` documentado como fire-and-forget intencional (telemetría, no estado).
+
+### Validación
+`tsc` 0 errores, `eslint` 0/0, `next build` OK, smoke 17/17.

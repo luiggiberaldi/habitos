@@ -34,6 +34,8 @@ interface StoreContextValue {
   registrar: (habitId: string, momentId: string | undefined, fecha: string, subtareasCompletadas?: string[]) => void;
   deshacer: (event: CompletionEvent) => void;
   rehidratar: () => Promise<void>;
+  /** E3: reenvía la cola pendiente ahora (p. ej. antes de cerrar sesión). */
+  sincronizarAhora: () => Promise<void>;
   /** Descripción del último error de sincronización no-red, o null si todo está al día. */
   errorSync: string | null;
 }
@@ -66,6 +68,8 @@ type PendingOp =
   | { kind: "delete_habit"; id: string }
   | { kind: "upsert_completion"; payload: unknown }
   | { kind: "delete_completion"; event_id: string }
+  /** D2: borrado en cascada de las completions de un hábito eliminado. */
+  | { kind: "delete_completions_of_habit"; habit_id: string }
   | { kind: "delete_push"; endpoint: string }
   /** P2.6: tombstone de hábito borrado (para que el borrado viaje entre dispositivos). */
   | { kind: "upsert_tombstone"; payload: unknown };
@@ -167,8 +171,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         } else if (op.kind === "delete_completion") {
           const { error } = await supabase.from("completions").delete().eq("event_id", op.event_id).eq("user_id", userId);
           if (error) restantes.push(op);
+        } else if (op.kind === "delete_completions_of_habit") {
+          // D2: reintento del borrado en cascada (ver eliminarHabit).
+          const { error } = await supabase.from("completions").delete().eq("habit_id", op.habit_id).eq("user_id", userId);
+          if (error) restantes.push(op);
         } else if (op.kind === "delete_push") {
-          const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", op.endpoint);
+          // E4: filtrar por user_id además del endpoint.
+          const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", op.endpoint).eq("user_id", userId);
           if (error) restantes.push(op);
         } else if (op.kind === "upsert_tombstone") {
           // P2.6
@@ -184,15 +193,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     sincronizandoRef.current = false;
   }, [userId]);
 
+  /** Encola una operación para reintento cuando vuelva la conexión. */
+  const encolar = useCallback((op: PendingOp): void => {
+    const previos = pendientesRef.current;
+    pendientesRef.current = [...previos, op];
+    guardarPendientes(clavePendientes(userId), pendientesRef.current);
+    // E2: guardarPendientes recorta a 200 en silencio — si se descartó la más
+    // antigua, que el usuario lo vea en vez de perderla sin rastro.
+    if (previos.length >= 200) {
+      setErrorSync("cola de sincronización llena: el cambio más antiguo se descartó");
+    }
+  }, [userId]);
+
   /**
    * Descarga los datos del usuario desde Supabase y hace merge bidireccional:
    *  - Los pendientes off-line se reenvían primero para no pisar cambios sin subir.
+   *  - D3: el diff local (hábitos que el servidor no tiene o que son más nuevos
+   *    en local) se sube ANTES de descargar — antes, un hábito creado en local
+   *    nunca llegaba a la nube porque el rehydrate solo vaciaba la cola.
    *  - Los habits/completions del servidor se fusionan con los locales (por id / event_id).
    *
-   * P0.1: useCallback con deps [userId, reenviarPendientes] — identidad estable, así
-   * el efecto que la invoca no se re-dispara en loop. El merge vive dentro del updater
-   * funcional (cierra la condición de carrera: un tap durante el SELECT no se pierde)
-   * y solo actualiza el estado si hubo cambios reales.
+   * P0.1: useCallback con identidad estable; el merge vive dentro del updater
+   * funcional y solo actualiza el estado si hubo cambios reales.
+   * D5: si falla la descarga de tombstones se aborta — seguir sin ellos
+   * resucitaría hábitos borrados en otro dispositivo.
    */
   const rehidratar = useCallback(async (): Promise<void> => {
     const supabase = getSupabase();
@@ -202,7 +226,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await reenviarPendientes();
 
     try {
-      // P1.6: PostgREST pagina/trunca en 1000 filas por defecto; recorrer por páginas.
+      // 2. Tombstones primero: D5 aborta si fallan; D3 los necesita para no
+      // resucitar borrados de otro dispositivo.
+      const borrados = new Set<string>();
+      {
+        const { data: tombRows, error: tError } = await supabase.from("deleted_habits").select("habit_id");
+        if (tError) {
+          if (!esErrorRed(tError)) console.error("Error descargando borrados:", tError.message);
+          return;
+        }
+        for (const t of tombRows ?? []) borrados.add((t as { habit_id: string }).habit_id);
+      }
+
+      // 3. Descargar habits (paginado: PostgREST trunca en 1000 filas).
       const PAGE = 1000;
       const habitsRows: RemoteHabitRow[] = [];
       for (let from = 0; ; from += PAGE) {
@@ -218,7 +254,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!data || data.length < PAGE) break;
       }
 
-      // 3. Traer completions del servidor (también paginado).
+      // 4. D3: subir el diff local antes de fusionar.
+      {
+        const remoteTsById = new Map(habitsRows.map((r) => [r.id, r.updated_at ?? ""]));
+        const paraSubir = stateRef.current.habits.filter((h) => {
+          if (borrados.has(h.id)) return false; // no resucitar borrados ajenos
+          const remoteTs = remoteTsById.get(h.id);
+          if (remoteTs === undefined) return true; // no existe en remoto
+          const localTs = h.actualizadoEn ?? h.creadoEn ?? "";
+          return localTs >= remoteTs; // empate o más nuevo: el local gana el LWW
+        });
+        for (const h of paraSubir) {
+          const payload = { id: h.id, user_id: userId, data: h };
+          const { error } = await supabase.from("habits").upsert(payload);
+          if (error) {
+            if (esErrorRed(error)) {
+              encolar({ kind: "upsert_habit", payload });
+            } else {
+              console.error("Error subiendo hábito local:", error.message);
+              setErrorSync("subir cambios locales");
+            }
+          }
+        }
+      }
+
+      // 5. Traer completions del servidor (también paginado).
       const compRows: RemoteCompletionRow[] = [];
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await supabase
@@ -233,15 +293,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!data || data.length < PAGE) break;
       }
 
-      // 4. P2.6: tombstones de borrados (propagan deletes entre dispositivos).
-      const borrados = new Set<string>();
-      const { data: tombRows, error: tError } = await supabase.from("deleted_habits").select("habit_id");
-      if (tError) {
-        if (!esErrorRed(tError)) console.error("Error descargando borrados:", tError.message);
-      } else {
-        for (const t of tombRows ?? []) borrados.add((t as { habit_id: string }).habit_id);
-      }
-
       setState((prev) =>
         fusionarHidratacion(
           prev,
@@ -254,13 +305,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (esErrorRed(e)) return; // sin conexión: no romper
       console.error("Error durante la hidratación:", e);
     }
-  }, [userId, reenviarPendientes]);
-
-  /** Encola una operación para reintento cuando vuelva la conexión. */
-  const encolar = useCallback((op: PendingOp): void => {
-    pendientesRef.current = [...pendientesRef.current, op];
-    guardarPendientes(clavePendientes(userId), pendientesRef.current); // P1.5
-  }, [userId]);
+  }, [userId, reenviarPendientes, encolar]);
 
   /**
    * P0.3 (guardarraíl #2): ejecuta un write remoto inspeccionando SIEMPRE el
@@ -304,6 +349,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const actions = useMemo<Omit<StoreContextValue, "state" | "errorSync">>(
     () => ({
       rehidratar: rehidratarFn,
+      // E3: exponer el flush para que el cierre de sesión no deje la cola huérfana.
+      sincronizarAhora: reenviarPendientes,
       guardarHabit: (habit) => {
         const esNuevo = !stateRef.current.habits.some((h) => h.id === habit.id);
         setState((s) => guardarHabit(s, habit));
@@ -327,6 +374,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             { kind: "delete_habit", id },
             () => supabase.from("habits").delete().eq("id", id).eq("user_id", userId).then((r) => ({ error: r.error })),
             "eliminar hábito",
+          );
+          // D2: borrar también sus completions remotas — si no, quedan huérfanas
+          // y el merge las filtraba, pero seguían ocupando la tabla.
+          void sincronizar(
+            { kind: "delete_completions_of_habit", habit_id: id },
+            () =>
+              supabase
+                .from("completions")
+                .delete()
+                .eq("habit_id", id)
+                .eq("user_id", userId)
+                .then((r) => ({ error: r.error })),
+            "eliminar cumplimientos del hábito",
           );
           // P2.6: tombstone para que el borrado se propague a otros dispositivos
           // (el rehydrate de otro dispositivo ya no lo re-agregará).
@@ -380,7 +440,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         logEvent("COMPLETION_UNDONE", "completion", event.eventId, { habitId: event.habitId, fecha: event.fecha });
       },
     }),
-    [userId, sincronizar, rehidratarFn],
+    [userId, sincronizar, rehidratarFn, reenviarPendientes],
   );
 
   // Rehidratar al iniciar sesión (cambio de usuario) y al volver a estar online.

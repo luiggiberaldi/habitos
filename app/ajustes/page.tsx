@@ -6,11 +6,12 @@ import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSoni
 import { IconCampana, IconDescanso, IconLuna, IconMovimiento, IconSistema, IconSol } from "../../lib/icons";
 
 export default function Ajustes() {
-  const { state } = useStoreState();
-  const { guardarSettings } = useStoreActions();
+  const { state, errorSync } = useStoreState();
+  const { guardarSettings, rehidratar } = useStoreActions();
   const settings = state.settings;
   const [notificationMessage, setNotificationMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reintentando, setReintentando] = useState(false);
 
   // P1.9: el toggle cablea la suscripción web push de verdad — antes solo pedía
   // permiso local y suscribirPush() nunca se invocaba desde la UI.
@@ -95,6 +96,42 @@ export default function Ajustes() {
               </button>
             );
           })}
+        </div>
+      </section>
+
+      {/* Sincronización — A1: errorSync antes era invisible; ahora la UI
+          muestra si algo no se pudo subir a la nube y permite reintentar. */}
+      <section className="card p-4 sm:p-5" aria-live="polite">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <span
+              aria-hidden
+              className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${errorSync ? "bg-amber-500" : "bg-emerald-500"}`}
+            />
+            <div className="min-w-0">
+              <h2 className="font-semibold">Sincronización</h2>
+              <p className="text-sm text-muted">
+                {errorSync
+                  ? `No se pudo sincronizar: ${errorSync}. Tus cambios están guardados en este dispositivo.`
+                  : "Todo sincronizado con la nube."}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={reintentando}
+            onClick={async () => {
+              setReintentando(true);
+              try {
+                await rehidratar();
+              } finally {
+                setReintentando(false);
+              }
+            }}
+            className="min-h-11 rounded-xl border border-border px-4 text-sm font-medium text-accent hover:bg-accent-soft disabled:opacity-50"
+          >
+            {reintentando ? "Sincronizando…" : "Reintentar"}
+          </button>
         </div>
       </section>
 

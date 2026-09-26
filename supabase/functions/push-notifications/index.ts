@@ -93,29 +93,44 @@ async function calcularDebidos(): Promise<
   // P1.8: timezone real por usuario desde push_subscriptions.timezone
   // (la escribe el cliente en guardarSuscripcion). Sin suscripción no hay a
   // quién enviar, así que solo importan los usuarios suscritos.
+  // P3.4: paginado — PostgREST trunca en 1000 filas.
   const tzPorUsuario = new Map<string, string>();
-  const { data: tzRows, error: tzError } = await supabase
-    .from("push_subscriptions")
-    .select("user_id, timezone");
-  if (tzError) {
-    console.error("Error leyendo timezones:", tzError.message);
-  }
-  for (const r of tzRows ?? []) {
-    if (r.user_id && !tzPorUsuario.has(r.user_id)) {
-      tzPorUsuario.set(r.user_id, (r as { timezone?: string | null }).timezone || DEFAULT_TIMEZONE);
+  for (let from = 0; ; from += 1000) {
+    const { data: tzRows, error: tzError } = await supabase
+      .from("push_subscriptions")
+      .select("user_id, timezone")
+      .order("user_id")
+      .range(from, from + 999);
+    if (tzError) {
+      console.error("Error leyendo timezones:", tzError.message);
+      break;
     }
+    for (const r of tzRows ?? []) {
+      const row = r as { user_id: string; timezone?: string | null };
+      if (row.user_id && !tzPorUsuario.has(row.user_id)) {
+        tzPorUsuario.set(row.user_id, row.timezone || DEFAULT_TIMEZONE);
+      }
+    }
+    if (!tzRows || tzRows.length < 1000) break;
   }
 
   // 1. Leer hábitos activos con su data (el estado está dentro de la columna jsonb "data",
   //    no como una columna separada). Filtramos por data->>'estado' = 'activo'.
-  const { data: habits, error } = await supabase
-    .from("habits")
-    .select("id, user_id, data")
-    .filter("data->>estado", "eq", "activo");
-
-  if (error) {
-    console.error("Error leyendo hábitos:", error.message);
-    return [];
+  //    P3.4: paginado.
+  const habits: { id: string; user_id: string; data: unknown }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("habits")
+      .select("id, user_id, data")
+      .filter("data->>estado", "eq", "activo")
+      .order("id")
+      .range(from, from + 999);
+    if (error) {
+      console.error("Error leyendo hábitos:", error.message);
+      return [];
+    }
+    habits.push(...((data ?? []) as { id: string; user_id: string; data: unknown }[]));
+    if (!data || data.length < 1000) break;
   }
 
   const debidos: { habitId: string; momentId: string; userId: string; nombre: string }[] = [];

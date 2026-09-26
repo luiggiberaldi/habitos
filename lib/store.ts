@@ -18,16 +18,21 @@ function makeHabit(habit: Omit<Habit, "historialObjetivos" | "actualizadoEn">): 
 
 export function crearEstadoInicial(): AppState {
   const creadoEn = new Date().toISOString();
+  // D1: los ids demo eran fijos ("demo-agua") y habits.id es PK GLOBAL — dos
+  // usuarios con el demo sin renombrar colisionaban en silencio (upsert ajeno).
+  // Ahora cada instalación genera su propio sufijo; instalaciones existentes
+  // conservan sus ids (no se migran).
+  const sufijo = Math.random().toString(36).slice(2, 10);
   const agua: Habit = makeHabit({
-    id: "demo-agua", nombre: "Tomar agua", descripcion: "Un vaso y una pausa para hidratarte.", icono: "💧", color: "#328b78", categoria: "salud", dias: [0, 1, 2, 3, 4, 5, 6], objetivo: 3,
+    id: `demo-agua-${sufijo}`, nombre: "Tomar agua", descripcion: "Un vaso y una pausa para hidratarte.", icono: "💧", color: "#328b78", categoria: "salud", dias: [0, 1, 2, 3, 4, 5, 6], objetivo: 3,
     momentos: [{ id: "agua-manana", tipo: "hora", hora: "09:00" }, { id: "agua-mediodia", tipo: "hora", hora: "13:00" }, { id: "agua-tarde", tipo: "hora", hora: "18:00" }], estado: "activo", creadoEn,
   });
   const lectura: Habit = makeHabit({
-    id: "demo-lectura", nombre: "Leer un poco", descripcion: "Diez minutos también cuentan.", icono: "📖", color: "#7964a9", categoria: "crecimiento", dias: [1, 2, 3, 4, 5, 6, 0], objetivo: 1,
+    id: `demo-lectura-${sufijo}`, nombre: "Leer un poco", descripcion: "Diez minutos también cuentan.", icono: "📖", color: "#7964a9", categoria: "crecimiento", dias: [1, 2, 3, 4, 5, 6, 0], objetivo: 1,
     momentos: [{ id: "lectura-noche", tipo: "ventana", ventana: "noche" }], estado: "activo", creadoEn,
   });
   const caminar: Habit = makeHabit({
-    id: "demo-caminar", nombre: "Salir a caminar", descripcion: "A tu ritmo, sin prisa.", icono: "🚶", color: "#d28a4d", categoria: "bienestar", dias: [1, 2, 3, 4, 5], objetivo: 1,
+    id: `demo-caminar-${sufijo}`, nombre: "Salir a caminar", descripcion: "A tu ritmo, sin prisa.", icono: "🚶", color: "#d28a4d", categoria: "bienestar", dias: [1, 2, 3, 4, 5], objetivo: 1,
     momentos: [{ id: "caminar-manana", tipo: "ventana", ventana: "manana" }], estado: "activo", creadoEn,
   });
   const completions: CompletionEvent[] = [];

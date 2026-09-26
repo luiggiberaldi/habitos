@@ -25,6 +25,9 @@ function comparativa(actual: number, anterior: number, sufijo = "") {
 export default function Estadisticas() {
   const { state } = useStoreState();
   const [rango, setRango] = useState<7 | 30>(7);
+  // E1: los días eran <button> enfocables sin acción. Ahora activar un día lo
+  // selecciona y muestra su detalle en texto (también para teclado/lector).
+  const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(null);
   const hoy = todayKey();
   const inicio = todayKey(addDays(new Date(`${hoy}T12:00:00`), -(rango - 1)));
   const inicioAnterior = todayKey(addDays(new Date(`${inicio}T12:00:00`), -rango));
@@ -130,7 +133,7 @@ export default function Estadisticas() {
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="font-semibold">Calendario de actividad</h2>
-            <p className="mt-1 text-xs text-muted">Cada cuadro es un día; pasa el cursor o enfócalo para ver el detalle.</p>
+            <p className="mt-1 text-xs text-muted">Cada cuadro es un día; tócalo para ver el detalle.</p>
           </div>
           <span className="text-xs text-muted">{rango} días</span>
         </div>
@@ -146,13 +149,23 @@ export default function Estadisticas() {
             <button
               key={fecha}
               type="button"
+              onClick={() => setDiaSeleccionado((prev) => (prev === fecha ? null : fecha))}
+              aria-pressed={diaSeleccionado === fecha}
               className="group relative aspect-square min-h-4 min-w-0 rounded-sm outline-none transition-transform hover:z-10 hover:scale-125 focus-visible:z-10 focus-visible:scale-125 focus-visible:ring-2 focus-visible:ring-accent"
               style={{ backgroundColor: intensidadColor(conteo) }}
               title={`${fecha}: ${conteo} registro${conteo !== 1 ? "s" : ""}`}
-              aria-label={`${fecha}: ${conteo} registro${conteo !== 1 ? "s" : ""}`}
+              aria-label={`${fecha}: ${conteo} registro${conteo !== 1 ? "s" : ""}. Activar para ver el detalle.`}
             />
           ))}
         </div>
+        <p role="status" aria-live="polite" className="mt-2 min-h-5 text-xs text-muted">
+          {diaSeleccionado
+            ? (() => {
+                const d = diasCalendario.find((x) => x.fecha === diaSeleccionado);
+                return d ? `${d.fecha}: ${d.conteo} registro${d.conteo !== 1 ? "s" : ""}.` : "";
+              })()
+            : "Toca un día para ver su detalle."}
+        </p>
         <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5" aria-label="Leyenda de intensidad: de menos a más registros">
           <span className="text-[10px] text-muted">Menos</span>
           {["var(--border)", "color-mix(in srgb, var(--accent) 30%, transparent)", "color-mix(in srgb, var(--accent) 65%, transparent)", "var(--accent)"].map((c, i) => (

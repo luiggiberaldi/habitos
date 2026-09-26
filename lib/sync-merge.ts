@@ -49,22 +49,32 @@ export function fusionarHidratacion(
     // P1.3 last-write-wins: compara ISO strings (orden lexicográfico = cronológico).
     const remoteTs = remoteTsById.get(r.id) ?? "";
     const localTs = local.actualizadoEn ?? local.creadoEn ?? "";
-    return remoteTs > localTs ? r : local;
+    if (remoteTs > localTs) {
+      // D4: ganó el remoto — refrescar la marca LWW local desde updated_at del
+      // servidor para no mezclar relojes (cliente vs servidor) en la próxima ronda.
+      return { ...r, actualizadoEn: remoteTs };
+    }
+    return local;
   });
   for (const h of prev.habits) {
     if (borrados.has(h.id)) continue; // P2.6: purga local del borrado en otro dispositivo.
     if (!mergedHabits.some((m) => m.id === h.id)) mergedHabits.push(h);
   }
 
-  const remotosCompletions: CompletionEvent[] = compRows.map((r) => ({
-    id: r.event_id,
-    habitId: r.habit_id,
-    momentId: r.moment_id ?? undefined,
-    fecha: r.fecha,
-    timestamp: r.created_at ?? "", // P2.4
-    eventId: r.event_id,
-    subtareasCompletadas: r.subtareas_completadas ?? [],
-  }));
+  // D2: las completions cuyo hábito ya no existe (borrado en otro dispositivo
+  // o filas huérfanas de borrados viejos) no reaparecen.
+  const habitIds = new Set(mergedHabits.map((h) => h.id));
+  const remotosCompletions: CompletionEvent[] = compRows
+    .filter((r) => habitIds.has(r.habit_id))
+    .map((r) => ({
+      id: r.event_id,
+      habitId: r.habit_id,
+      momentId: r.moment_id ?? undefined,
+      fecha: r.fecha,
+      timestamp: r.created_at ?? "", // P2.4
+      eventId: r.event_id,
+      subtareasCompletadas: r.subtareas_completadas ?? [],
+    }));
   const localByEvent = new Map(prev.completions.map((c) => [c.eventId, c]));
   const mergedCompletions = remotosCompletions.filter((r) => !localByEvent.has(r.eventId));
   for (const c of prev.completions) mergedCompletions.push(c);

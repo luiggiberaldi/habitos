@@ -77,8 +77,11 @@ export async function desuscribirPush(): Promise<void> {
     if (!subscription) return;
     try {
       const supabase = getSupabase();
-      if (supabase) {
-        await supabase.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint);
+      const user = supabase ? await supabase.auth.getUser() : null;
+      const userId = user?.data?.user?.id;
+      if (supabase && userId) {
+        // E4: filtrar por user_id — el endpoint solo no basta (RLS y precisión).
+        await supabase.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint).eq("user_id", userId);
       }
     } catch {
       /* no crítico */

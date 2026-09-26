@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
 import { useAuth } from "./AuthGate";
+import { useStoreActions } from "../lib/store-context";
 import { IconAjustes, IconEstadisticas, IconInicio, IconLista, IconCerrarSesion } from "../lib/icons";
 
 const items = [
@@ -16,6 +17,17 @@ const items = [
 export default function Nav() {
   const pathname = usePathname();
   const { user, cerrarSesion } = useAuth();
+  const { sincronizarAhora } = useStoreActions();
+
+  // E3: reenviar la cola pendiente antes de salir — si no, quedaba huérfana
+  // bajo la clave del usuario anterior.
+  const salir = async () => {
+    try {
+      await sincronizarAhora();
+    } finally {
+      await cerrarSesion();
+    }
+  };
 
   return (
     <>
@@ -54,7 +66,7 @@ export default function Nav() {
         </nav>
         <div className="border-t border-border p-3">
           <button
-            onClick={cerrarSesion}
+            onClick={salir}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-all hover:bg-surface-2 hover:text-foreground"
           >
             <IconCerrarSesion className="h-5 w-5" />
@@ -87,7 +99,7 @@ export default function Nav() {
             );
           })}
           <button
-            onClick={cerrarSesion}
+            onClick={salir}
             aria-label="Cerrar sesión"
             className="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-[11px] font-medium text-muted transition-colors hover:text-foreground min-h-[44px]"
           >
