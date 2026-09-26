@@ -77,7 +77,14 @@ export function fusionarHidratacion(
     }));
   const localByEvent = new Map(prev.completions.map((c) => [c.eventId, c]));
   const mergedCompletions = remotosCompletions.filter((r) => !localByEvent.has(r.eventId));
-  for (const c of prev.completions) mergedCompletions.push(c);
+  // D6: purga local de completions huérfanas — su hábito ya no existe en el
+  // estado fusionado (borrado en otro dispositivo o demo duplicado podado).
+  // Sin esto, los registros de demos eliminados quedan flotando en el
+  // localStorage para siempre (no suman XP porque puntosTotalesParaFecha
+  // filtra por hábitos existentes, pero ensucian el estado).
+  for (const c of prev.completions) {
+    if (habitIds.has(c.habitId)) mergedCompletions.push(c);
+  }
 
   // Sin cambios de contenido → conservar la referencia anterior.
   // P1.3: comparar por IDENTIDAD (===), no por id — con last-write-wins el

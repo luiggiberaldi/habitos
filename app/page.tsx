@@ -6,6 +6,7 @@ import {
   PUNTOS_OBJETIVO_DIARIO,
   PUNTOS_POR_REGISTRO,
   LOGROS,
+  NIVELES,
   diasCumplidosEnSemana,
   fraseIdentidad,
   nivelParaXp,
@@ -18,6 +19,7 @@ import { suscribirEventosJuego, type EventoJuego } from "../lib/juego";
 import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
 import Logo from "../components/Logo";
 import Celebracion, { type CelebracionData } from "../components/Celebracion";
+import { AvatarNivel } from "../components/AvatarNivel";
 import {
   IconAlerta,
   IconCandado,
@@ -53,8 +55,15 @@ const ICONOS_LOGRO: Record<IconoLogro, (props: { className?: string }) => React.
 
 function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
   switch (e.tipo) {
-    case "subida-nivel":
-      return { icono: <IconEstrella className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+    case "subida-nivel": {
+      const nv = Math.min(9, Math.max(1, Number(e.dato) || 1));
+      const def = NIVELES.find((n) => n.nivel === nv);
+      return {
+        icono: <AvatarNivel nivel={nv} nombre={def?.nombre ?? ""} className="h-14 w-14" />,
+        titulo: e.titulo,
+        detalle: e.detalle,
+      };
+    }
     case "logro": {
       const def = LOGROS.find((l) => l.id === e.dato);
       const Icono = def ? ICONOS_LOGRO[def.icono] : IconTrofeo;
@@ -238,12 +247,7 @@ export default function Inicio() {
             </div>
           </div>
           <div className="card flex shrink-0 items-center gap-3 px-4 py-2.5">
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-soft text-accent"
-              title={`Nivel ${nivel.nivel}: ${nivel.nombre}`}
-            >
-              <IconEstrella className="h-5 w-5" />
-            </div>
+            <AvatarNivel nivel={nivel.nivel} nombre={nivel.nombre} className="h-11 w-11 shrink-0" />
             <div className="min-w-0">
               <p className="text-xs font-semibold">
                 Nv. {nivel.nivel} · {nivel.nombre}

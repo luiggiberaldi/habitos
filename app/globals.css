@@ -241,6 +241,50 @@ select.input-field:focus {
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23276e5f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
 }
 
+/* ===== Avatares de nivel 2D (componente AvatarNivel) ===== */
+@keyframes avn-flicker {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.65; transform: scale(0.88); }
+}
+@keyframes avn-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3.5px); }
+}
+@keyframes avn-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+@keyframes avn-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes avn-eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+@keyframes avn-shine {
+  0% { transform: translateX(-18px) skewX(-12deg); }
+  55%, 100% { transform: translateX(18px) skewX(-12deg); }
+}
+@keyframes avn-rise {
+  0% { opacity: 0; transform: translateY(5px) scale(0.6); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-9px) scale(1); }
+}
+.avn-flicker { transform-box: fill-box; transform-origin: center; animation: avn-flicker 2.2s ease-in-out infinite; }
+.avn-float { transform-box: fill-box; transform-origin: center; animation: avn-float 2.6s ease-in-out infinite; }
+.avn-pulse { transform-box: fill-box; transform-origin: center; animation: avn-pulse 2.8s ease-in-out infinite; }
+.avn-spin-slow { transform-box: fill-box; transform-origin: center; animation: avn-spin 9s linear infinite; }
+.avn-spin-slower { transform-box: fill-box; transform-origin: center; animation: avn-spin 16s linear infinite; }
+/* Órbita alrededor del centro del avatar (no del propio elemento). */
+.avn-orbit { transform-box: view-box; transform-origin: 32px 32px; animation: avn-spin 5s linear infinite; }
+.avn-eq { transform-box: fill-box; transform-origin: 50% 100%; animation: avn-eq 1.4s ease-in-out infinite; }
+.avn-shine { animation: avn-shine 3.2s ease-in-out infinite; }
+.avn-rise { transform-box: fill-box; transform-origin: center; animation: avn-rise 2.4s ease-in-out infinite; }
+.avn-d1 { animation-delay: 0.18s; }
+.avn-d2 { animation-delay: 0.36s; }
+.avn-d3 { animation-delay: 0.54s; }
+.avn-d4 { animation-delay: 0.72s; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

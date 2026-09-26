@@ -237,6 +237,7 @@ export function aplicarRecompensas(
       tipo: "subida-nivel",
       titulo: `¡Nivel ${nivelDespues.nivel}: ${nivelDespues.nombre}!`,
       detalle: "Tu constancia está dando frutos.",
+      dato: String(nivelDespues.nivel),
     });
   }
 

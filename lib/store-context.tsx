@@ -23,6 +23,7 @@ import type { AppState, Habit, CompletionEvent, JuegoState, Settings } from "./t
 import { construirEventId } from "./event-id";
 import { fusionarHidratacion, type RemoteCompletionRow, type RemoteHabitRow } from "./sync-merge";
 import { getSupabase } from "./supabase";
+import { todayKey } from "./dates";
 import { useAuth } from "../components/AuthGate";
 import { logEvent } from "./logger";
 
@@ -273,10 +274,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!data || data.length < PAGE) break;
       }
 
+      // 3.5 D6: no duplicar hábitos demo entre instalaciones. crearEstadoInicial()
+      // siembra 3 demos con ids aleatorios cada vez que el localStorage está
+      // vacío (dispositivo nuevo, datos borrados); si el servidor ya tiene
+      // hábitos, esos demos recién sembrados son redundantes — el merge por id
+      // no puede conciliarlos y se acumulan como filas repetidas. Se descartan
+      // los demos prístinos (sin registros de hoy: solo traen la semilla del
+      // pasado) antes de subir el diff; si el usuario ya los usó hoy se
+      // conservan porque pasaron a ser suyos.
+      const demosPristinos = new Set<string>();
+      if (habitsRows.length > 0) {
+        const hoyKey = todayKey(new Date());
+        const conTapsHoy = new Set(
+          stateRef.current.completions.filter((c) => c.fecha >= hoyKey).map((c) => c.habitId),
+        );
+        for (const h of stateRef.current.habits) {
+          if (h.id.startsWith("demo-") && !conTapsHoy.has(h.id)) demosPristinos.add(h.id);
+        }
+        if (demosPristinos.size > 0) {
+          setState((prev) => ({
+            ...prev,
+            habits: prev.habits.filter((h) => !demosPristinos.has(h.id)),
+            completions: prev.completions.filter((c) => !demosPristinos.has(c.habitId)),
+          }));
+        }
+      }
+
       // 4. D3: subir el diff local antes de fusionar.
       {
         const remoteTsById = new Map(habitsRows.map((r) => [r.id, r.updated_at ?? ""]));
         const paraSubir = stateRef.current.habits.filter((h) => {
+          if (demosPristinos.has(h.id)) return false; // D6: demo redundante, no subir
           if (borrados.has(h.id)) return false; // no resucitar borrados ajenos
           const remoteTs = remoteTsById.get(h.id);
           if (remoteTs === undefined) return true; // no existe en remoto
