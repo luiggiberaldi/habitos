@@ -280,7 +280,7 @@ async function run(req: Request): Promise<Response> {
     if (userSubs.length === 0) continue;
 
     const fecha = d.fecha; // P1.9: ya calculada en la zona del usuario.
-    const payload = { title: "Recordatorio de hábito 🎯", body: d.body, data: { habitId: d.habitId, momentId: d.momentId, url: d.url } };
+    const payload = { title: "Recordatorio de hábito", body: d.body, data: { habitId: d.habitId, momentId: d.momentId, url: d.url } };
 
     let exito = false;
     for (const sub of userSubs) {
