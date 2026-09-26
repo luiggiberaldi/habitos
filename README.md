@@ -48,7 +48,7 @@ Fuente de verdad local: `localStorage` (`lib/store.ts`, funciones puras). Persis
   - Hábitos de cantidad: id único `habitId|cantidad|fecha|timestamp-random` (cada tap es un registro propio).
 - **Writes remotos inspeccionados.** Todo write pasa por `sincronizar()`, que revisa `result.error` (en supabase-js los errores de RLS/constraints *resuelven*, no rechazan): error de red → cola offline; otro error → se surfacea en `errorSync` ("sin sincronizar") en vez de perderse en silencio.
 - **Rehidratación.** Al iniciar sesión: primero se reenvían los pendientes offline, luego se descargan `habits`/`completions` (RLS confina al usuario) y se fusionan por `id`/`eventId` dentro del updater funcional. El estado solo se actualiza si el merge produjo cambios reales.
-- **Estrategia de conflictos (actual): local-wins.** Si un hábito existe en local, la versión remota se descarta (previsto: last-write-wins con `updated_at`, ver `docs/plan-maestro-fix.md` P1.3). No hay tombstones todavía: los borrados solo viajan en la cola del dispositivo que los originó.
+- **Estrategia de conflictos: last-write-wins.** Al hidratar, gana la versión con `updated_at` (remoto) o `actualizadoEn` (local) mayor; en empate gana local (`lib/sync-merge.ts`). Los borrados viajan como tombstones en `deleted_habits` (migración `0007`) y purgan el hábito en todos los dispositivos.
 - **Cola offline.** `habitos-pending-sync-v1` en `localStorage`, acotada a 200 ops; se reenvía al recuperar conexión (previsto: namespace por usuario, P1.5).
 
 ## Migraciones (Supabase)
