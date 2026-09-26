@@ -114,22 +114,24 @@ export default function Ajustes() {
       </section>
 
       {/* Notificaciones */}
-      <section className="card flex flex-wrap items-center justify-between gap-3 p-4 sm:flex-nowrap sm:gap-4 sm:p-5">
-        <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
-          <IconCampana className="h-5 w-5 text-accent" />
-          <div>
-            <h2 className="font-semibold">Notificaciones</h2>
-            <p className="text-sm text-muted">Recordatorios de hábitos en sus horarios, salvo durante el descanso.</p>
+      <section className="card p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+            <IconCampana className="h-5 w-5 shrink-0 text-accent" />
+            <div className="min-w-0">
+              <h2 className="font-semibold">Notificaciones</h2>
+              <p className="text-sm text-muted">Recordatorios de hábitos en sus horarios, salvo durante el descanso.</p>
+            </div>
           </div>
+          <Switch checked={settings.notificaciones} onChange={toggleNotifications} />
         </div>
-        <Switch checked={settings.notificaciones} onChange={toggleNotifications} />
         {settings.notificaciones && (
-          <button type="button" disabled={busy} onClick={sendTestNotification} className="min-h-11 w-full rounded-xl border border-border px-4 text-sm font-medium text-accent hover:bg-accent-soft disabled:opacity-50 sm:w-auto">
+          <button type="button" disabled={busy} onClick={sendTestNotification} className="mt-3 min-h-11 w-full rounded-xl border border-border px-4 text-sm font-medium text-accent hover:bg-accent-soft disabled:opacity-50 sm:w-auto">
             {busy ? "Enviando…" : "Probar notificación y sonido"}
           </button>
         )}
-        {notificationMessage && <p role="status" aria-live="polite" className="w-full text-sm text-muted">{notificationMessage}</p>}
-        <p className="w-full text-xs text-muted">En la web, los horarios se revisan cuando la app está abierta; para recibirlos con la app cerrada hace falta configurar notificaciones push con un servidor.</p>
+        {notificationMessage && <p role="status" aria-live="polite" className="mt-3 text-sm text-muted">{notificationMessage}</p>}
+        <p className="mt-3 text-xs text-muted">En la web, los horarios se revisan cuando la app está abierta; para recibirlos con la app cerrada hace falta configurar notificaciones push con un servidor.</p>
       </section>
 
       {/* Horas de descanso */}
