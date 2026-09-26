@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useStore } from "../lib/store-context";
-import { PUNTOS_OBJETIVO_DIARIO, PUNTOS_POR_REGISTRO, puntosTotalesParaFecha, resumenSemanal } from "../lib/gamificacion";
+import { useStoreActions, useStoreState } from "../lib/store-context";
+import { PUNTOS_OBJETIVO_DIARIO, PUNTOS_POR_REGISTRO, puntosTotalesParaFecha, rachaActual, resumenSemanal } from "../lib/gamificacion";
 import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, todayKey } from "../lib/dates";
 import Logo from "../components/Logo";
 import { IconAlerta, IconCategoria, IconCheck, IconEstrella, IconFuego, IconObjetivo } from "../lib/icons";
@@ -12,28 +12,9 @@ function etiquetaMoment(moment: Moment): string {
   return moment.tipo === "hora" && moment.hora ? formatHoraA12(moment.hora) : idiomaDeVentana(moment.ventana);
 }
 
-function rachaActual(habit: Habit, hoy: string, completions: CompletionEvent[]): number {
-  let racha = 0;
-  let d = new Date(`${hoy}T12:00:00`);
-  for (let i = 0; i < 365; i++) {
-    const key = todayKey(d);
-    if (esDescanso(habit, key)) {
-      d = new Date(d.getTime() - 86400000);
-      continue;
-    }
-    const comp = completadosPara(habit, key, completions);
-    if (comp.size >= habit.objetivo) {
-      racha++;
-    } else {
-      break;
-    }
-    d = new Date(d.getTime() - 86400000);
-  }
-  return racha;
-}
-
 export default function Inicio() {
-  const { state, registrar, deshacer } = useStore();
+  const { state } = useStoreState();
+  const { registrar, deshacer } = useStoreActions();
   const [marcando, setMarcando] = useState<string | null>(null);
   const [subtareasTemp, setSubtareasTemp] = useState<Record<string, string[]>>({});
   const [expandedMoment, setExpandedMoment] = useState<string | null>(null);
@@ -487,7 +468,6 @@ function CantidadCard({
   onRegistrarCantidad: (habit: Habit) => void;
   onDeshacer: (event: CompletionEvent) => void;
 }) {
-  const completados = completadosPara(habit, fecha, completions);
   const pulsando = marcando !== null && marcando.startsWith(`${habit.id}|cantidad`);
   const hoyEventos = completions
     .filter((c) => c.habitId === habit.id && c.fecha === fecha)

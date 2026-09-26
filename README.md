@@ -1,39 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hábitos
 
-## Getting Started
+App de seguimiento de hábitos (PWA) con Next.js 16 + React 19 + TypeScript + Supabase. Interfaz en español, funciona offline y sincroniza con la nube.
 
-First, run the development server:
+## Puesta en marcha
 
 ```bash
+npm install
+cp env.example .env.local   # y completa las variables (ver abajo)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrir [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Scripts útiles:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | Qué hace |
+|---|---|
+| `npm run dev` | servidor de desarrollo |
+| `npm run build` | build de producción |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | `eslint` (en CI se usa `npx eslint .`) |
+| `npm run test:smoke` | smoke tests de la lógica crítica de sync (sin dependencias) |
 
-## Learn More
+El CI (`.github/workflows/ci.yml`) corre en cada push/PR a `main`: `npm ci` → `typecheck` → `lint` → `build` → `test:smoke`, con Node 24.
 
-To learn more about Next.js, take a look at the following resources:
+## Variables de entorno
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`.env.local` está en `.gitignore`: **nunca commitear valores reales**.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Variable | Dónde se usa | Obligatoria |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | cliente web | sí |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | cliente web | sí |
+| `SUPABASE_ACCESS_TOKEN` | CLI / migraciones vía API | para deploys |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | suscripción web push | para push |
+| `VAPID_SUBJECT` | `web-push` (contacto, p. ej. `mailto:`) | para push |
+| `CRON_SECRET` | Edge Function `push-notifications` (cabecera `x-cron-secret`) | para el scheduler |
 
-## Deploy on Vercel
+La Edge Function además acepta `DEFAULT_TIMEZONE` (p. ej. `America/Caracas`).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Arquitectura de sincronización
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Fuente de verdad local: `localStorage` (`lib/store.ts`, funciones puras). Persistencia remota: Supabase (`lib/store-context.tsx`).
+
+- **EventIds: un evento, un id.** `lib/event-id.ts` es la única fuente. `registrar()` genera el id **una sola vez** y ese mismo valor viaja al estado local, al upsert en `completions` y a la cola offline. Nunca se derivan dos ids para el mismo evento.
+  - Hábitos por momento: id determinista `habitId|momentId|fecha` (idempotente: reintentar no duplica).
+  - Hábitos de cantidad: id único `habitId|cantidad|fecha|timestamp-random` (cada tap es un registro propio).
+- **Writes remotos inspeccionados.** Todo write pasa por `sincronizar()`, que revisa `result.error` (en supabase-js los errores de RLS/constraints *resuelven*, no rechazan): error de red → cola offline; otro error → se surfacea en `errorSync` ("sin sincronizar") en vez de perderse en silencio.
+- **Rehidratación.** Al iniciar sesión: primero se reenvían los pendientes offline, luego se descargan `habits`/`completions` (RLS confina al usuario) y se fusionan por `id`/`eventId` dentro del updater funcional. El estado solo se actualiza si el merge produjo cambios reales.
+- **Estrategia de conflictos (actual): local-wins.** Si un hábito existe en local, la versión remota se descarta (previsto: last-write-wins con `updated_at`, ver `docs/plan-maestro-fix.md` P1.3). No hay tombstones todavía: los borrados solo viajan en la cola del dispositivo que los originó.
+- **Cola offline.** `habitos-pending-sync-v1` en `localStorage`, acotada a 200 ops; se reenvía al recuperar conexión (previsto: namespace por usuario, P1.5).
+
+## Migraciones (Supabase)
+
+Aplicar **en este orden** (solo con autorización explícita; la auditoría no aplica migraciones):
+
+1. `0004_habitos_core.sql` — tablas `habits`, `completions`, `activity_log` con RLS estricto.
+2. `0005_push_log_habit_id_text.sql` — `push_log.habit_id` uuid → text (los ids son text).
+3. `0006_push_subscriptions_timezone.sql` — (prevista, P1.8) columna `timezone` para el scheduler.
+4. `0003_push_schedule.sql` — **reescrita sin secretos** (ver "Cron" abajo).
+5. `0007_deleted_habits.sql` — (opcional, P2.6) tombstones para borrados.
+
+Verificación post-migración: revisar policies en Dashboard → Database → Policies y probar que un `insert` con la anon key de otro usuario falla por RLS.
+
+## Cron de notificaciones push (sin secretos en el SQL)
+
+**Nunca pegar `SERVICE_ROLE_KEY` ni `CRON_SECRET` en un archivo `.sql`.** Procedimiento:
+
+1. En el Dashboard de Supabase: **Database → Cron → Create job**.
+2. Nombre: `push-notifications-minuto`, schedule: `* * * * *`.
+3. Tipo HTTP POST a `https://<PROJECT_REF>.supabase.co/functions/v1/push-notifications`, con headers `x-cron-secret: <valor del Vault>` y `Authorization: Bearer <service_role del Vault>`.
+4. Los secretos viven en el **Vault** del proyecto (o como secrets de la Edge Function), nunca en git.
+5. Verificar: invocar la función sin la cabecera debe responder `401`; con el secreto correcto, `200`.
+
+La función exige `CRON_SECRET` configurado (fail-closed): si falta, responde 401.
+
+## Plan maestro de corrección
+
+La auditoría end-to-end y el plan de fixes por fases (P0 → P3) con guardarraíles y arneses de verificación están en [`docs/plan-maestro-fix.md`](docs/plan-maestro-fix.md).
 
 ## Plan de mejoras — dashboards más claros y detallados
 
@@ -48,7 +92,7 @@ Hacer que las vistas **Hoy** y **Estadísticas** expliquen de un vistazo qué si
 - [ ] **Estados y accesibilidad:** explicar periodos sin actividad y ausencia de datos con mensajes útiles; soportar teclado, lectores de pantalla, contraste y pantallas pequeñas.
 
 ### Dashboard de Hoy
-- [ ] **Progreso accionable:** explicar el total completado frente al total previsto, diferenciar descansos y hábitos programados para hoy, y mostrar qué falta para completar el día.
+- [ ] **Progreso accionable:** explicar el total completado frente al total previsto, diferenciar descansos y hábitos programados para hoy, mostrar qué falta para completar el día.
 - [ ] **Contexto por hábito/momento:** presentar horario, subtareas pendientes/completadas y racha sin ambigüedades; ofrecer recordatorios opcionales sin bloquear el registro.
 - [ ] **Resumen al cierre del día:** al completar todo, mostrar un resumen de logros y puntos con lenguaje claro, sin ocultar la lista ni las opciones de deshacer.
 
@@ -58,9 +102,3 @@ Hacer que las vistas **Hoy** y **Estadísticas** expliquen de un vistazo qué si
 - Las comparaciones usan ventanas equivalentes y declaran el cambio absoluto/relativo; si no hay referencia, se indica «sin datos previos».
 - Hoy explica numerador/denominador del progreso y mantiene controles de registro/subtareas accesibles en móvil y teclado.
 - Verificar los estados con datos, sin datos y actividad parcial, además de lint, typecheck y build.
-
-### Prioridad sugerida
-1. Calendario compacto con tooltips/leyenda y métricas contextualizadas.
-2. Progreso de Hoy explicado y resumen semanal.
-3. Comparativas y desglose por hábito.
-4. Accesibilidad, estados vacíos y validación responsive de todas las vistas.

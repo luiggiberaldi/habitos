@@ -1,19 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { useStore } from "../../lib/store-context";
-import { notificarAhora, prepararNotificaciones, reproducirSonido } from "../../lib/notifications";
+import { useStoreActions, useStoreState } from "../../lib/store-context";
+import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
 import { IconCampana, IconDescanso, IconLuna, IconMovimiento, IconSistema, IconSol } from "../../lib/icons";
 
 export default function Ajustes() {
-  const { state, guardarSettings } = useStore();
+  const { state } = useStoreState();
+  const { guardarSettings } = useStoreActions();
   const settings = state.settings;
   const [notificationMessage, setNotificationMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // P1.9: el toggle cablea la suscripción web push de verdad — antes solo pedía
+  // permiso local y suscribirPush() nunca se invocaba desde la UI.
   async function toggleNotifications(enabled: boolean) {
     setNotificationMessage("");
     if (!enabled) {
+      try {
+        await desuscribirPush();
+      } catch {
+        /* la suscripción local se limpia igual */
+      }
       guardarSettings({ ...settings, notificaciones: false });
       setNotificationMessage("Recordatorios desactivados.");
       return;
@@ -21,8 +29,11 @@ export default function Ajustes() {
     setBusy(true);
     try {
       await prepararNotificaciones();
+      // Registra la suscripción push en el navegador y la persiste en Supabase
+      // (con la timezone del dispositivo) para el scheduler.
+      await suscribirPush();
       guardarSettings({ ...settings, notificaciones: true });
-      setNotificationMessage("Recordatorios activados. Debes mantener la app instalada o abierta para que se revisen tus horarios.");
+      setNotificationMessage("Recordatorios activados. Si instalas la app, también los recibirás con la app cerrada.");
     } catch (error) {
       setNotificationMessage(error instanceof Error ? error.message : "No se pudieron activar las notificaciones.");
     } finally {
@@ -69,6 +80,7 @@ export default function Ajustes() {
               <button
                 key={opcion.valor}
                 type="button"
+                aria-pressed={activo}
                 onClick={() => guardarSettings({ ...settings, tema: opcion.valor })}
                 className={`flex min-h-12 flex-row items-center justify-center gap-2 rounded-xl border-2 p-3 transition-all min-[380px]:min-h-24 min-[380px]:flex-col min-[380px]:p-4 ${
                   activo

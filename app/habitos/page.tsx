@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useStore } from "../../lib/store-context";
+import { useStoreActions, useStoreState } from "../../lib/store-context";
 import { DIAS_SEMANA } from "../../lib/dates";
 import type { Categoria, Habit, EstadoHabit, TipoHabit } from "../../lib/types";
 import {
@@ -33,7 +33,8 @@ function uid(): string {
 }
 
 export default function GestionHabitos() {
-  const { state, guardarHabit, eliminarHabit } = useStore();
+  const { state } = useStoreState();
+  const { guardarHabit, eliminarHabit } = useStoreActions();
   const [formulario, setFormulario] = useState<Habit | null>(null);
   const [confirmarBorrado, setConfirmarBorrado] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<"todos" | EstadoHabit>("todos");
@@ -63,6 +64,7 @@ export default function GestionHabitos() {
       momentos: [{ id: uid(), tipo: "ventana", ventana: "cualquier" }],
       estado: "activo",
       creadoEn: ahora,
+      actualizadoEn: ahora, // P1.3: marca LWW presente desde la creación.
       tipo: "momento",
     };
   }
@@ -177,6 +179,7 @@ function HabitForm({
 }) {
   const [draft, setDraft] = useState<Habit>(structuredClone(habit));
   const [errorNom, setErrorNom] = useState<string | null>(null);
+  const [errorForm, setErrorForm] = useState<string | null>(null); // P2.5
 
   function patch(p: Partial<Habit>) {
     setDraft((prev) => ({ ...prev, ...p }));
@@ -200,7 +203,21 @@ function HabitForm({
           setErrorNom("El nombre es obligatorio.");
           return;
         }
-        onGuardar({ ...draft, nombre, momentos: draft.momentos.filter((m) => m.id) });
+        // P2.5: un hábito "momento" necesita al menos un momento y el objetivo
+        // no puede exceder la cantidad de momentos (sería imposible de cumplir).
+        const momentos = draft.momentos.filter((m) => m.id);
+        if ((draft.tipo ?? "momento") === "momento") {
+          if (momentos.length === 0) {
+            setErrorForm("Añade al menos un momento para un hábito por momento.");
+            return;
+          }
+          if (draft.objetivo > momentos.length) {
+            setErrorForm(`El objetivo (${draft.objetivo}) no puede ser mayor que la cantidad de momentos (${momentos.length}).`);
+            return;
+          }
+        }
+        setErrorForm(null);
+        onGuardar({ ...draft, nombre, momentos });
       }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -252,7 +269,18 @@ function HabitForm({
             <button
               key={t.valor}
               type="button"
-              onClick={() => patch({ tipo: t.valor, ...(t.valor === "cantidad" ? { momentos: [] } : {}) })}
+              onClick={() =>
+                patch({
+                  tipo: t.valor,
+                  // P2.5: al volver a "momento" sin momentos, crear uno por defecto —
+                  // un hábito de momento sin momentos es imposible de completar.
+                  ...(t.valor === "cantidad"
+                    ? { momentos: [] }
+                    : draft.momentos.length > 0
+                      ? {}
+                      : { momentos: [{ id: uid(), tipo: "ventana", ventana: "cualquier" }] }),
+                })
+              }
               className={`chip capitalize ${(draft.tipo ?? "momento") === t.valor ? "chip-active" : "hover:border-accent"}`}
             >
               {t.etiqueta}
@@ -367,6 +395,7 @@ function HabitForm({
             <div key={moment.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-2">
               <select
                 value={moment.tipo}
+                aria-label="Tipo de momento"
                 onChange={(e) =>
                   setDraft((prev) => ({
                     ...prev,
@@ -383,9 +412,9 @@ function HabitForm({
                 <option value="ventana">Ventana</option>
               </select>
               {moment.tipo === "hora" ? (
-                <input type="time" value={moment.hora ?? "09:00"} onChange={(e) => setDraft((prev) => ({ ...prev, momentos: prev.momentos.map((m) => (m.id === moment.id ? { ...m, hora: e.target.value } : m)) }))} className="input-field !py-1.5 min-w-0 flex-1 basis-28" />
+                <input type="time" aria-label="Hora del momento" value={moment.hora ?? "09:00"} onChange={(e) => setDraft((prev) => ({ ...prev, momentos: prev.momentos.map((m) => (m.id === moment.id ? { ...m, hora: e.target.value } : m)) }))} className="input-field !py-1.5 min-w-0 flex-1 basis-28" />
               ) : (
-                <select value={moment.ventana ?? "cualquier"} onChange={(e) => setDraft((prev) => ({ ...prev, momentos: prev.momentos.map((m) => (m.id === moment.id ? { ...m, ventana: e.target.value } : m)) }))} className="input-field !py-1.5 min-w-0 flex-1 basis-28">
+                <select value={moment.ventana ?? "cualquier"} aria-label="Ventana del momento" onChange={(e) => setDraft((prev) => ({ ...prev, momentos: prev.momentos.map((m) => (m.id === moment.id ? { ...m, ventana: e.target.value } : m)) }))} className="input-field !py-1.5 min-w-0 flex-1 basis-28">
                   <option value="manana">Mañana</option>
                   <option value="tarde">Tarde</option>
                   <option value="noche">Noche</option>
@@ -416,6 +445,11 @@ function HabitForm({
         </div>
       </div>
 
+      {errorForm && (
+        <p role="alert" className="text-sm text-danger">
+          {errorForm}
+        </p>
+      )}
       <button type="submit" disabled={!draft.nombre.trim()} className="btn-primary w-full justify-center">
         <IconCheck className="h-4 w-4" /> Guardar hábito
       </button>

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { useStore } from "../lib/store-context";
+import { useStoreState } from "../lib/store-context";
 
 export default function ThemeApplier() {
-  const { state } = useStore();
+  const { state } = useStoreState();
   const { tema, reducirMovimiento } = state.settings;
 
   useEffect(() => {

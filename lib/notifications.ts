@@ -50,15 +50,16 @@ async function guardarSuscripcion(subscription: PushSubscription): Promise<void>
     const p256dhKey = subscription.getKey("p256dh");
     const authKey = subscription.getKey("auth");
     const b64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+    // P1.8/P1.9: columnas planas según el schema real (0001) + timezone del
+    // dispositivo para que el scheduler calcule las fechas por usuario.
     await supabase.from("push_subscriptions").upsert(
       {
         user_id: user.data.user.id,
         endpoint: subscription.endpoint,
-        keys: {
-          p256dh: p256dhKey ? b64(p256dhKey) : null,
-          auth: authKey ? b64(authKey) : null,
-        },
+        p256dh: p256dhKey ? b64(p256dhKey) : "",
+        auth: authKey ? b64(authKey) : "",
         user_agent: navigator.userAgent,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
       { onConflict: "endpoint" },
     );

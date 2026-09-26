@@ -109,3 +109,68 @@ export function estadisticasPorHabit(habits: Habit[], inicio: string, fin: strin
     consistencia: consistenciaEnRango(habit, inicio, fin, completions),
   })).sort((a, b) => b.consistencia - a.consistencia);
 }
+
+/**
+ * P2.3: racha unificada (antes había dos implementaciones divergentes en
+ * app/page.tsx y app/estadisticas/page.tsx).
+ *
+ * - Compara contra el objetivo vigente en cada fecha (`objetivoEnFecha`), no
+ *   contra el objetivo actual.
+ * - Si hoy está incompleto pero ningún momento está vencido (momentos "hora"
+ *   con hora <= hora actual), el conteo empieza ayer: la racha no se rompe
+ *   por consultar temprano en la mañana.
+ * - Los días de descanso se saltan sin romper la racha.
+ * - Indexa los completions en un Map por fecha (una pasada) en vez de
+ *   filtrar todo el array por cada día del loop.
+ */
+export function rachaActual(habit: Habit, hoy: string, completions: CompletionEvent[], ahoraHHMM?: string): number {
+  const porDia = new Map<string, CompletionEvent[]>();
+  for (const c of completions) {
+    if (c.habitId !== habit.id) continue;
+    const arr = porDia.get(c.fecha);
+    if (arr) arr.push(c);
+    else porDia.set(c.fecha, [c]);
+  }
+  const unicosPara = (key: string): number => {
+    const eventos = porDia.get(key) ?? [];
+    return new Set(
+      habit.tipo === "cantidad" ? eventos.map((c) => c.eventId) : eventos.map((c) => c.momentId),
+    ).size;
+  };
+
+  const hhmm =
+    ahoraHHMM ??
+    (() => {
+      const n = new Date();
+      return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
+    })();
+  const eventosHoy = porDia.get(hoy) ?? [];
+  const hayVencidoHoy = (habit.momentos ?? []).some(
+    (m) =>
+      m.tipo === "hora" &&
+      m.hora &&
+      m.hora <= hhmm &&
+      !eventosHoy.some((c) => c.momentId === m.id),
+  );
+
+  let d = new Date(`${hoy}T12:00:00`);
+  if (unicosPara(hoy) < objetivoEnFecha(habit, hoy) && !hayVencidoHoy) {
+    d = new Date(d.getTime() - 86400000);
+  }
+
+  let racha = 0;
+  for (let i = 0; i < 365; i++) {
+    const key = todayKey(d);
+    if (esDescanso(habit, key)) {
+      d = new Date(d.getTime() - 86400000);
+      continue;
+    }
+    if (unicosPara(key) >= objetivoEnFecha(habit, key)) {
+      racha++;
+    } else {
+      break;
+    }
+    d = new Date(d.getTime() - 86400000);
+  }
+  return racha;
+}

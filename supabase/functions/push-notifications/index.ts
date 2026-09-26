@@ -12,22 +12,36 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+/** Lee una variable de entorno obligatoria; falla en frío con mensaje claro
+ *  en vez de propagar un `undefined` que rompería llamadas más tarde. */
+function requiredEnv(name: string): string {
+  const v = Deno.env.get(name);
+  if (!v) throw new Error(`Falta variable de entorno requerida: ${name}`);
+  return v;
+}
+
+const supabaseUrl = requiredEnv("SUPABASE_URL");
+const supabaseKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },
 });
 
 webpush.setVapidDetails(
   Deno.env.get("VAPID_SUBJECT") ?? "mailto:dev@habitos.local",
-  Deno.env.get("VAPID_PUBLIC_KEY")!,
-  Deno.env.get("VAPID_PRIVATE_KEY")!,
+  requiredEnv("VAPID_PUBLIC_KEY"),
+  requiredEnv("VAPID_PRIVATE_KEY"),
 );
 
 const MINUTE = 60_000;
 const ONE_MINUTE_AGO = new Date(Date.now() - MINUTE).toISOString();
-const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
-const DEFAULT_TIMEZONE = Deno.env.get("DEFAULT_TIMEZONE") ?? "America/Mexico_City";
+// P1.1: fail-closed — sin secreto configurado NO se ejecuta nada.
+const CRON_SECRET = Deno.env.get("CRON_SECRET");
+if (!CRON_SECRET) {
+  console.error("CRON_SECRET no configurado: la función rechaza todas las invocaciones.");
+}
+// P1.8: default para el público objetivo (Venezuela). Se sobrescribe por usuario
+// con la columna push_subscriptions.timezone (P1.8), nunca con data.settings.
+const DEFAULT_TIMEZONE = Deno.env.get("DEFAULT_TIMEZONE") ?? "America/Caracas";
 
 /**
  * Obtiene fecha, HH:mm y día de la semana en una zona horaria concreta.
@@ -74,8 +88,24 @@ function eventId(habitId: string, momentId: string, fecha: string): string {
 const DESCANSOS_DEFAULT = { inicio: "22:00", fin: "08:00" };
 
 async function calcularDebidos(): Promise<
-  { userId: string; habitId: string; momentId: string; nombre: string; body: string; url: string }[]
+  { userId: string; habitId: string; momentId: string; nombre: string; body: string; url: string; fecha: string }[]
 > {
+  // P1.8: timezone real por usuario desde push_subscriptions.timezone
+  // (la escribe el cliente en guardarSuscripcion). Sin suscripción no hay a
+  // quién enviar, así que solo importan los usuarios suscritos.
+  const tzPorUsuario = new Map<string, string>();
+  const { data: tzRows, error: tzError } = await supabase
+    .from("push_subscriptions")
+    .select("user_id, timezone");
+  if (tzError) {
+    console.error("Error leyendo timezones:", tzError.message);
+  }
+  for (const r of tzRows ?? []) {
+    if (r.user_id && !tzPorUsuario.has(r.user_id)) {
+      tzPorUsuario.set(r.user_id, (r as { timezone?: string | null }).timezone || DEFAULT_TIMEZONE);
+    }
+  }
+
   // 1. Leer hábitos activos con su data (el estado está dentro de la columna jsonb "data",
   //    no como una columna separada). Filtramos por data->>'estado' = 'activo'.
   const { data: habits, error } = await supabase
@@ -86,13 +116,6 @@ async function calcularDebidos(): Promise<
   if (error) {
     console.error("Error leyendo hábitos:", error.message);
     return [];
-  }
-
-  // Agrupar userId → timezone (por si cada usuario tiene configuración propia).
-  const tzPorUsuario = new Map<string, string>();
-  for (const row of habits ?? []) {
-    const tz = (row.data as { settings?: { timezone?: string } })?.settings?.timezone;
-    tzPorUsuario.set(row.user_id, tz || DEFAULT_TIMEZONE);
   }
 
   const debidos: { habitId: string; momentId: string; userId: string; nombre: string }[] = [];
@@ -111,7 +134,7 @@ async function calcularDebidos(): Promise<
     if (habit.estado !== "activo") continue;
 
     const tz = tzPorUsuario.get(row.user_id) ?? DEFAULT_TIMEZONE;
-    const { fecha, hhmm, dia } = ahoraLocal(tz);
+    const { hhmm, dia } = ahoraLocal(tz);
 
     const descanso = habit.settings?.horasDescanso ?? DESCANSOS_DEFAULT;
     if (dentroDeDescanso(descanso, hhmm)) continue;
@@ -166,27 +189,26 @@ async function calcularDebidos(): Promise<
       const eid = eventId(d.habitId, d.momentId, fecha);
       return !yaCompletados.has(eid) && !yaEnviados.has(eid);
     })
-    .map(({ d }) => ({
+    .map(({ d, fecha }) => ({
       userId: d.userId,
       habitId: d.habitId,
       momentId: d.momentId,
       nombre: d.nombre,
       body: `Es momento de "${d.nombre}". ¡A por ello!`,
       url: "/",
+      fecha, // P1.9: fecha en la zona del usuario (para push_log).
     }));
 }
 
 async function enviarPush(
-  row: { endpoint: string; keys?: { p256dh?: string; auth?: string } | null; p256dh?: string | null; auth?: string | null },
+  row: { endpoint: string; p256dh?: string | null; auth?: string | null },
   payload: { title: string; body: string; data: { habitId: string; momentId: string; url: string } },
 ): Promise<boolean> {
   try {
+    // Schema real (0001): p256dh/auth son columnas planas, no JSONB "keys".
     const subscription = {
       endpoint: row.endpoint,
-      keys: {
-        p256dh: row.keys?.p256dh ?? row.p256dh ?? "",
-        auth: row.keys?.auth ?? row.auth ?? "",
-      },
+      keys: { p256dh: row.p256dh ?? "", auth: row.auth ?? "" },
     };
     await webpush.sendNotification(subscription, JSON.stringify(payload));
     return true;
@@ -202,9 +224,10 @@ async function enviarPush(
 }
 
 async function run(req: Request): Promise<Response> {
-  // Validación del secreto compartido para invocaciones programadas/por servicio.
-  const auth = req.headers.get("x-cron-secret") ?? req.headers.get("authorization");
-  if (CRON_SECRET && auth !== CRON_SECRET) {
+  // P1.1: fail-closed. Solo se acepta x-cron-secret; sin CRON_SECRET
+  // configurado se rechaza todo (la función nunca corre abierta).
+  const auth = req.headers.get("x-cron-secret");
+  if (!CRON_SECRET || auth !== CRON_SECRET) {
     return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
@@ -220,7 +243,7 @@ async function run(req: Request): Promise<Response> {
   const userIds = [...new Set(debidos.map((d) => d.userId))];
   const { data: subs, error: subError } = await supabase
     .from("push_subscriptions")
-    .select("endpoint, user_id, keys, p256dh, auth")
+    .select("endpoint, user_id, p256dh, auth")
     .in("user_id", userIds);
 
   if (subError) {
@@ -241,8 +264,7 @@ async function run(req: Request): Promise<Response> {
     const userSubs = porUsuario.get(d.userId) ?? [];
     if (userSubs.length === 0) continue;
 
-    const tz = Deno.env.get("DEFAULT_TIMEZONE") ?? DEFAULT_TIMEZONE;
-    const fecha = ahoraLocal(tz).fecha;
+    const fecha = d.fecha; // P1.9: ya calculada en la zona del usuario.
     const payload = { title: "Recordatorio de hábito 🎯", body: d.body, data: { habitId: d.habitId, momentId: d.momentId, url: d.url } };
 
     let exito = false;

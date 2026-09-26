@@ -31,6 +31,8 @@ export interface Habit {
   momentos: Moment[];
   estado: EstadoHabit;
   creadoEn: string; // ISO
+  /** P1.3: marca de modificación (ISO). Last-write-wins en sincronización multi-dispositivo. */
+  actualizadoEn: string;
   /** 'momento' usa momentos del día (legacy/default). 'cantidad' es un contador libre por unidad. */
   tipo?: TipoHabit;
   /** Unidad de medida para hábitos de cantidad (ej. 'vasos', 'litros'). */
@@ -50,6 +52,8 @@ export interface CompletionEvent {
   timestamp: string; // ISO
   // Idempotency key: `${habitId}|${momentId}|${fecha}` para momentos, o UUID/timestamp para cantidad
   eventId: string;
+  /** P2.2: subtareas marcadas al completar (también se persiste en remoto). */
+  subtareasCompletadas?: string[];
 }
 
 export interface Settings {

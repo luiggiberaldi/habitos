@@ -13,11 +13,18 @@ import {
 } from "./store";
 import type { AppState, Habit, CompletionEvent, Settings } from "./types";
 import { construirEventId } from "./event-id";
+import { fusionarHidratacion, type RemoteCompletionRow, type RemoteHabitRow } from "./sync-merge";
 import { getSupabase } from "./supabase";
 import { useAuth } from "../components/AuthGate";
 import { logEvent } from "./logger";
 
-const PENDING_KEY = "habitos-pending-sync-v1";
+const PENDING_KEY_BASE = "habitos-pending-sync-v1";
+
+/** P1.5: la cola offline se nombra por usuario. Al cambiar de sesión se recarga
+ *  desde la clave del usuario activo (y se vacía en memoria si no hay sesión). */
+function clavePendientes(userId: string | undefined): string {
+  return userId ? `${PENDING_KEY_BASE}:${userId}` : PENDING_KEY_BASE;
+}
 
 interface StoreContextValue {
   state: AppState;
@@ -31,7 +38,13 @@ interface StoreContextValue {
   errorSync: string | null;
 }
 
-const StoreContext = createContext<StoreContextValue | null>(null);
+/**
+ * P2.11: contexto dividido en dos para rendimiento.
+ * - StoreStateContext: cambia en cada acción (solo lo consumen vistas).
+ * - StoreActionsContext: identidad estable (no re-renderiza al cambiar el estado).
+ */
+const StoreStateContext = createContext<{ state: AppState; errorSync: string | null } | null>(null);
+const StoreActionsContext = createContext<Omit<StoreContextValue, "state" | "errorSync"> | null>(null);
 
 function cargarEstadoGuardado(storageKey: string): AppState {
   try {
@@ -53,11 +66,13 @@ type PendingOp =
   | { kind: "delete_habit"; id: string }
   | { kind: "upsert_completion"; payload: unknown }
   | { kind: "delete_completion"; event_id: string }
-  | { kind: "delete_push"; endpoint: string };
+  | { kind: "delete_push"; endpoint: string }
+  /** P2.6: tombstone de hábito borrado (para que el borrado viaje entre dispositivos). */
+  | { kind: "upsert_tombstone"; payload: unknown };
 
-function leerPendientes(): PendingOp[] {
+function leerPendientes(clave: string): PendingOp[] {
   try {
-    const raw = window.localStorage.getItem(PENDING_KEY);
+    const raw = window.localStorage.getItem(clave);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? (parsed as PendingOp[]) : [];
   } catch {
@@ -65,72 +80,12 @@ function leerPendientes(): PendingOp[] {
   }
 }
 
-function guardarPendientes(ops: PendingOp[]): void {
+function guardarPendientes(clave: string, ops: PendingOp[]): void {
   try {
-    window.localStorage.setItem(PENDING_KEY, JSON.stringify(ops.slice(-200)));
+    window.localStorage.setItem(clave, JSON.stringify(ops.slice(-200)));
   } catch {
     /* almacenamiento no disponible */
   }
-}
-
-interface RemoteHabitRow {
-  id: string;
-  data: unknown;
-}
-
-interface RemoteCompletionRow {
-  event_id: string;
-  habit_id: string;
-  moment_id: string | null;
-  fecha: string;
-  subtareas_completadas: string[] | null;
-}
-
-/**
- * Merge puro local+remoto. Devuelve el estado fusionado, o `null` si no hubo
- * ningún cambio — el caller conserva entonces la referencia anterior, lo que
- * evita re-renders y re-ejecuciones de efectos (clave para P0.1).
- *
- * Estrategia actual: gana la versión local si el hábito existe (P1.3 la cambiará
- * a last-write-wins con updated_at). Los completions se unen por eventId. Las
- * filas legacy colapsadas de cantidad (bug P0.2: `habitId|cantidad|fecha` sin
- * sufijo de unicidad) se conservan como un único registro: representan actividad
- * real de ese día; los ids nuevos nunca colisionan con ellas.
- */
-function fusionarHidratacion(
-  prev: AppState,
-  habitsRows: RemoteHabitRow[],
-  compRows: RemoteCompletionRow[],
-): AppState | null {
-  const remotosHabits = habitsRows.filter((r) => r.data).map((r) => r.data as Habit);
-  const localById = new Map(prev.habits.map((h) => [h.id, h]));
-  const mergedHabits = remotosHabits.map((r) => localById.get(r.id) ?? r);
-  for (const h of prev.habits) {
-    if (!mergedHabits.some((m) => m.id === h.id)) mergedHabits.push(h);
-  }
-
-  const remotosCompletions: CompletionEvent[] = compRows.map((r) => ({
-    id: r.event_id,
-    habitId: r.habit_id,
-    momentId: r.moment_id ?? undefined,
-    fecha: r.fecha,
-    timestamp: "",
-    eventId: r.event_id,
-    subtareasCompletadas: r.subtareas_completadas ?? [],
-  }));
-  const localByEvent = new Map(prev.completions.map((c) => [c.eventId, c]));
-  const mergedCompletions = remotosCompletions.filter((r) => !localByEvent.has(r.eventId));
-  for (const c of prev.completions) mergedCompletions.push(c);
-
-  // Sin cambios de contenido → conservar la referencia anterior.
-  const mismosHabits =
-    mergedHabits.length === prev.habits.length && mergedHabits.every((h) => localById.has(h.id));
-  const mismosCompletions =
-    mergedCompletions.length === prev.completions.length &&
-    mergedCompletions.every((c) => localByEvent.has(c.eventId));
-  if (mismosHabits && mismosCompletions) return null;
-
-  return normalizarEstado({ ...prev, habits: mergedHabits, completions: mergedCompletions });
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -144,6 +99,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [estadoCargado, setEstadoCargado] = useState(false);
   const pendientesRef = useRef<PendingOp[]>([]);
   const sincronizandoRef = useRef(false);
+  // P2.11: espejo del estado para que las acciones lean sin cerrar sobre `state`
+  // y mantengan identidad estable entre renders.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // La carga desde localStorage se difiere (post-paint) para no ejecutar setState
   // síncrono dentro del efecto y para no romper la hidratación.
@@ -152,22 +113,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const raf = requestAnimationFrame(() => {
       if (!activo) return;
       setState(cargarEstadoGuardado(storageKey));
-      pendientesRef.current = leerPendientes();
+      pendientesRef.current = leerPendientes(clavePendientes(userId)); // P1.5
       setEstadoCargado(true);
     });
     return () => {
       activo = false;
       cancelAnimationFrame(raf);
     };
-  }, [storageKey]);
+  }, [storageKey, userId]);
 
+  // P2.11: persistencia con debounce (~500 ms) para no serializar el estado
+  // completo en cada tap; flush en pagehide para no perder el último cambio.
   useEffect(() => {
     if (!estadoCargado) return;
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(state));
-    } catch {
-      /* almacenamiento no disponible */
-    }
+    const guardar = () => {
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(stateRef.current));
+      } catch {
+        /* almacenamiento no disponible */
+      }
+    };
+    const t = setTimeout(guardar, 500);
+    window.addEventListener("pagehide", guardar);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("pagehide", guardar);
+    };
   }, [state, estadoCargado, storageKey]);
 
   // Cola offline persistida en localStorage (reactiva al cambiar pendientes).
@@ -199,13 +170,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         } else if (op.kind === "delete_push") {
           const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", op.endpoint);
           if (error) restantes.push(op);
+        } else if (op.kind === "upsert_tombstone") {
+          // P2.6
+          const { error } = await supabase.from("deleted_habits").upsert(op.payload as { user_id: string; habit_id: string });
+          if (error) restantes.push(op);
         }
       } catch {
         restantes.push(op);
       }
     }
     pendientesRef.current = restantes;
-    guardarPendientes(restantes);
+    guardarPendientes(clavePendientes(userId), restantes); // P1.5
     sincronizandoRef.current = false;
   }, [userId]);
 
@@ -227,22 +202,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await reenviarPendientes();
 
     try {
-      // 2. Traer habits del servidor (RLS confina al usuario).
-      const { data: habitsRows, error: hError } = await supabase
-        .from("habits")
-        .select("id, data, updated_at");
-      if (hError) {
-        if (!esErrorRed(hError)) console.error("Error descargando habits:", hError.message);
-        return;
+      // P1.6: PostgREST pagina/trunca en 1000 filas por defecto; recorrer por páginas.
+      const PAGE = 1000;
+      const habitsRows: RemoteHabitRow[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from("habits")
+          .select("id, data, updated_at")
+          .range(from, from + PAGE - 1);
+        if (error) {
+          if (!esErrorRed(error)) console.error("Error descargando habits:", error.message);
+          return;
+        }
+        habitsRows.push(...((data ?? []) as RemoteHabitRow[]));
+        if (!data || data.length < PAGE) break;
       }
 
-      // 3. Traer completions del servidor.
-      const { data: compRows, error: cError } = await supabase
-        .from("completions")
-        .select("event_id, habit_id, moment_id, fecha, subtareas_completadas");
-      if (cError) {
-        if (!esErrorRed(cError)) console.error("Error descargando completions:", cError.message);
-        return;
+      // 3. Traer completions del servidor (también paginado).
+      const compRows: RemoteCompletionRow[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from("completions")
+          .select("event_id, habit_id, moment_id, fecha, subtareas_completadas, created_at")
+          .range(from, from + PAGE - 1);
+        if (error) {
+          if (!esErrorRed(error)) console.error("Error descargando completions:", error.message);
+          return;
+        }
+        compRows.push(...((data ?? []) as RemoteCompletionRow[]));
+        if (!data || data.length < PAGE) break;
+      }
+
+      // 4. P2.6: tombstones de borrados (propagan deletes entre dispositivos).
+      const borrados = new Set<string>();
+      const { data: tombRows, error: tError } = await supabase.from("deleted_habits").select("habit_id");
+      if (tError) {
+        if (!esErrorRed(tError)) console.error("Error descargando borrados:", tError.message);
+      } else {
+        for (const t of tombRows ?? []) borrados.add((t as { habit_id: string }).habit_id);
       }
 
       setState((prev) =>
@@ -250,6 +247,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           prev,
           (habitsRows ?? []) as RemoteHabitRow[],
           (compRows ?? []) as RemoteCompletionRow[],
+          borrados,
         ) ?? prev,
       );
     } catch (e) {
@@ -261,8 +259,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   /** Encola una operación para reintento cuando vuelva la conexión. */
   const encolar = useCallback((op: PendingOp): void => {
     pendientesRef.current = [...pendientesRef.current, op];
-    guardarPendientes(pendientesRef.current);
-  }, []);
+    guardarPendientes(clavePendientes(userId), pendientesRef.current); // P1.5
+  }, [userId]);
 
   /**
    * P0.3 (guardarraíl #2): ejecuta un write remoto inspeccionando SIEMPRE el
@@ -295,12 +293,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [userId, encolar],
   );
 
-  const value = useMemo<StoreContextValue>(
+  // Registro de satisfacción: rehidratar usa reenviarPendientes; exponer igual.
+  const rehidratarFn = useMemo(() => async () => {
+    await reenviarPendientes();
+    await rehidratar();
+  }, [reenviarPendientes, rehidratar]);
+
+  // P2.11: acciones con identidad estable — solo dependen de callbacks estables
+  // y de stateRef, nunca del `state` del render.
+  const actions = useMemo<Omit<StoreContextValue, "state" | "errorSync">>(
     () => ({
-      state,
-      rehidratar,
+      rehidratar: rehidratarFn,
       guardarHabit: (habit) => {
-        const esNuevo = !state.habits.some((h) => h.id === habit.id);
+        const esNuevo = !stateRef.current.habits.some((h) => h.id === habit.id);
         setState((s) => guardarHabit(s, habit));
         const supabase = getSupabase();
         if (supabase && userId) {
@@ -322,6 +327,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             { kind: "delete_habit", id },
             () => supabase.from("habits").delete().eq("id", id).eq("user_id", userId).then((r) => ({ error: r.error })),
             "eliminar hábito",
+          );
+          // P2.6: tombstone para que el borrado se propague a otros dispositivos
+          // (el rehydrate de otro dispositivo ya no lo re-agregará).
+          const tombstone = { user_id: userId, habit_id: id, deleted_at: new Date().toISOString() };
+          void sincronizar(
+            { kind: "upsert_tombstone", payload: tombstone },
+            () => supabase.from("deleted_habits").upsert(tombstone).then((r) => ({ error: r.error })),
+            "registrar borrado",
           );
         }
         logEvent("HABIT_DELETED", "habit", id, null);
@@ -366,9 +379,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         logEvent("COMPLETION_UNDONE", "completion", event.eventId, { habitId: event.habitId, fecha: event.fecha });
       },
-      errorSync,
     }),
-    [state, userId, rehidratar, sincronizar, errorSync],
+    [userId, sincronizar, rehidratarFn],
   );
 
   // Rehidratar al iniciar sesión (cambio de usuario) y al volver a estar online.
@@ -387,17 +399,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("online", onOnline);
   }, [userId, reenviarPendientes]);
 
-  // Registro de satisfacción: rehidratar usa reenviarPendientes; exponer igual.
-  const rehidratarFn = useMemo(() => async () => {
-    await reenviarPendientes();
-    await rehidratar();
-  }, [reenviarPendientes, rehidratar]);
+  const stateValue = useMemo(() => ({ state, errorSync }), [state, errorSync]);
 
-  return <StoreContext.Provider value={{ ...value, rehidratar: rehidratarFn }}>{children}</StoreContext.Provider>;
+  return (
+    <StoreStateContext.Provider value={stateValue}>
+      <StoreActionsContext.Provider value={actions}>{children}</StoreActionsContext.Provider>
+    </StoreStateContext.Provider>
+  );
 }
 
-export function useStore(): StoreContextValue {
-  const ctx = useContext(StoreContext);
-  if (!ctx) throw new Error("useStore debe usarse dentro de <StoreProvider>");
+export function useStoreState(): { state: AppState; errorSync: string | null } {
+  const ctx = useContext(StoreStateContext);
+  if (!ctx) throw new Error("useStoreState debe usarse dentro de <StoreProvider>");
   return ctx;
+}
+
+export function useStoreActions(): Omit<StoreContextValue, "state" | "errorSync"> {
+  const ctx = useContext(StoreActionsContext);
+  if (!ctx) throw new Error("useStoreActions debe usarse dentro de <StoreProvider>");
+  return ctx;
+}
+
+/** Compatibilidad: combina estado + acciones (prefiere los hooks granulares). */
+export function useStore(): StoreContextValue {
+  const { state, errorSync } = useStoreState();
+  return { state, errorSync, ...useStoreActions() };
 }

@@ -24,6 +24,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: "/icon.svg",
+    apple: "/apple-touch-icon.png",
   },
 };
 
@@ -47,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <NotificationManager />
             <div className="flex min-h-screen">
             <Nav />
-            <main className="flex-1 min-w-0 md:ml-60 pb-24 md:pb-0">
+            <main id="contenido" className="flex-1 min-w-0 md:ml-60 pb-24 md:pb-0">
               {children}
             </main>
             </div>

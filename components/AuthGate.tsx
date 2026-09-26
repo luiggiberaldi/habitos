@@ -108,7 +108,7 @@ function LoginScreen({ supabase }: { supabase: NonNullable<ReturnType<typeof get
         <p className="mb-6 text-center text-sm text-muted">Accede para ver tus hábitos.</p>
 
         {error && (
-          <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}

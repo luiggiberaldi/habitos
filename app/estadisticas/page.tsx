@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { addDays, todayKey } from "../../lib/dates";
-import { consistenciaEnRango, diasActivosEnRango, estadisticasPorHabit, puntosEnRango } from "../../lib/gamificacion";
-import { useStore } from "../../lib/store-context";
+import { consistenciaEnRango, diasActivosEnRango, estadisticasPorHabit, puntosEnRango, rachaActual } from "../../lib/gamificacion";
+import { useStoreState } from "../../lib/store-context";
 import { IconCategoria, IconCheck, IconEstrella, IconFuego, IconObjetivo } from "../../lib/icons";
 
 function comparativa(actual: number, anterior: number, sufijo = "") {
@@ -21,32 +21,9 @@ function comparativa(actual: number, anterior: number, sufijo = "") {
   };
 }
 
-function rachaActual(habitId: string, hoy: string, completions: { habitId: string; fecha: string; momentId?: string; eventId: string; timestamp: string }[], habits: { id: string; objetivo: number; dias: number[]; tipo?: string }[]): number {
-  const habit = habits.find((h) => h.id === habitId);
-  if (!habit) return 0;
-  const esCantidad = habit.tipo === "cantidad";
-  let racha = 0;
-  let d = new Date(`${hoy}T12:00:00`);
-  for (let i = 0; i < 365; i++) {
-    const key = todayKey(d);
-    if (!habit.dias.includes(d.getDay())) {
-      d = new Date(d.getTime() - 86400000);
-      continue;
-    }
-    const comp = completions.filter((c) => c.habitId === habitId && c.fecha === key);
-    const unicos = new Set(esCantidad ? comp.map((c) => c.eventId) : comp.map((c) => c.momentId));
-    if (unicos.size >= habit.objetivo) {
-      racha++;
-    } else {
-      break;
-    }
-    d = new Date(d.getTime() - 86400000);
-  }
-  return racha;
-}
 
 export default function Estadisticas() {
-  const { state } = useStore();
+  const { state } = useStoreState();
   const [rango, setRango] = useState<7 | 30>(7);
   const hoy = todayKey();
   const inicio = todayKey(addDays(new Date(`${hoy}T12:00:00`), -(rango - 1)));
@@ -197,7 +174,7 @@ export default function Estadisticas() {
           </div>
         ) : (
           datos.porHabit.map(({ habit, totalRegistros, consistencia }) => {
-            const racha = rachaActual(habit.id, hoy, state.completions, state.habits);
+            const racha = rachaActual(habit, hoy, state.completions);
             return (
               <article key={habit.id} className="card min-w-0 p-4">
                 <div className="flex min-w-0 items-center gap-3">

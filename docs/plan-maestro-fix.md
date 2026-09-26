@@ -168,9 +168,9 @@ Aplicar en este orden (solo con autorización explícita; la auditoría no aplic
 
 1. `0004_habitos_core.sql` — si aún no está aplicada (verificar en Dashboard → Database → Migrations).
 2. `0005_push_log_habit_id_text.sql` — **nueva** (P0.4).
-3. `0006_push_subscriptions_timezone.sql` — **nueva** (P1.8): `alter table public.push_subscriptions add column if not exists timezone text;`
+3. `0006_push_timezone.sql` — **nueva** (P1.8): `timezone text` en `push_subscriptions` + policy `push_subscriptions_update_own` (el upsert del cliente necesita UPDATE).
 4. `0003_push_schedule.sql` — **reescrita** (P1.2): crear el job desde el Dashboard con secretos del Vault; no pegar keys en el SQL.
-5. (Opcional, P2.6) `0007_deleted_habits.sql` — **nueva**: tabla de tombstones con RLS propia.
+5. `0007_deleted_habits.sql` — **nueva** (P2.6): tabla de tombstones con RLS propia.
 
 Verificación post-migración: `select * from pg_policies where tablename in ('habits','completions','activity_log','push_log');` y un `insert` de prueba con la anon key de otro usuario (debe fallar por RLS).
 

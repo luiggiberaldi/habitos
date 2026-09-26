@@ -19,6 +19,13 @@ export default function Nav() {
 
   return (
     <>
+      {/* P2.10: skip-link para navegación por teclado. */}
+      <a
+        href="#contenido"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+      >
+        Saltar al contenido
+      </a>
       {/* Sidebar desktop */}
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-border md:bg-surface md:fixed md:inset-y-0 md:z-30">
         <div className="flex h-16 items-center border-b border-border px-5">
@@ -32,6 +39,7 @@ export default function Nav() {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={activo ? "page" : undefined}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                   activo
                     ? "bg-accent-soft text-accent"
@@ -68,6 +76,7 @@ export default function Nav() {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={activo ? "page" : undefined}
                 className={`flex flex-1 flex-col items-center gap-0.5 px-2 py-3 text-[11px] font-medium transition-colors min-h-[44px] justify-center ${
                   activo ? "text-accent" : "text-muted hover:text-foreground"
                 }`}

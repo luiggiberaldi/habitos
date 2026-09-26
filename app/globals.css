@@ -5,18 +5,18 @@
   color-scheme: light;
   --background: #f4f5f9;
   --foreground: #111827;
-  --muted: #6b7280;
+  --muted: #5b6472;
   --surface: #ffffff;
   --surface-2: #f9fafb;
   --border: #e5e7eb;
-  --accent: #328b78;
-  --accent-soft: #328b7818;
+  --accent: #276e5f;
+  --accent-soft: #276e5f18;
   --accent-strong: #276e5f;
   --accent-foreground: #ffffff;
   --secondary: #6366f1;
   --secondary-soft: #6366f118;
-  --danger: #ef4444;
-  --danger-soft: #ef444418;
+  --danger: #dc2626;
+  --danger-soft: #dc262618;
   --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
 }
@@ -205,6 +205,13 @@ body {
 }
 .input-field:focus { border-color: var(--accent); }
 
+/* Foco visible por teclado en toda la app (P2.10). Se declara después de
+   .input-field para prevalecer sobre su `outline: none`. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* Mantiene contraste y colores del tema en campos autocompletados por Chromium. */
 .input-field:-webkit-autofill,
 .input-field:-webkit-autofill:hover,
@@ -223,7 +230,7 @@ select.input-field:not([class*="rounded-"]) {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235b6472' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   background-size: 1rem;
@@ -231,7 +238,7 @@ select.input-field:not([class*="rounded-"]) {
   cursor: pointer;
 }
 select.input-field:focus {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23328b78' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23276e5f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
 }
 
 @media (prefers-reduced-motion: reduce) {

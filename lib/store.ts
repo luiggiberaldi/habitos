@@ -8,8 +8,12 @@ function dayAtOffset(offset: number): string {
   return todayKey(addDays(new Date(), offset));
 }
 
-function makeHabit(habit: Omit<Habit, "historialObjetivos">): Habit {
-  return { ...habit, historialObjetivos: [{ desde: habit.creadoEn.slice(0, 10), objetivo: habit.objetivo }] };
+function makeHabit(habit: Omit<Habit, "historialObjetivos" | "actualizadoEn">): Habit {
+  return {
+    ...habit,
+    actualizadoEn: habit.creadoEn, // Al crear, modificación = creación.
+    historialObjetivos: [{ desde: habit.creadoEn.slice(0, 10), objetivo: habit.objetivo }],
+  };
 }
 
 export function crearEstadoInicial(): AppState {
@@ -60,6 +64,7 @@ export function registrarCumplimiento(
       habitId,
       fecha,
       timestamp,
+      subtareasCompletadas: subtareas ?? [],
     };
     return { ...state, completions: [...state.completions, event] };
   }
@@ -68,7 +73,7 @@ export function registrarCumplimiento(
   if (!habit || !moment || habit.estado !== "activo") return state;
   const eid = eventId ?? `${habitId}|${momentId}|${fecha}`;
   if (state.completions.some((event) => event.eventId === eid)) return state;
-  const event: CompletionEvent = { id: eid, eventId: eid, habitId, momentId: momentId!, fecha, timestamp };
+  const event: CompletionEvent = { id: eid, eventId: eid, habitId, momentId: momentId!, fecha, timestamp, subtareasCompletadas: subtareas ?? [] };
   return { ...state, completions: [...state.completions, event] };
 }
 
@@ -78,22 +83,23 @@ export function deshacerCumplimiento(state: AppState, eventId: string): AppState
 
 export function guardarHabit(state: AppState, habit: Habit): AppState {
   const existe = state.habits.some((item) => item.id === habit.id);
-  let nuevo = habit;
+  const ahora = new Date().toISOString();
+  let nuevo = { ...habit, actualizadoEn: ahora }; // P1.3: toda edición mueve la marca LWW.
   if (existe) {
     const anterior = state.habits.find((item) => item.id === habit.id)!;
     // Fase 2: si cambió el objetivo, registrar el cambio en historialObjetivos
     // para que el histórico de progreso no se pierda ni se distorsione.
+    // P2.1: no mutar objetos del estado previo — copiar también el último tramo.
     if (anterior.objetivo !== habit.objetivo) {
-      const historial = [...(anterior.historialObjetivos ?? [])];
       const hoy = new Date().toISOString().slice(0, 10);
-      const ultimo = historial[historial.length - 1];
-      if (ultimo && !ultimo.hasta) {
-        ultimo.hasta = hoy;
-      }
+      const base = anterior.historialObjetivos ?? [];
+      const historial = base.map((tramo, i) =>
+        i === base.length - 1 && !tramo.hasta ? { ...tramo, hasta: hoy } : tramo,
+      );
       historial.push({ desde: hoy, objetivo: habit.objetivo });
-      nuevo = { ...habit, historialObjetivos: historial };
+      nuevo = { ...habit, actualizadoEn: ahora, historialObjetivos: historial };
     } else {
-      nuevo = { ...habit, historialObjetivos: anterior.historialObjetivos ?? habit.historialObjetivos };
+      nuevo = { ...habit, actualizadoEn: ahora, historialObjetivos: anterior.historialObjetivos ?? habit.historialObjetivos };
     }
   }
   const habits = existe ? state.habits.map((item) => (item.id === nuevo.id ? nuevo : item)) : [...state.habits, nuevo];
@@ -128,6 +134,8 @@ export function normalizarEstado(value: unknown): AppState {
   });
   const conHistorial = habits.map((h) => ({
     ...h,
+    // P1.3: backfill de actualizadoEn para datos antiguos (localStorage sin el campo).
+    actualizadoEn: h.actualizadoEn ?? h.creadoEn,
     // Asegura historialObjetivos presente (los hábitos antiguos en localStorage no lo tienen).
     historialObjetivos: h.historialObjetivos?.length
       ? h.historialObjetivos
