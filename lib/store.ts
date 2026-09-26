@@ -1,6 +1,7 @@
 import type { AppState, CompletionEvent, Habit, Moment, Settings } from "./types";
 import { addDays, todayKey } from "./dates";
 import { eventIdCantidad } from "./event-id";
+import { juegoInicial, normalizarJuego, aplicarRecompensas, type EventoJuego } from "./juego";
 
 export const STORAGE_KEY = "habitos-app-v1";
 
@@ -43,7 +44,7 @@ export function crearEstadoInicial(): AppState {
       completions.push({ id: eventId, eventId, habitId: habit.id, momentId, fecha, timestamp: `${fecha}T18:00:00.000Z` });
     }
   }
-  return { habits: [agua, lectura, caminar], completions, settings: { notificaciones: false, horasDescanso: { inicio: "22:00", fin: "08:00" }, tema: "sistema", reducirMovimiento: false }, version: 1 };
+  return { habits: [agua, lectura, caminar], completions, juego: juegoInicial(), settings: { notificaciones: false, horasDescanso: { inicio: "22:00", fin: "08:00" }, tema: "sistema", reducirMovimiento: false }, version: 1 };
 }
 
 export function registrarCumplimiento(
@@ -172,5 +173,26 @@ export function normalizarEstado(value: unknown): AppState {
     }
     return typeof event.habitId === "string" && typeof event.momentId === "string" && /^\d{4}-\d{2}-\d{2}$/.test(event.fecha) && (event as CompletionEvent).momentId ? true : false;
   });
-  return { habits: conHistorial, completions, settings: partial.settings ?? fallback.settings, version: 1 };
+  return { habits: conHistorial, completions, juego: normalizarJuego(partial.juego), settings: partial.settings ?? fallback.settings, version: 1 };
+}
+
+/**
+ * Registra un cumplimiento y aplica la capa de juego (XP, niveles, rachas,
+ * congeladores, desafíos, cofre y logros). Si el evento ya existía (tap
+ * duplicado), no otorga recompensa: el estado vuelve intacto y sin eventos.
+ */
+export function registrarConJuego(
+  state: AppState,
+  habitId: string,
+  momentId: string | undefined,
+  fecha: string,
+  timestamp = new Date().toISOString(),
+  subtareas?: string[],
+  eventId?: string,
+): { state: AppState; eventos: EventoJuego[] } {
+  const despues = registrarCumplimiento(state, habitId, momentId, fecha, timestamp, subtareas, eventId);
+  if (despues.completions.length === state.completions.length) {
+    return { state: despues, eventos: [] };
+  }
+  return aplicarRecompensas(state, despues, { habitId, fecha, timestamp });
 }

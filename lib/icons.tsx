@@ -295,3 +295,66 @@ export function IconCategoria({ categoria, className = cls }: { categoria: Categ
   const Component = categoriaIconMap[categoria] ?? IconCaja;
   return <Component className={className} />;
 }
+
+export function IconTrofeo({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z" />
+      <path d="M7 6H4.5A1.5 1.5 0 0 0 3 7.5C3 10 5 12 7.5 12M17 6h2.5A1.5 1.5 0 0 1 21 7.5C21 10 19 12 16.5 12" />
+    </svg>
+  );
+}
+
+export function IconCandado({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="4" y="10" width="16" height="11" rx="2.5" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
+export function IconCopo({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 2v20M4 6l16 12M20 6L4 18M12 2l-2 3m2-3l2 3M12 22l-2-3m2 3l2-3" />
+    </svg>
+  );
+}
+
+export function IconMedalla({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="12" cy="14" r="5" />
+      <path d="M8.6 9.6L6 3h4l2 4.2L14 3h4l-2.6 6.6" />
+    </svg>
+  );
+}
+
+export function IconCorona({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M2.5 8.5L7 12l5-6.5L17 12l4.5-3.5L19.5 19h-15L2.5 8.5z" />
+    </svg>
+  );
+}
+
+export function IconRegalo({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M12 8v13" />
+      <path d="M12 8S8.5 8 6.8 6.6C5.6 5.6 6 3.8 7.4 3.8 9.3 3.8 12 8 12 8zm0 0s3.5 0 5.2-1.4c1.2-1 0.8-2.8-.6-2.8C14.7 3.8 12 8 12 8z" />
+    </svg>
+  );
+}
+
+export function IconUsuarios({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+      <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M17.6 14.3a6.5 6.5 0 0 1 3.9 5.7" />
+    </svg>
+  );
+}

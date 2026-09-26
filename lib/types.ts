@@ -63,9 +63,57 @@ export interface Settings {
   reducirMovimiento: boolean;
 }
 
+/** Desafío semanal: completar `meta` días con objetivo cumplido en un hábito. */
+export interface DesafioSemanal {
+  id: string; // `${semana}|${habitId}`
+  semana: string; // lunes de la semana (YYYY-MM-DD)
+  habitId: string;
+  meta: number; // días con objetivo cumplido para completarlo
+  completado: boolean;
+}
+
+/**
+ * Estado de juego (gamificación). Todo es monótono o por unión para que el
+ * merge entre dispositivos (game_state) converja sin conflictos: los
+ * contadores usan máximo y las colecciones usan unión.
+ */
+export interface JuegoState {
+  /** XP acumulado de por vida (10 por registro + 5 bonus por objetivo). */
+  xpTotal: number;
+  /** XP ganado en la semana en curso (para la liga). */
+  xpSemanal: number;
+  /** Lunes de la semana a la que pertenece xpSemanal (YYYY-MM-DD). */
+  semanaXp: string;
+  /** Congeladores de racha disponibles (tope MAX_CONGELADORES). */
+  congeladores: number;
+  /** Fechas (YYYY-MM-DD) protegidas automáticamente por un congelador. */
+  diasProtegidos: string[];
+  /** Ids de LOGROS desbloqueados. */
+  logros: string[];
+  /** Última fecha en la que se reclamó el cofre del día completo. */
+  ultimoCofre: string | null;
+  /** Cofres abiertos en total. */
+  cofres: number;
+  /** Desafíos semanales (vigentes e históricos). */
+  desafios: DesafioSemanal[];
+  /** Mayor racha alcanzada por hábito (sobrevive a rachas rotas). */
+  rachaMaxima: Record<string, number>;
+  /** Mayor múltiplo de 7 de racha ya premiado con congelador, por hábito. */
+  rachaPremiada: Record<string, number>;
+  /** Registros hechos antes de las 8:00 a. m. (logro Madrugador). */
+  madrugadas: number;
+  /** Días completos acumulados (todos los hábitos del día). */
+  diasCompletos: number;
+  /** Nombre visible en la liga. */
+  nombreLiga: string;
+  /** Marca ISO para last-write-wins de game_state en Supabase. */
+  actualizadoEn: string;
+}
+
 export interface AppState {
   habits: Habit[];
   completions: CompletionEvent[];
   settings: Settings;
+  juego: JuegoState;
   version: number;
 }

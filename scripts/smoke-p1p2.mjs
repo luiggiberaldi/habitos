@@ -144,10 +144,10 @@ const mkState = (habits = [], completions = []) => ({
   });
   // 3 días seguidos cumpliendo → racha 3 (hoy 2026-09-26 incompleto, sin vencidos a las 08:00).
   const completions = [ev("2026-09-25"), ev("2026-09-24"), ev("2026-09-23")];
-  const r = rachaActual(habit, "2026-09-26", completions, "08:00");
+  const r = rachaActual(habit, "2026-09-26", completions, [], "08:00");
   check("racha: 3 días seguidos + hoy incompleto sin vencidos = 3", r === 3);
   // Hoy incompleto CON momento vencido (09:00 <= 10:00) → racha 0.
-  const r2 = rachaActual(habit, "2026-09-26", completions, "10:00");
+  const r2 = rachaActual(habit, "2026-09-26", completions, [], "10:00");
   check("racha: hoy incompleto con momento vencido = 0", r2 === 0);
   // Objetivo histórico: ayer el objetivo era 2 y solo se hizo 1 → racha 1.
   const habitHist = mkHabit({
@@ -158,7 +158,7 @@ const mkState = (habits = [], completions = []) => ({
     ],
   });
   check("objetivoEnFecha respeta el historial", objetivoEnFecha(habitHist, "2026-09-25") === 2 && objetivoEnFecha(habitHist, "2026-09-26") === 1);
-  const r3 = rachaActual(habitHist, "2026-09-26", [ev("2026-09-26"), ev("2026-09-25")], "08:00");
+  const r3 = rachaActual(habitHist, "2026-09-26", [ev("2026-09-26"), ev("2026-09-25")], [], "08:00");
   check("racha: usa el objetivo vigente por fecha (ayer pedía 2, se hizo 1)", r3 === 1);
 }
 

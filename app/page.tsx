@@ -2,14 +2,71 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStoreActions, useStoreState } from "../lib/store-context";
-import { PUNTOS_OBJETIVO_DIARIO, PUNTOS_POR_REGISTRO, puntosTotalesParaFecha, rachaActual, resumenSemanal } from "../lib/gamificacion";
-import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, todayKey } from "../lib/dates";
+import {
+  PUNTOS_OBJETIVO_DIARIO,
+  PUNTOS_POR_REGISTRO,
+  LOGROS,
+  diasCumplidosEnSemana,
+  fraseIdentidad,
+  nivelParaXp,
+  puntosTotalesParaFecha,
+  rachaActual,
+  resumenSemanal,
+  type IconoLogro,
+} from "../lib/gamificacion";
+import { suscribirEventosJuego, type EventoJuego } from "../lib/juego";
+import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
 import Logo from "../components/Logo";
-import { IconAlerta, IconCategoria, IconCheck, IconChevronAbajo, IconEstrella, IconFuego, IconObjetivo } from "../lib/icons";
+import Celebracion, { type CelebracionData } from "../components/Celebracion";
+import {
+  IconAlerta,
+  IconCandado,
+  IconCategoria,
+  IconCheck,
+  IconChevronAbajo,
+  IconCopo,
+  IconCorona,
+  IconEstrella,
+  IconFuego,
+  IconMedalla,
+  IconObjetivo,
+  IconRegalo,
+  IconSol,
+  IconTrofeo,
+  IconRayo,
+} from "../lib/icons";
 import type { CompletionEvent, Habit, Moment } from "../lib/types";
 
 function etiquetaMoment(moment: Moment): string {
   return moment.tipo === "hora" && moment.hora ? formatHoraA12(moment.hora) : idiomaDeVentana(moment.ventana);
+}
+
+const ICONOS_LOGRO: Record<IconoLogro, (props: { className?: string }) => React.JSX.Element> = {
+  fuego: IconFuego,
+  trofeo: IconTrofeo,
+  corona: IconCorona,
+  estrella: IconEstrella,
+  sol: IconSol,
+  rayo: IconRayo,
+  medalla: IconMedalla,
+};
+
+function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
+  switch (e.tipo) {
+    case "subida-nivel":
+      return { icono: <IconEstrella className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+    case "logro": {
+      const def = LOGROS.find((l) => l.id === e.dato);
+      const Icono = def ? ICONOS_LOGRO[def.icono] : IconTrofeo;
+      return { icono: <Icono className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+    }
+    case "cofre":
+      return { icono: <IconRegalo className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+    case "desafio":
+      return { icono: <IconObjetivo className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+    default:
+      return null; // congelador-ganado/usado van al toast, no interrumpen
+  }
 }
 
 export default function Inicio() {
@@ -20,6 +77,7 @@ export default function Inicio() {
   const [expandedMoment, setExpandedMoment] = useState<string | null>(null);
   const [mostrarCompletados, setMostrarCompletados] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [celebraciones, setCelebraciones] = useState<CelebracionData[]>([]);
   const deepLinkProcesado = useRef(false);
 
   const hoy = todayKey();
@@ -72,10 +130,40 @@ export default function Inicio() {
     return () => window.clearTimeout(t);
   }, [toast]);
 
+  // Eventos de juego: celebraciones en modal (nivel, logro, cofre, desafío) y
+  // avisos menores en toast (congeladores). Se encolan para no solaparse.
+  useEffect(() => {
+    return suscribirEventosJuego((e: EventoJuego) => {
+      const modal = celebracionParaEvento(e);
+      if (modal) {
+        setCelebraciones((prev) => [...prev, modal]);
+      } else {
+        setToast(`${e.titulo}: ${e.detalle}`);
+      }
+    });
+  }, []);
+
+  const cerrarCelebracion = (): void => {
+    setCelebraciones((prev) => prev.slice(1));
+  };
+
   const puntosDia = useMemo(
     () => puntosTotalesParaFecha(state.habits, hoy, state.completions),
     [state.habits, hoy, state.completions],
   );
+
+  // Juego: nivel por XP de por vida, frase de identidad y desafíos vigentes.
+  const nivel = useMemo(() => nivelParaXp(state.juego?.xpTotal ?? 0), [state.juego]);
+  const frase = useMemo(
+    () => (state.juego ? fraseIdentidad(state.habits, state.juego) : null),
+    [state.habits, state.juego],
+  );
+  const semana = lunesDeSemana(hoy);
+  const desafiosVigentes = useMemo(
+    () => (state.juego?.desafios ?? []).filter((d) => d.semana === semana),
+    [state.juego, semana],
+  );
+  const xpParaNivel = nivel.xpSiguiente !== null ? nivel.xpSiguiente - (state.juego?.xpTotal ?? 0) : 0;
 
   const totalMomentos = habitosHoy.reduce((sum, h) => sum + h.momentos.length, 0);
   const completadosHoy = habitosHoy.reduce(
@@ -150,11 +238,47 @@ export default function Inicio() {
             </div>
           </div>
           <div className="card flex shrink-0 items-center gap-3 px-4 py-2.5">
-            <IconEstrella className="h-5 w-5 text-accent" />
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-soft text-accent"
+              title={`Nivel ${nivel.nivel}: ${nivel.nombre}`}
+            >
+              <IconEstrella className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold">
+                Nv. {nivel.nivel} · {nivel.nombre}
+              </p>
+              <div
+                className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-border"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(nivel.progreso * 100)}
+                aria-label={`Progreso al nivel ${nivel.nivel + 1}`}
+              >
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-accent to-accent-strong"
+                  style={{ width: `${Math.round(nivel.progreso * 100)}%` }}
+                />
+              </div>
+              <p className="mt-0.5 text-[10px] text-muted">
+                {nivel.xpSiguiente !== null ? `${xpParaNivel} XP para Nv. ${nivel.nivel + 1}` : "Nivel máximo"}
+              </p>
+            </div>
+            <div className="h-8 w-px bg-border" aria-hidden="true" />
             <div className="text-right">
               <p className="text-xs text-muted">Puntos hoy</p>
               <p className="text-xl font-bold leading-none">{puntosDia}</p>
             </div>
+            {(state.juego?.congeladores ?? 0) > 0 && (
+              <div
+                className="flex items-center gap-1 rounded-full bg-sky-100 px-2 py-1 text-xs font-semibold text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                title="Congeladores: protegen tu racha si un día fallas"
+              >
+                <IconCopo className="h-3.5 w-3.5" aria-hidden="true" />
+                <span aria-label={`${state.juego!.congeladores} congeladores`}>{state.juego!.congeladores}</span>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -167,6 +291,13 @@ export default function Inicio() {
             Te quedan {pendientes} momento{pendientes !== 1 ? "s" : ""} por completar hoy.
           </p>
         </div>
+      )}
+
+      {/* Capa de identidad: quién te estás volviendo, no solo números */}
+      {frase && (
+        <p className="text-center text-sm italic text-muted" aria-live="polite">
+          {frase}
+        </p>
       )}
 
       {/* Progreso */}
@@ -197,6 +328,90 @@ export default function Inicio() {
             </span>
           )}
         </div>
+      </section>
+
+      {/* Desafíos semanales: meta visible y cercana (gradiente de meta) */}
+      {desafiosVigentes.length > 0 && (
+        <section className="card p-5" aria-label="Desafíos de la semana">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="font-semibold">Desafíos de la semana</h2>
+              <p className="mt-1 text-xs text-muted">Se reinician el lunes · +50 XP cada uno</p>
+            </div>
+            <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
+              <IconObjetivo className="h-3.5 w-3.5" />
+              {desafiosVigentes.filter((d) => d.completado).length}/{desafiosVigentes.length}
+            </span>
+          </div>
+          <ul className="mt-4 flex flex-col gap-3">
+            {desafiosVigentes.map((d) => {
+              const habit = state.habits.find((h) => h.id === d.habitId);
+              if (!habit) return null;
+              const dias = diasCumplidosEnSemana(habit, semana, hoy, state.completions, state.juego?.diasProtegidos ?? []);
+              const ratio = d.meta ? dias / d.meta : 0;
+              return (
+                <li key={d.id} className="flex items-center gap-3">
+                  <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: habit.color }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="truncate text-sm font-medium">{habit.nombre}</p>
+                      <p className={`text-xs font-semibold ${d.completado ? "text-accent" : "text-muted"}`}>
+                        {d.completado ? "¡Completado!" : `${Math.min(dias, d.meta)}/${d.meta} días`}
+                      </p>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, ratio * 100)}%`,
+                          backgroundColor: d.completado ? "var(--accent)" : habit.color,
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {d.completado && <IconCheck className="h-4 w-4 shrink-0 text-accent" aria-label="Desafío completado" />}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* Estante de logros: pocos y difíciles; los bloqueados se muestran para dar meta */}
+      <section className="card p-5" aria-label="Logros">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Logros</h2>
+            <p className="mt-1 text-xs text-muted">Pocos, difíciles y para siempre</p>
+          </div>
+          <span className="rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-muted">
+            {(state.juego?.logros ?? []).length}/{LOGROS.length}
+          </span>
+        </div>
+        <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {LOGROS.map((logro) => {
+            const desbloqueado = (state.juego?.logros ?? []).includes(logro.id);
+            const Icono = ICONOS_LOGRO[logro.icono];
+            return (
+              <li
+                key={logro.id}
+                className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center ${
+                  desbloqueado ? "border-accent/30 bg-accent-soft/40" : "border-border bg-surface-2/40 opacity-60"
+                }`}
+              >
+                <span
+                  className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                    desbloqueado ? "bg-accent-soft text-accent" : "bg-surface-2 text-muted"
+                  }`}
+                >
+                  {desbloqueado ? <Icono className="h-5 w-5" /> : <IconCandado className="h-5 w-5" />}
+                </span>
+                <p className="text-xs font-semibold leading-tight">{logro.nombre}</p>
+                <p className="text-[10px] leading-tight text-muted">{logro.descripcion}</p>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       {/* Resumen semanal */}
@@ -327,6 +542,9 @@ export default function Inicio() {
           <IconCheck className="h-4 w-4 shrink-0" />
           {toast}
         </div>
+      )}
+      {celebraciones.length > 0 && (
+        <Celebracion data={celebraciones[0]} onCerrar={cerrarCelebracion} />
       )}
     </div>
   );

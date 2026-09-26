@@ -51,8 +51,14 @@ export function completadosPara(
   return set;
 }
 
-export function idiomaDeVentana(ventana?: string): string {
-  switch (ventana) {
+/** Lunes de la semana de una fecha (YYYY-MM-DD). Ligas y desafíos reinician los lunes. */
+export function inicioSemana(fechaKey: string): string {
+  const d = new Date(`${fechaKey}T12:00:00`);
+  const diasDesdeLunes = (d.getDay() + 6) % 7; // getDay: 0=domingo
+  return todayKey(addDays(d, -diasDesdeLunes));
+}
+
+export function idiomaDeVentana(ventana?: string): string {  switch (ventana) {
     case "manana":
       return "Durante la mañana";
     case "tarde":

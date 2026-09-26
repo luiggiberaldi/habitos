@@ -8,11 +8,18 @@ import {
   guardarHabit,
   normalizarEstado,
   eliminarHabit,
-  registrarCumplimiento,
   actualizarSettings,
+  registrarConJuego,
   STORAGE_KEY,
 } from "./store";
-import type { AppState, Habit, CompletionEvent, Settings } from "./types";
+import {
+  emitirEventosJuego,
+  fusionarJuego,
+  juegoInicial,
+  reconciliarJuego,
+} from "./juego";
+import { publicarXpLiga } from "./liga";
+import type { AppState, Habit, CompletionEvent, JuegoState, Settings } from "./types";
 import { construirEventId } from "./event-id";
 import { fusionarHidratacion, type RemoteCompletionRow, type RemoteHabitRow } from "./sync-merge";
 import { getSupabase } from "./supabase";
@@ -36,6 +43,8 @@ interface StoreContextValue {
   deshacer: (event: CompletionEvent) => void;
   /** Modo vacaciones: pausa o reanuda todos los hábitos no archivados de una vez. */
   cambiarEstadoTodos: (estado: "activo" | "pausado") => void;
+  /** Actualiza campos del estado de juego (p. ej. nombre visible en la liga). */
+  actualizarJuego: (parcial: Partial<JuegoState>) => void;
   rehidratar: () => Promise<void>;
   /** E3: reenvía la cola pendiente ahora (p. ej. antes de cerrar sesión). */
   sincronizarAhora: () => Promise<void>;
@@ -75,7 +84,9 @@ type PendingOp =
   | { kind: "delete_completions_of_habit"; habit_id: string }
   | { kind: "delete_push"; endpoint: string }
   /** P2.6: tombstone de hábito borrado (para que el borrado viaje entre dispositivos). */
-  | { kind: "upsert_tombstone"; payload: unknown };
+  | { kind: "upsert_tombstone"; payload: unknown }
+  /** Juego: progreso de gamificación (XP, logros, congeladores) por usuario. */
+  | { kind: "upsert_game"; payload: unknown };
 
 function leerPendientes(clave: string): PendingOp[] {
   try {
@@ -119,7 +130,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let activo = true;
     const raf = requestAnimationFrame(() => {
       if (!activo) return;
-      setState(cargarEstadoGuardado(storageKey));
+      // Juego: backfill idempotente de XP/logros/desafíos sobre datos existentes.
+      setState(reconciliarJuego(cargarEstadoGuardado(storageKey)));
       pendientesRef.current = leerPendientes(clavePendientes(userId)); // P1.5
       setEstadoCargado(true);
     });
@@ -185,6 +197,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         } else if (op.kind === "upsert_tombstone") {
           // P2.6
           const { error } = await supabase.from("deleted_habits").upsert(op.payload as { user_id: string; habit_id: string });
+          if (error) restantes.push(op);
+        } else if (op.kind === "upsert_game") {
+          // Juego: progreso de gamificación (un registro por usuario, LWW).
+          const { error } = await supabase.from("game_state").upsert(op.payload as { user_id: string; data: unknown });
           if (error) restantes.push(op);
         }
       } catch {
@@ -304,6 +320,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           borrados,
         ) ?? prev,
       );
+
+      // 6. Estado de juego: merge por máximos/unión (converge entre
+      // dispositivos) y subida del combinado. Si la tabla aún no existe
+      // (migración pendiente), se ignora sin romper la hidratación.
+      try {
+        const { data: gsRow, error: gsError } = await supabase
+          .from("game_state")
+          .select("data")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (!gsError) {
+          const remoto = (gsRow as { data?: unknown } | null)?.data as JuegoState | undefined ?? null;
+          const combinado = fusionarJuego(stateRef.current.juego ?? juegoInicial(), remoto);
+          setState((prev) => ({ ...prev, juego: combinado }));
+          const payload = { user_id: userId, data: combinado, updated_at: new Date().toISOString() };
+          const { error: upError } = await supabase.from("game_state").upsert(payload);
+          if (upError) {
+            if (esErrorRed(upError)) encolar({ kind: "upsert_game", payload });
+            else console.error("Error subiendo estado de juego:", upError.message);
+          }
+        }
+      } catch (e) {
+        if (!esErrorRed(e)) console.error("Error sincronizando juego:", e);
+      }
+
+      // 7. Reconciliar juego tras el merge (rachas máximas, desafíos, logros).
+      setState((prev) => reconciliarJuego(prev));
     } catch (e) {
       if (esErrorRed(e)) return; // sin conexión: no romper
       console.error("Error durante la hidratación:", e);
@@ -406,12 +449,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState((s) => actualizarSettings(s, settings));
         logEvent("SETTINGS_UPDATED", "settings", null, settings as unknown as Record<string, unknown>);
       },
+      actualizarJuego: (parcial) => {
+        const nuevo = {
+          ...stateRef.current.juego,
+          ...parcial,
+          actualizadoEn: new Date().toISOString(),
+        };
+        setState((s) => ({ ...s, juego: { ...s.juego, ...parcial, actualizadoEn: nuevo.actualizadoEn } }));
+        const supabase = getSupabase();
+        if (supabase && userId) {
+          const payload = { user_id: userId, data: nuevo, updated_at: nuevo.actualizadoEn };
+          void sincronizar(
+            { kind: "upsert_game", payload },
+            () => supabase.from("game_state").upsert(payload).then((r) => ({ error: r.error })),
+            "guardar progreso de juego",
+          );
+        }
+      },
       registrar: (habitId, momentId, fecha, subtareasCompletadas) => {
         const timestamp = new Date().toISOString();
         // P0.2: el eventId se genera UNA sola vez y viaja idéntico al estado
         // local y a Supabase (guardarraíl #1).
         const eventId = construirEventId(habitId, momentId, fecha);
-        setState((s) => registrarCumplimiento(s, habitId, momentId, fecha, timestamp, subtareasCompletadas, eventId));
+        // Juego: registra el cumplimiento y aplica XP/niveles/logros/etc.
+        // Si el evento ya existía (tap duplicado), no hay recompensa.
+        const { state: nuevo, eventos } = registrarConJuego(
+          stateRef.current, habitId, momentId, fecha, timestamp, subtareasCompletadas, eventId,
+        );
+        setState(nuevo);
+        if (eventos.length > 0) emitirEventosJuego(eventos);
         const supabase = getSupabase();
         if (supabase && userId) {
           const payload = {
@@ -427,6 +493,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             () => supabase.from("completions").upsert(payload).then((r) => ({ error: r.error })),
             "registrar cumplimiento",
           );
+          // Juego: subir el progreso (un registro por usuario).
+          const juegoPayload = { user_id: userId, data: nuevo.juego, updated_at: nuevo.juego.actualizadoEn };
+          void sincronizar(
+            { kind: "upsert_game", payload: juegoPayload },
+            () => supabase.from("game_state").upsert(juegoPayload).then((r) => ({ error: r.error })),
+            "guardar progreso de juego",
+          );
+          // Liga: publicar el XP semanal (no crítico, sin errorSync).
+          void publicarXpLiga(supabase, userId, nuevo.juego);
         }
         logEvent("COMPLETION_REGISTERED", "completion", eventId, { habitId, momentId, fecha, subtareasCompletadas });
       },
