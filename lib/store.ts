@@ -1,5 +1,6 @@
 import type { AppState, CompletionEvent, Habit, Moment, Settings } from "./types";
 import { addDays, todayKey } from "./dates";
+import { eventIdCantidad } from "./event-id";
 
 export const STORAGE_KEY = "habitos-app-v1";
 
@@ -36,15 +37,26 @@ export function crearEstadoInicial(): AppState {
   return { habits: [agua, lectura, caminar], completions, settings: { notificaciones: false, horasDescanso: { inicio: "22:00", fin: "08:00" }, tema: "sistema", reducirMovimiento: false }, version: 1 };
 }
 
-export function registrarCumplimiento(state: AppState, habitId: string, momentId: string | undefined, fecha: string, timestamp = new Date().toISOString(), subtareas?: string[]): AppState {
+export function registrarCumplimiento(
+  state: AppState,
+  habitId: string,
+  momentId: string | undefined,
+  fecha: string,
+  timestamp = new Date().toISOString(),
+  subtareas?: string[],
+  // P0.2: el contexto genera el eventId UNA vez (lib/event-id.ts) y lo pasa aquí;
+  // el mismo valor se usa para el upsert remoto. Si no se pasa, se genera localmente.
+  eventId?: string,
+): AppState {
   const habit = state.habits.find((item) => item.id === habitId);
   if (!habit || habit.estado !== "activo") return state;
 
   // Hábito de cantidad: cada marca es un registro único con timestamp exacto.
   if (habit.tipo === "cantidad") {
+    const eid = eventId ?? eventIdCantidad(habitId, fecha);
     const event: CompletionEvent = {
-      id: `${habitId}|${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      eventId: `${habitId}|${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: eid,
+      eventId: eid,
       habitId,
       fecha,
       timestamp,
@@ -54,9 +66,9 @@ export function registrarCumplimiento(state: AppState, habitId: string, momentId
 
   const moment: Moment | undefined = habit?.momentos.find((item) => item.id === momentId);
   if (!habit || !moment || habit.estado !== "activo") return state;
-  const eventId = `${habitId}|${momentId}|${fecha}`;
-  if (state.completions.some((event) => event.eventId === eventId)) return state;
-  const event: CompletionEvent = { id: eventId, eventId, habitId, momentId: momentId!, fecha, timestamp };
+  const eid = eventId ?? `${habitId}|${momentId}|${fecha}`;
+  if (state.completions.some((event) => event.eventId === eid)) return state;
+  const event: CompletionEvent = { id: eid, eventId: eid, habitId, momentId: momentId!, fecha, timestamp };
   return { ...state, completions: [...state.completions, event] };
 }
 
