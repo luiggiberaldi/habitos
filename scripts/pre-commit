@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Gate pre-commit de habitos.
+# Corre typecheck + lint + smoke tests. Si algo falla, el commit se aborta.
+# Para saltarlo en un caso puntual: git commit --no-verify
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+echo "→ typecheck…"
+npm run --silent typecheck
+
+echo "→ lint…"
+npm run --silent lint
+
+echo "→ smoke tests…"
+npm run --silent test:smoke
+
+echo "✓ gate pre-commit OK"

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:smoke": "node scripts/smoke-p0.mjs && node scripts/smoke-p1p2.mjs"
+    "test:smoke": "node scripts/smoke-p0.mjs && node scripts/smoke-p1p2.mjs",
+    "prepare": "node scripts/install-hooks.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
