@@ -236,7 +236,7 @@ function MetricCard({ label, value, comparativa: contexto, icon }: { label: stri
   const flecha = contexto.tendencia === "sube" ? "↑" : contexto.tendencia === "baja" ? "↓" : "↔";
   return (
     <article className="card min-w-0 p-3 sm:p-4">
-      {icon}
+      <span role="img" aria-label={`${label}: ${value}`} className="inline-flex">{icon}</span>
       <p className="mt-2 break-words text-xl font-bold leading-none sm:text-2xl">{value}</p>
       <p className="mt-1 text-xs font-medium text-foreground">{label}</p>
       <p className={`mt-1 text-[11px] leading-snug ${color}`}>

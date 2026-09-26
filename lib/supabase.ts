@@ -1,19 +1,20 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Si faltan las variables de entorno, la app sigue funcionando en modo local
+// (solo localStorage) sin lanzar errores ni conexiones a Supabase.
+const supabase: SupabaseClient | null =
+  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
-const USER_ID_KEY = "habitos-anon-user-id";
+export function getSupabase(): SupabaseClient | null {
+  return supabase;
+}
 
-export function getAnonUserId(): string {
-  if (typeof window === "undefined") return "ssr-placeholder";
-  let id = localStorage.getItem(USER_ID_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(USER_ID_KEY, id);
-    supabase.from("users").insert({ id }).then(() => {});
-  }
-  return id;
+// Devuelve el usuario de la sesión activa (Supabase Auth) o null.
+export async function getSessionUser(): Promise<User | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getUser();
+  return data.user ?? null;
 }

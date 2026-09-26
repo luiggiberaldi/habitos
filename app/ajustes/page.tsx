@@ -1,11 +1,49 @@
 "use client";
 
+import { useState } from "react";
 import { useStore } from "../../lib/store-context";
+import { notificarAhora, prepararNotificaciones, reproducirSonido } from "../../lib/notifications";
 import { IconCampana, IconDescanso, IconLuna, IconMovimiento, IconSistema, IconSol } from "../../lib/icons";
 
 export default function Ajustes() {
   const { state, guardarSettings } = useStore();
   const settings = state.settings;
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function toggleNotifications(enabled: boolean) {
+    setNotificationMessage("");
+    if (!enabled) {
+      guardarSettings({ ...settings, notificaciones: false });
+      setNotificationMessage("Recordatorios desactivados.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await prepararNotificaciones();
+      guardarSettings({ ...settings, notificaciones: true });
+      setNotificationMessage("Recordatorios activados. Debes mantener la app instalada o abierta para que se revisen tus horarios.");
+    } catch (error) {
+      setNotificationMessage(error instanceof Error ? error.message : "No se pudieron activar las notificaciones.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTestNotification() {
+    setBusy(true);
+    setNotificationMessage("");
+    try {
+      await prepararNotificaciones();
+      await notificarAhora("Notificaciones activas", "Así se verá un recordatorio de tus hábitos.", "habitos-prueba");
+      reproducirSonido();
+      setNotificationMessage("Prueba enviada. El sonido puede depender de los ajustes de volumen y notificaciones del móvil.");
+    } catch (error) {
+      setNotificationMessage(error instanceof Error ? error.message : "No se pudo enviar la prueba.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -69,13 +107,17 @@ export default function Ajustes() {
           <IconCampana className="h-5 w-5 text-accent" />
           <div>
             <h2 className="font-semibold">Notificaciones</h2>
-            <p className="text-sm text-muted">Recuerda tus momentos del día.</p>
+            <p className="text-sm text-muted">Recordatorios de hábitos en sus horarios, salvo durante el descanso.</p>
           </div>
         </div>
-        <Switch
-          checked={settings.notificaciones}
-          onChange={(v) => guardarSettings({ ...settings, notificaciones: v })}
-        />
+        <Switch checked={settings.notificaciones} onChange={toggleNotifications} />
+        {settings.notificaciones && (
+          <button type="button" disabled={busy} onClick={sendTestNotification} className="min-h-11 w-full rounded-xl border border-border px-4 text-sm font-medium text-accent hover:bg-accent-soft disabled:opacity-50 sm:w-auto">
+            {busy ? "Enviando…" : "Probar notificación y sonido"}
+          </button>
+        )}
+        {notificationMessage && <p role="status" aria-live="polite" className="w-full text-sm text-muted">{notificationMessage}</p>}
+        <p className="w-full text-xs text-muted">En la web, los horarios se revisan cuando la app está abierta; para recibirlos con la app cerrada hace falta configurar notificaciones push con un servidor.</p>
       </section>
 
       {/* Horas de descanso */}
@@ -129,7 +171,7 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="switch-track min-h-11 min-w-11 shrink-0"
+      className="switch-track shrink-0"
       data-checked={checked ? "true" : "false"}
     >
       <span className="switch-thumb" />

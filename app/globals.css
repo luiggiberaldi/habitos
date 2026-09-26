@@ -2,6 +2,7 @@
 
 :root,
 :root[data-theme="light"] {
+  color-scheme: light;
   --background: #f4f5f9;
   --foreground: #111827;
   --muted: #6b7280;
@@ -21,6 +22,7 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --background: #0c0e14;
   --foreground: #f1f5f9;
   --muted: #94a3b8;
@@ -60,13 +62,23 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --background: #0f1115;
-    --foreground: #eceef2;
-    --muted: #aab0bd;
-    --surface: #1a1d24;
-    --border: #2a2e38;
+    color-scheme: dark;
+    --background: #0c0e14;
+    --foreground: #f1f5f9;
+    --muted: #94a3b8;
+    --surface: #151823;
+    --surface-2: #1c2030;
+    --border: #343a4d;
     --accent: #4fbfa4;
-    --accent-foreground: #0f1115;
+    --accent-soft: #4fbfa420;
+    --accent-strong: #6dd5bc;
+    --accent-foreground: #0c0e14;
+    --secondary: #818cf8;
+    --secondary-soft: #818cf820;
+    --danger: #f87171;
+    --danger-soft: #f8717120;
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
   }
 }
 
@@ -192,6 +204,18 @@ body {
   color: var(--foreground);
 }
 .input-field:focus { border-color: var(--accent); }
+
+/* Mantiene contraste y colores del tema en campos autocompletados por Chromium. */
+.input-field:-webkit-autofill,
+.input-field:-webkit-autofill:hover,
+.input-field:-webkit-autofill:focus,
+.input-field:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  transition: background-color 9999s ease-out 0s;
+}
 
 select.input-field,
 select.input-field:not([class*="rounded-"]) {

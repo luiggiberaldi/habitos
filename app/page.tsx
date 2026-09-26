@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store-context";
 import { PUNTOS_OBJETIVO_DIARIO, PUNTOS_POR_REGISTRO, puntosTotalesParaFecha, resumenSemanal } from "../lib/gamificacion";
-import { addDays, completadosPara, esDescanso, formatHoraA12, idiomaDeVentana, todayKey } from "../lib/dates";
+import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, todayKey } from "../lib/dates";
 import Logo from "../components/Logo";
 import { IconAlerta, IconCategoria, IconCheck, IconEstrella, IconFuego, IconObjetivo } from "../lib/icons";
 import type { CompletionEvent, Habit, Moment } from "../lib/types";
@@ -279,10 +279,12 @@ function HabitCard({
   const racha = rachaActual(habit, fecha, completions);
 
   const ultimos7 = Array.from({ length: 7 }, (_, i) => {
-    const d = todayKey(addDays(new Date(`${fecha}T12:00:00`), -(6 - i)));
-    const comp = completadosPara(habit, d, completions);
-    const ratio = habit.momentos.length ? comp.size / habit.momentos.length : 0;
-    return { fecha: d, ratio };
+    const dia = todayKey(addDays(new Date(`${fecha}T12:00:00`), -(6 - i)));
+    const comp = completadosPara(habit, dia, completions);
+    const descanso = esDescanso(habit, dia);
+    const ratio = !descanso && objetivo > 0 ? Math.min(1, comp.size / objetivo) : 0;
+    const indiceDia = new Date(`${dia}T12:00:00`).getDay();
+    return { fecha: dia, ratio, descanso, completados: comp.size, etiqueta: DIAS_SEMANA[indiceDia].slice(0, 2) };
   });
 
   return (
@@ -311,27 +313,56 @@ function HabitCard({
               )}
             </div>
             <p className="text-sm text-muted">
-              {completados.size}/{objetivo} completados
+              {completados.size}/{objetivo} momentos hoy
               {racha > 0 && racha < 3 && ` · Racha: ${racha}d`}
             </p>
           </div>
         </header>
 
-        {/* Mini-barras 7 días */}
-        <div className="mt-4 flex items-end gap-1 h-8">
-          {ultimos7.map((dia) => (
+        <div className="mt-4" role="group" aria-label={`Progreso de hoy: ${completados.size} de ${objetivo} momentos`}>
+          <div
+            role="progressbar"
+            aria-valuenow={Math.min(completados.size, objetivo)}
+            aria-valuemin={0}
+            aria-valuemax={objetivo}
+            aria-label={`Progreso de ${habit.nombre} hoy`}
+            className="h-1.5 overflow-hidden rounded-full bg-border"
+          >
             <div
-              key={dia.fecha}
-              className="flex-1 rounded-sm transition-all"
-              style={{
-                height: `${Math.max(8, dia.ratio * 100)}%`,
-                backgroundColor: dia.ratio >= 1 ? habit.color : dia.ratio > 0 ? `${habit.color}60` : `var(--border)`,
-              }}
-              title={`${dia.fecha}: ${Math.round(dia.ratio * 100)}%`}
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${objetivo ? Math.min(100, (completados.size / objetivo) * 100) : 0}%`, backgroundColor: habit.color }}
             />
-          ))}
+          </div>
+          <p className="mt-1.5 text-xs text-muted">
+            {completos ? "¡Objetivo de hoy cumplido!" : `Te ${objetivo - completados.size === 1 ? "falta" : "faltan"} ${Math.max(0, objetivo - completados.size)} ${objetivo - completados.size === 1 ? "momento" : "momentos"}`}
+          </p>
         </div>
-        <p className="mt-1 text-[10px] text-muted">Últimos 7 días</p>
+
+        {/* Actividad de los últimos 7 días */}
+        <div className="mt-4" role="group" aria-label="Actividad de los últimos siete días">
+          <div className="flex h-8 items-end gap-1" aria-hidden="true">
+            {ultimos7.map((dia) => (
+              <div
+                key={dia.fecha}
+                className="flex-1 rounded-sm transition-all"
+                style={{
+                  height: dia.descanso ? "20%" : `${Math.max(12, dia.ratio * 100)}%`,
+                  backgroundColor: dia.descanso ? "var(--border)" : dia.ratio >= 1 ? habit.color : dia.ratio > 0 ? `${habit.color}60` : "var(--border)",
+                  boxShadow: dia.fecha === fecha ? `0 0 0 1px ${habit.color}, 0 0 0 2px var(--surface)` : undefined,
+                }}
+                title={`${dia.fecha}: ${dia.descanso ? "día de descanso" : `${dia.completados} de ${objetivo} momentos`}`}
+              />
+            ))}
+          </div>
+          <div className="mt-1 flex gap-1" aria-hidden="true">
+            {ultimos7.map((dia) => (
+              <span key={dia.fecha} className={`flex-1 text-center text-[10px] ${dia.fecha === fecha ? "font-bold text-foreground" : "text-muted"}`}>
+                {dia.etiqueta}
+              </span>
+            ))}
+          </div>
+          <p className="sr-only">Últimos 7 días, de izquierda a derecha: {ultimos7.map((dia) => `${dia.fecha}, ${dia.descanso ? "descanso" : `${dia.completados} de ${objetivo}`}`).join("; ")}.</p>
+        </div>
 
         <ul className="mt-4 flex flex-col gap-2">
           {habit.momentos.map((moment) => {

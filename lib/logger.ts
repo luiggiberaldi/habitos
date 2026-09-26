@@ -1,4 +1,4 @@
-import { supabase, getAnonUserId } from "./supabase";
+import { getSupabase, getSessionUser } from "./supabase";
 
 export type LogAction =
   | "HABIT_CREATED"
@@ -17,10 +17,13 @@ export async function logEvent(
   entityId: string | null,
   payload: Record<string, unknown> | null,
 ): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   try {
-    const userId = getAnonUserId();
+    const user = await getSessionUser();
+    if (!user) return;
     await supabase.from("activity_log").insert({
-      user_id: userId,
+      user_id: user.id,
       action,
       entity_type: entityType,
       entity_id: entityId,

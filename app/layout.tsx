@@ -2,8 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "../lib/store-context";
+import { AuthGate } from "../components/AuthGate";
 import Nav from "../components/Nav";
 import ThemeApplier from "../components/ThemeApplier";
+import NotificationManager from "../components/NotificationManager";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,15 +35,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background">
-        <StoreProvider>
-          <ThemeApplier />
-          <div className="flex min-h-screen">
+        <AuthGate>
+          <StoreProvider>
+            <ThemeApplier />
+            <NotificationManager />
+            <div className="flex min-h-screen">
             <Nav />
             <main className="flex-1 min-w-0 md:ml-60 pb-24 md:pb-0">
               {children}
             </main>
-          </div>
-        </StoreProvider>
+            </div>
+          </StoreProvider>
+        </AuthGate>
       </body>
     </html>
   );

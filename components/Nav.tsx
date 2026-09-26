@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
-import { IconAjustes, IconEstadisticas, IconInicio, IconLista } from "../lib/icons";
+import { useAuth } from "./AuthGate";
+import { IconAjustes, IconEstadisticas, IconInicio, IconLista, IconCerrarSesion } from "../lib/icons";
 
 const items = [
   { href: "/", label: "Hoy", icon: IconInicio },
@@ -14,6 +15,7 @@ const items = [
 
 export default function Nav() {
   const pathname = usePathname();
+  const { user, cerrarSesion } = useAuth();
 
   return (
     <>
@@ -42,6 +44,18 @@ export default function Nav() {
             );
           })}
         </nav>
+        <div className="border-t border-border p-3">
+          <button
+            onClick={cerrarSesion}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-all hover:bg-surface-2 hover:text-foreground"
+          >
+            <IconCerrarSesion className="h-5 w-5" />
+            Cerrar sesión
+          </button>
+          {user && (
+            <p className="mt-1 px-3 text-xs text-muted truncate">{user.email}</p>
+          )}
+        </div>
       </aside>
 
       {/* Bottom nav mobile */}
@@ -63,6 +77,14 @@ export default function Nav() {
               </Link>
             );
           })}
+          <button
+            onClick={cerrarSesion}
+            aria-label="Cerrar sesión"
+            className="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-[11px] font-medium text-muted transition-colors hover:text-foreground min-h-[44px]"
+          >
+            <IconCerrarSesion className="h-5 w-5" />
+            <span className="truncate max-w-full">Salir</span>
+          </button>
         </div>
       </nav>
     </>
