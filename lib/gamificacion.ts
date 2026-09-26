@@ -205,14 +205,14 @@ export interface NivelDef {
 }
 
 export const NIVELES: NivelDef[] = [
-  { nivel: 1, nombre: "Novato", xp: 0 },
-  { nivel: 2, nombre: "Aprendiz", xp: 150 },
-  { nivel: 3, nombre: "Constante", xp: 400 },
-  { nivel: 4, nombre: "Enfocado", xp: 800 },
-  { nivel: 5, nombre: "Disciplinado", xp: 1400 },
-  { nivel: 6, nombre: "Imparable", xp: 2200 },
-  { nivel: 7, nombre: "Titán", xp: 3200 },
-  { nivel: 8, nombre: "Maestro", xp: 4500 },
+  { nivel: 1, nombre: "Chispa", xp: 0 },
+  { nivel: 2, nombre: "Impulso", xp: 150 },
+  { nivel: 3, nombre: "Ritmo", xp: 400 },
+  { nivel: 4, nombre: "Constancia", xp: 800 },
+  { nivel: 5, nombre: "Hábito", xp: 1400 },
+  { nivel: 6, nombre: "Disciplina", xp: 2200 },
+  { nivel: 7, nombre: "Maestría", xp: 3200 },
+  { nivel: 8, nombre: "Inspiración", xp: 4500 },
   { nivel: 9, nombre: "Leyenda", xp: 6000 },
 ];
 

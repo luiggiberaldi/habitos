@@ -115,7 +115,7 @@ const mkState = (habits, completions, juegoOver = {}) => ({
 // ── Niveles ────────────────────────────────────────────────────────────────
 {
   const n0 = g.nivelParaXp(0);
-  check("nivel 1 = Novato con 0 XP", n0.nivel === 1 && n0.nombre === "Novato");
+  check("nivel 1 = Chispa con 0 XP", n0.nivel === 1 && n0.nombre === "Chispa");
   const n2 = g.nivelParaXp(150);
   check("150 XP = nivel 2", n2.nivel === 2);
   const n9 = g.nivelParaXp(6000);
