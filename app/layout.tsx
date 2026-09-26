@@ -20,12 +20,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Hábitos - Seguimiento Diario",
   description: "Aplicación para crear, seguir y mantener buenos hábitos diarios.",
+  // Fase 3 (PWA): enlaza el manifest y el icono instalable.
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#328b78",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

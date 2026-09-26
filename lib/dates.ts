@@ -41,9 +41,11 @@ export function completadosPara(
   completions: CompletionEvent[],
 ): Set<string> {
   const set = new Set<string>();
+  const esCantidad = habit.tipo === "cantidad";
   for (const c of completions) {
     if (c.habitId === habit.id && c.fecha === fechaKey) {
-      set.add(c.momentId);
+      // Para cantidad cada registro es un evento único; para momentos el id por momento+fecha.
+      set.add(esCantidad ? c.eventId : c.momentId ?? c.eventId);
     }
   }
   return set;

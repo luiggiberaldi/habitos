@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../../lib/store-context";
 import { DIAS_SEMANA } from "../../lib/dates";
-import type { Categoria, Habit, EstadoHabit } from "../../lib/types";
+import type { Categoria, Habit, EstadoHabit, TipoHabit } from "../../lib/types";
 import {
   IconAlerta,
   IconBorrar,
@@ -63,6 +63,7 @@ export default function GestionHabitos() {
       momentos: [{ id: uid(), tipo: "ventana", ventana: "cualquier" }],
       estado: "activo",
       creadoEn: ahora,
+      tipo: "momento",
     };
   }
 
@@ -133,7 +134,9 @@ export default function GestionHabitos() {
                   )}
                 </div>
                 <p className="truncate text-sm text-muted">
-                  {habit.momentos.length} momento{habit.momentos.length !== 1 ? "s" : ""} · objetivo {habit.objetivo}
+                  {habit.tipo === "cantidad"
+                    ? `Cantidad · meta ${habit.objetivo}${habit.unidad ? ` ${habit.unidad}` : ""}`
+                    : `${habit.momentos.length} momento${habit.momentos.length !== 1 ? "s" : ""} · objetivo ${habit.objetivo}`}
                 </p>
               </div>
               {confirmarBorrado === habit.id ? (
@@ -243,6 +246,25 @@ function HabitForm({
       </div>
 
       <div>
+        <span className="mb-2 block text-sm font-medium">Tipo de registro</span>
+        <div className="flex flex-wrap gap-2">
+          {([{ valor: "momento", etiqueta: "Por momento" }, { valor: "cantidad", etiqueta: "Por cantidad" }] as { valor: TipoHabit; etiqueta: string }[]).map((t) => (
+            <button
+              key={t.valor}
+              type="button"
+              onClick={() => patch({ tipo: t.valor, ...(t.valor === "cantidad" ? { momentos: [] } : {}) })}
+              className={`chip capitalize ${(draft.tipo ?? "momento") === t.valor ? "chip-active" : "hover:border-accent"}`}
+            >
+              {t.etiqueta}
+              {t.valor === "cantidad" && draft.tipo === "cantidad" && draft.momentos.length === 0 && (
+                <span className="ml-1 text-[10px] text-muted">· contador</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
         <span className="mb-2 block text-sm font-medium">Color</span>
         <div className="flex flex-wrap gap-2">
           {COLORES.map((color) => (
@@ -286,17 +308,48 @@ function HabitForm({
         </div>
       </label>
 
-      <label className="flex flex-wrap items-center gap-3">
-        <span className="flex-1 text-sm font-medium">Objetivo diario</span>
-        <input
-          type="number"
-          min={1}
-          max={20}
-          value={draft.objetivo}
-          onChange={(e) => patch({ objetivo: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })}
-          className="input-field w-24 min-h-10 text-center"
-        />
-      </label>
+      {draft.tipo === "cantidad" ? (
+        <>
+          <label className="flex flex-wrap items-center gap-3">
+            <span className="flex-1 text-sm font-medium">Meta diaria</span>
+            <input
+              type="number"
+              min={1}
+              max={200}
+              value={draft.objetivo}
+              onChange={(e) => patch({ objetivo: Math.max(1, Math.min(200, Number(e.target.value) || 1)) })}
+              className="input-field w-24 min-h-10 text-center"
+            />
+          </label>
+          <label className="flex items-center gap-3">
+            <span className="flex-1 text-sm font-medium">Unidad</span>
+            <input
+              value={draft.unidad ?? ""}
+              onChange={(e) => patch({ unidad: e.target.value })}
+              placeholder="p. ej. vasos, litros, km"
+              className="input-field flex-1 min-w-0"
+            />
+          </label>
+        </>
+      ) : (
+        <label className="flex flex-wrap items-center gap-3">
+          <span className="flex-1 text-sm font-medium">Objetivo diario</span>
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={draft.objetivo}
+            onChange={(e) => patch({ objetivo: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })}
+            className="input-field w-24 min-h-10 text-center"
+          />
+        </label>
+      )}
+
+      {draft.tipo === "cantidad" ? (
+        <p className="rounded-xl border border-border bg-surface/50 px-3 py-2 text-xs text-muted">
+          Cada registro añadirá un recuento con la hora y fecha exacta, sin momentos del día programados.
+        </p>
+      ) : null}
 
       <div>
         <div className="mb-2 flex items-center justify-between">

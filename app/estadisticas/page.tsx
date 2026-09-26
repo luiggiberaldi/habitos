@@ -21,9 +21,10 @@ function comparativa(actual: number, anterior: number, sufijo = "") {
   };
 }
 
-function rachaActual(habitId: string, hoy: string, completions: { habitId: string; fecha: string; momentId: string }[], habits: { id: string; objetivo: number; momentos: { id: string }[]; dias: number[] }[]): number {
+function rachaActual(habitId: string, hoy: string, completions: { habitId: string; fecha: string; momentId?: string; eventId: string; timestamp: string }[], habits: { id: string; objetivo: number; dias: number[]; tipo?: string }[]): number {
   const habit = habits.find((h) => h.id === habitId);
   if (!habit) return 0;
+  const esCantidad = habit.tipo === "cantidad";
   let racha = 0;
   let d = new Date(`${hoy}T12:00:00`);
   for (let i = 0; i < 365; i++) {
@@ -33,8 +34,8 @@ function rachaActual(habitId: string, hoy: string, completions: { habitId: strin
       continue;
     }
     const comp = completions.filter((c) => c.habitId === habitId && c.fecha === key);
-    const uniqueMoments = new Set(comp.map((c) => c.momentId));
-    if (uniqueMoments.size >= habit.objetivo) {
+    const unicos = new Set(esCantidad ? comp.map((c) => c.eventId) : comp.map((c) => c.momentId));
+    if (unicos.size >= habit.objetivo) {
       racha++;
     } else {
       break;

@@ -1,6 +1,14 @@
 // Edge Function push-notifications — Scheduler + envío (Fases 4 y 5 del plan)
-// Se ejecuta cada minuto vía pg_cron. Consulta hábitos con momento "hora" pendiente
-// hoy, excluye descanso y ya completados, y envía web push. Dedupe idempotente con push_log.
+// Se ejecuta cada minuto vía pg_cron (o invocación programada). Consulta hábitos con
+// momento "hora" pendiente hoy, excluye descanso y ya completados, y envía web push.
+// Dedupe idempotente con push_log.
+//
+// Requiere variables de entorno:
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+//   VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY,
+//   CRON_SECRET (compartida entre el scheduler y esta función)
+//   DEFAULT_TIMEZONE (p. ej. "America/Mexico_City"); cada usuario puede sobrescribir
+//   con su propia zona en "data.settings.timezone" de su primer row en habbits (habits).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
@@ -18,17 +26,36 @@ webpush.setVapidDetails(
 
 const MINUTE = 60_000;
 const ONE_MINUTE_AGO = new Date(Date.now() - MINUTE).toISOString();
+const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
+const DEFAULT_TIMEZONE = Deno.env.get("DEFAULT_TIMEZONE") ?? "America/Mexico_City";
 
-function ahoraLocal(): { fecha: string; hhmm: string; dia: number } {
-  // El scheduler corre en UTC; usamos la zona del proyecto. Para robustez leemos la
-  // hora en la zona del usuario no es posible de forma global, así que asumimos una zona
-  // configurable vía TZ del entorno (Supabase usa UTC por defecto; ajustar TZ en la función).
+/**
+ * Obtiene fecha, HH:mm y día de la semana en una zona horaria concreta.
+ * Intl funciona en Deno con datos de zona completos.
+ */
+function ahoraLocal(tz: string): { fecha: string; hhmm: string; dia: number } {
   const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(now).map((p) => [p.type, p.value]));
+  // en-CA con hour12:false puede dar "24" para medianoche; normalizamos.
+  let hour = Number(parts.hour);
+  if (hour === 24) hour = 0;
+  // weekday localizable → día 0..6 (0 = domingo), coincide con Habit.dias.
+  const semana: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const dia = semana[parts.weekday!.slice(0, 3).toLowerCase()] ?? 0;
   return {
-    fecha: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
-    hhmm: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
-    dia: now.getDay(), // 0 = domingo ... 6 = sábado (coincide con Habit.dias)
+    fecha: `${parts.year}-${parts.month}-${parts.day}`,
+    hhmm: `${String(hour).padStart(2, "0")}:${parts.minute}`,
+    dia,
   };
 }
 
@@ -43,28 +70,34 @@ function eventId(habitId: string, momentId: string, fecha: string): string {
   return `${habitId}|${momentId}|${fecha}`;
 }
 
+/** Descanso por defecto (22:00–08:00); los usuarios pueden sobrescribirlo en data.settings. */
+const DESCANSOS_DEFAULT = { inicio: "22:00", fin: "08:00" };
+
 async function calcularDebidos(): Promise<
   { userId: string; habitId: string; momentId: string; nombre: string; body: string; url: string }[]
 > {
-  const { fecha, hhmm, dia } = ahoraLocal();
-
-  // Fuera de la franja de descanso por defecto (22:00–08:00), igual que en el cliente.
-  // Nota: settings se guardan en localStorage (sin tabla en BBDD); se usa el mismo default.
-  if (dentroDeDescanso({ inicio: "22:00", fin: "08:00" }, hhmm)) return [];
-
-  // 1. Hábitos activos cuyos momentos "hora" coinciden con HH:mm actual, del día actual.
+  // 1. Leer hábitos activos con su data (el estado está dentro de la columna jsonb "data",
+  //    no como una columna separada). Filtramos por data->>'estado' = 'activo'.
   const { data: habits, error } = await supabase
     .from("habits")
     .select("id, user_id, data")
-    .eq("estado", "activo");
+    .filter("data->>estado", "eq", "activo");
 
   if (error) {
     console.error("Error leyendo hábitos:", error.message);
     return [];
   }
 
+  // Agrupar userId → timezone (por si cada usuario tiene configuración propia).
+  const tzPorUsuario = new Map<string, string>();
+  for (const row of habits ?? []) {
+    const tz = (row.data as { settings?: { timezone?: string } })?.settings?.timezone;
+    tzPorUsuario.set(row.user_id, tz || DEFAULT_TIMEZONE);
+  }
+
   const debidos: { habitId: string; momentId: string; userId: string; nombre: string }[] = [];
 
+  // 2. Para cada usuario calcular su hora local y evaluar sus hábitos.
   for (const row of habits ?? []) {
     const habit = row.data as {
       id: string;
@@ -72,11 +105,17 @@ async function calcularDebidos(): Promise<
       estado?: string;
       dias?: number[];
       momentos?: { id: string; tipo?: string; hora?: string; ventana?: string }[];
+      settings?: { horasDescanso?: { inicio: string; fin: string } };
     };
     if (!habit || habit.id !== row.id) continue;
-
-    if (!habit.dias?.includes(dia)) continue;
     if (habit.estado !== "activo") continue;
+
+    const tz = tzPorUsuario.get(row.user_id) ?? DEFAULT_TIMEZONE;
+    const { fecha, hhmm, dia } = ahoraLocal(tz);
+
+    const descanso = habit.settings?.horasDescanso ?? DESCANSOS_DEFAULT;
+    if (dentroDeDescanso(descanso, hhmm)) continue;
+    if (!habit.dias?.includes(dia)) continue;
 
     for (const moment of habit.momentos ?? []) {
       if (moment.tipo !== "hora" || moment.hora !== hhmm) continue;
@@ -91,8 +130,16 @@ async function calcularDebidos(): Promise<
 
   if (debidos.length === 0) return [];
 
-  // 2. Excluir momentos ya completados hoy (JOIN con completions por event_id).
-  const eventIds = debidos.map((d) => eventId(d.habitId, d.momentId, fecha));
+  // 3. Excluir momentos ya completados hoy (JOIN con completions por event_id).
+  //    Necesitamos la fecha por (userId) para calcular event_id correcto → usamos un mapa.
+  //    Como event_id depende de la fecha local, la evaluamos por usuario.
+  const debidosConFecha: { d: (typeof debidos)[number]; fecha: string }[] = [];
+  for (const d of debidos) {
+    const tz = tzPorUsuario.get(d.userId) ?? DEFAULT_TIMEZONE;
+    debidosConFecha.push({ d, fecha: ahoraLocal(tz).fecha });
+  }
+  const eventIds = debidosConFecha.map(({ d, fecha }) => eventId(d.habitId, d.momentId, fecha));
+
   const { data: completions, error: compError } = await supabase
     .from("completions")
     .select("event_id")
@@ -103,7 +150,7 @@ async function calcularDebidos(): Promise<
   }
   const yaCompletados = new Set((completions ?? []).map((c) => c.event_id));
 
-  // 3. Excluir ya notificados en el último minuto (dedupe por push_log).
+  // 4. Excluir ya notificados en el último minuto (dedupe por push_log).
   const { data: logs, error: logError } = await supabase
     .from("push_log")
     .select("event_id")
@@ -114,12 +161,12 @@ async function calcularDebidos(): Promise<
   }
   const yaEnviados = new Set((logs ?? []).map((l) => l.event_id));
 
-  return debidos
-    .filter((d) => {
+  return debidosConFecha
+    .filter(({ d, fecha }) => {
       const eid = eventId(d.habitId, d.momentId, fecha);
       return !yaCompletados.has(eid) && !yaEnviados.has(eid);
     })
-    .map((d) => ({
+    .map(({ d }) => ({
       userId: d.userId,
       habitId: d.habitId,
       momentId: d.momentId,
@@ -154,7 +201,16 @@ async function enviarPush(
   }
 }
 
-async function run(): Promise<Response> {
+async function run(req: Request): Promise<Response> {
+  // Validación del secreto compartido para invocaciones programadas/por servicio.
+  const auth = req.headers.get("x-cron-secret") ?? req.headers.get("authorization");
+  if (CRON_SECRET && auth !== CRON_SECRET) {
+    return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const debidos = await calcularDebidos();
   if (debidos.length === 0) {
     return new Response(JSON.stringify({ ok: true, sent: 0 }), { headers: { "Content-Type": "application/json" } });
@@ -178,7 +234,6 @@ async function run(): Promise<Response> {
     porUsuario.set(s.user_id, list);
   }
 
-  const fecha = ahoraLocal().fecha;
   let sent = 0;
   const logs: { event_id: string; habit_id: string; moment_id: string; user_id: string }[] = [];
 
@@ -186,36 +241,32 @@ async function run(): Promise<Response> {
     const userSubs = porUsuario.get(d.userId) ?? [];
     if (userSubs.length === 0) continue;
 
+    const tz = Deno.env.get("DEFAULT_TIMEZONE") ?? DEFAULT_TIMEZONE;
+    const fecha = ahoraLocal(tz).fecha;
     const payload = { title: "Recordatorio de hábito 🎯", body: d.body, data: { habitId: d.habitId, momentId: d.momentId, url: d.url } };
-    let ok = false;
+
+    let exito = false;
     for (const sub of userSubs) {
       if (await enviarPush(sub, payload)) {
-        ok = true;
-        break; // basta con una suscripción por usuario
+        exito = true;
+        break;
       }
     }
-    if (ok) {
+    if (exito) {
       sent++;
-      logs.push({
-        event_id: eventId(d.habitId, d.momentId, fecha),
-        habit_id: d.habitId,
-        moment_id: d.momentId,
-        user_id: d.userId,
-      });
+      logs.push({ event_id: eventId(d.habitId, d.momentId, fecha), habit_id: d.habitId, moment_id: d.momentId, user_id: d.userId });
     }
   }
 
-  // Registrar envíos para dedupe idempotente.
+  // Persistir el log de envíos (dedupe idempotente para el próximo minuto).
   if (logs.length > 0) {
-    const { error: insError } = await supabase.from("push_log").insert(logs);
-    if (insError) {
-      console.error("Error insertando push_log (dedupe):", insError.message);
-    }
+    const { error: insErr } = await supabase.from("push_log").insert(logs);
+    if (insErr) console.error("Error escribiendo push_log:", insErr.message);
   }
 
   return new Response(JSON.stringify({ ok: true, sent }), { headers: { "Content-Type": "application/json" } });
 }
 
-Deno.serve(async (_req) => {
-  return await run();
+Deno.serve(async (req) => {
+  return await run(req);
 });

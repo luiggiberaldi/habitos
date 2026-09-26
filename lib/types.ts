@@ -15,6 +15,8 @@ export interface Moment {
 
 export type EstadoHabit = "activo" | "pausado" | "archivado";
 
+export type TipoHabit = "momento" | "cantidad";
+
 export interface Habit {
   id: string;
   nombre: string;
@@ -25,24 +27,28 @@ export interface Habit {
   dias: number[]; // 0 = domingo ... 6 = sábado
   objetivo: number; // veces por día
   /** Cambios de objetivo conservados con fecha efectiva para estadísticas históricas. */
-  historialObjetivos?: { desde: string; objetivo: number }[];
+  historialObjetivos?: { desde: string; objetivo: number; hasta?: string }[];
   momentos: Moment[];
   estado: EstadoHabit;
   creadoEn: string; // ISO
+  /** 'momento' usa momentos del día (legacy/default). 'cantidad' es un contador libre por unidad. */
+  tipo?: TipoHabit;
+  /** Unidad de medida para hábitos de cantidad (ej. 'vasos', 'litros'). */
+  unidad?: string;
 }
 
 /**
- * Evento de cumplimiento verificable e idempotente.
- * `eventId` es único para el momento+habit+fecha y garantiza que
- * marcar dos veces no duplique puntos ni estadísticas.
+ * Evento de cumplimiento verificable.
+ * Para hábitos de tipo 'momento', `eventId` es idempotente por momento+habit+fecha.
+ * Para hábitos de tipo 'cantidad', cada registro es un evento único con timestamp exacto.
  */
 export interface CompletionEvent {
   id: string;
   habitId: string;
-  momentId: string;
+  momentId?: string; // undefined para hábitos de cantidad
   fecha: string; // YYYY-MM-DD
   timestamp: string; // ISO
-  // Idempotency key: `${habitId}|${momentId}|${fecha}`
+  // Idempotency key: `${habitId}|${momentId}|${fecha}` para momentos, o UUID/timestamp para cantidad
   eventId: string;
 }
 

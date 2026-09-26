@@ -91,6 +91,15 @@ export default function Inicio() {
     }, 120);
   }
 
+  function alRegistrarCantidad(habit: Habit) {
+    const eventId = `${habit.id}|cantidad|${hoy}|${Date.now()}`;
+    setMarcando(eventId);
+    window.setTimeout(() => {
+      registrar(habit.id, undefined, hoy);
+      setMarcando(null);
+    }, 120);
+  }
+
   function toggleSubtarea(habitId: string, momentId: string, subtarea: string) {
     const key = `${habitId}|${momentId}`;
     setSubtareasTemp((prev) => {
@@ -242,6 +251,7 @@ export default function Inicio() {
               onDeshacer={deshacer}
               onToggleSubtarea={toggleSubtarea}
               onExpand={(id) => setExpandedMoment(id)}
+              onRegistrarCantidad={alRegistrarCantidad}
             />
           ))}
         </section>
@@ -261,6 +271,7 @@ function HabitCard({
   onDeshacer,
   onToggleSubtarea,
   onExpand,
+  onRegistrarCantidad,
 }: {
   habit: Habit;
   fecha: string;
@@ -272,6 +283,7 @@ function HabitCard({
   onDeshacer: (event: CompletionEvent) => void;
   onToggleSubtarea: (habitId: string, momentId: string, subtarea: string) => void;
   onExpand: (id: string | null) => void;
+  onRegistrarCantidad: (habit: Habit) => void;
 }) {
   const completados = completadosPara(habit, fecha, completions);
   const objetivo = habit.objetivo;
@@ -313,7 +325,9 @@ function HabitCard({
               )}
             </div>
             <p className="text-sm text-muted">
-              {completados.size}/{objetivo} momentos hoy
+              {habit.tipo === "cantidad"
+                ? `${completados.size}/${objetivo} ${habit.unidad || "unidades"} hoy`
+                : `${completados.size}/${objetivo} momentos hoy`}
               {racha > 0 && racha < 3 && ` · Racha: ${racha}d`}
             </p>
           </div>
@@ -364,6 +378,16 @@ function HabitCard({
           <p className="sr-only">Últimos 7 días, de izquierda a derecha: {ultimos7.map((dia) => `${dia.fecha}, ${dia.descanso ? "descanso" : `${dia.completados} de ${objetivo}`}`).join("; ")}.</p>
         </div>
 
+        {habit.tipo === "cantidad" ? (
+          <CantidadCard
+            habit={habit}
+            fecha={fecha}
+            completions={completions}
+            marcando={marcando}
+            onRegistrarCantidad={onRegistrarCantidad}
+            onDeshacer={onDeshacer}
+          />
+        ) : (
         <ul className="mt-4 flex flex-col gap-2">
           {habit.momentos.map((moment) => {
             const hecho = completados.has(moment.id);
@@ -442,7 +466,68 @@ function HabitCard({
             );
           })}
         </ul>
+        )}
       </div>
     </article>
   );
 }
+
+function CantidadCard({
+  habit,
+  fecha,
+  completions,
+  marcando,
+  onRegistrarCantidad,
+  onDeshacer,
+}: {
+  habit: Habit;
+  fecha: string;
+  completions: CompletionEvent[];
+  marcando: string | null;
+  onRegistrarCantidad: (habit: Habit) => void;
+  onDeshacer: (event: CompletionEvent) => void;
+}) {
+  const completados = completadosPara(habit, fecha, completions);
+  const pulsando = marcando !== null && marcando.startsWith(`${habit.id}|cantidad`);
+  const hoyEventos = completions
+    .filter((c) => c.habitId === habit.id && c.fecha === fecha)
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => onRegistrarCantidad(habit)}
+        disabled={pulsando}
+        className="mt-4 btn-primary w-full justify-center !py-3 !text-base"
+      >
+        {pulsando ? "…" : `+1 ${habit.unidad || "registro"}`}
+      </button>
+
+      {hoyEventos.length > 0 && (
+        <div className="mt-4 rounded-xl border border-border bg-surface-2/50 p-3">
+          <p className="mb-2 text-xs font-medium text-muted">Registros de hoy ({hoyEventos.length})</p>
+          <ul className="flex flex-col gap-1.5">
+            {hoyEventos.map((ev, i) => (
+              <li key={ev.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="inline-flex items-center gap-1.5 text-muted">
+                  <IconCheck className="h-3.5 w-3.5 text-accent" />
+                  Registro n.º {i + 1}
+                </span>
+                <span className="text-xs tabular-nums">{formatHoraA12(ev.timestamp.slice(11, 16))} · {ev.timestamp.slice(8, 10)}/{ev.timestamp.slice(5, 7)}</span>
+                <button
+                  type="button"
+                  onClick={() => onDeshacer(ev)}
+                  className="text-xs text-danger hover:underline"
+                >
+                  Deshacer
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+

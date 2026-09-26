@@ -24,7 +24,9 @@ export function objetivoEnFecha(habit: Habit, fecha: string): number {
 
 export function puntosParaFecha(habit: Habit, fecha: string, completions: CompletionEvent[]): number {
   if (esDescanso(habit, fecha)) return 0;
-  const ids = new Set(completions.filter((c) => c.habitId === habit.id && c.fecha === fecha).map((c) => c.momentId));
+  const eventos = completions.filter((c) => c.habitId === habit.id && c.fecha === fecha);
+  // Para cantidad cada registro cuenta individualmente; para momentos se cuentan momentos únicos.
+  const ids = new Set(habit.tipo === "cantidad" ? eventos.map((c) => c.eventId) : eventos.map((c) => c.momentId));
   const objetivo = objetivoEnFecha(habit, fecha);
   return ids.size * PUNTOS_POR_REGISTRO + (objetivo > 0 && ids.size >= objetivo ? PUNTOS_OBJETIVO_DIARIO : 0);
 }

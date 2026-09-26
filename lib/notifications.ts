@@ -110,7 +110,8 @@ export async function prepararNotificaciones(): Promise<ServiceWorkerRegistratio
     const permission = await Notification.requestPermission();
     if (permission !== "granted") throw new Error("No se concedió permiso para mostrar notificaciones.");
   }
-  return navigator.serviceWorker.register("./sw.js");
+  // Fase 1: ruta absoluta para que el SW cubra toda la app (./sw.js falla desde rutas anidadas).
+  return navigator.serviceWorker.register("/sw.js");
 }
 
 export async function notificarAhora(title: string, body: string, tag: string): Promise<void> {
@@ -118,9 +119,9 @@ export async function notificarAhora(title: string, body: string, tag: string): 
   await registration.showNotification(title, {
     body,
     tag,
-    icon: "./icon.svg",
-    badge: "./icon.svg",
-    data: { url: "./" },
+    icon: "/icon.svg",
+    badge: "/icon.svg",
+    data: { url: "/" },
   });
 }
 
@@ -192,9 +193,9 @@ export async function revisarRecordatorios(state: AppState): Promise<number> {
     await registration.showNotification(`Momento de ${item.habit.nombre}`, {
       body: "Tu recordatorio de hábito está listo. Tómate un momento para hacerlo.",
       tag: `habito-${item.habit.id}-${item.momentId}-${fecha}`,
-      icon: "./icon.svg",
-      badge: "./icon.svg",
-      data: { url: "./" },
+      icon: "/icon.svg",
+      badge: "/icon.svg",
+      data: { url: "/" },
     });
     sent.add(item.key);
   }
