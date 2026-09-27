@@ -55,7 +55,8 @@ export default function Niveles() {
             <li
               key={n.nivel}
               ref={esActual ? refActual : undefined}
-              className={`card overflow-hidden p-4 sm:p-5 ${esActual ? "ring-2 ring-accent" : ""}`}
+              className={`animate-entrada card overflow-hidden p-4 sm:p-5 ${esActual ? "ring-2 ring-accent" : ""}`}
+              style={{ animationDelay: `${Math.min(n.nivel - 1, 8) * 60}ms` }}
             >
               <div className="flex items-center gap-3.5">
                 <span

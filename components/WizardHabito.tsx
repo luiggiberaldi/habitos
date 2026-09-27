@@ -322,7 +322,7 @@ export function WizardHabito({
           ))}
         </ol>
 
-        <div className="mt-6 flex min-w-0 flex-col gap-5">
+        <div key={paso} className="animate-paso-in mt-6 flex min-w-0 flex-col gap-5">
           {paso === 0 && (
             <>
               {esNuevo && (

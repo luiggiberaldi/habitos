@@ -23,6 +23,7 @@ import { TarjetaSueno } from "../components/TarjetaSueno";
 import ResumenSemanal from "../components/ResumenSemanal";
 import CofreFlip, { type PremioCofreUI } from "../components/ui/CofreFlip";
 import CheckAnimado from "../components/ui/CheckAnimado";
+import XpFlotante, { type XpFlotanteItem } from "../components/ui/XpFlotante";
 import Logo from "../components/Logo";
 import { ICONOS_LOGRO } from "../components/iconos-logro";
 import { AvatarNivel, PALETA } from "../components/AvatarNivel";
@@ -65,6 +66,7 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
         icono: <AvatarNivel nivel={nv} nombre={def?.nombre ?? ""} className="h-14 w-14" />,
         titulo: e.titulo,
         detalle: e.detalle,
+        efecto: "trofeo",
       };
     }
     case "logro": {
@@ -74,6 +76,7 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
         icono: <Icono className="h-8 w-8" />,
         titulo: e.titulo,
         detalle: e.detalle,
+        efecto: "trofeo",
         accion: { etiqueta: "Ir a reclamar", href: "/logros" },
       };
     }
@@ -88,7 +91,13 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
       return { icono: <IconObjetivo className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
     case "sueno": {
       const Icono = e.dato === "levantar" ? IconSol : IconLuna;
-      return { icono: <Icono className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+      return {
+        icono: <Icono className="h-8 w-8" />,
+        titulo: e.titulo,
+        detalle: e.detalle,
+        // XP negativo (llegó tarde): el icono se sacude como un "uy".
+        efecto: e.titulo.startsWith("-") ? "sacudida" : undefined,
+      };
     }
     default:
       return null; // congelador-ganado/usado van al toast, no interrumpen
@@ -101,6 +110,19 @@ export default function Inicio() {
   const { user, perfilId } = useAuth();
   const [mostrarPospuestos, setMostrarPospuestos] = useState(false);
   const [marcando, setMarcando] = useState<string | null>(null);
+  // Etiquetas "+N XP" flotantes por tarjeta (se retiran solas tras la animación).
+  const [xpFlotantes, setXpFlotantes] = useState<(XpFlotanteItem & { habitId: string })[]>([]);
+  const idXpFlotante = useRef(0);
+
+  function mostrarXpFlotante(habitId: string, xp: number): void {
+    if (xp <= 0) return;
+    idXpFlotante.current += 1;
+    const id = idXpFlotante.current;
+    setXpFlotantes((prev) => [...prev.slice(-2), { id, habitId, xp }]);
+    window.setTimeout(() => {
+      setXpFlotantes((prev) => prev.filter((f) => f.id !== id));
+    }, 1250);
+  }
   const [subtareasTemp, setSubtareasTemp] = useState<Record<string, string[]>>({});
   const [expandedMoment, setExpandedMoment] = useState<string | null>(null);
   const [mostrarCompletados, setMostrarCompletados] = useState(false);
@@ -318,7 +340,8 @@ export default function Inicio() {
     const subsCompletadas = subtareasTemp[key] ?? [];
     setMarcando(eventId);
     window.setTimeout(() => {
-      registrar(habit.id, momentId, hoy, subsCompletadas.length > 0 ? subsCompletadas : undefined);
+      const xp = registrar(habit.id, momentId, hoy, subsCompletadas.length > 0 ? subsCompletadas : undefined);
+      mostrarXpFlotante(habit.id, xp);
       setMarcando(null);
       setExpandedMoment(null);
       setSubtareasTemp((prev) => { const n = { ...prev }; delete n[key]; return n; });
@@ -329,7 +352,8 @@ export default function Inicio() {
     const eventId = `${habit.id}|cantidad|${hoy}|${Date.now()}`;
     setMarcando(eventId);
     window.setTimeout(() => {
-      registrar(habit.id, undefined, hoy);
+      const xp = registrar(habit.id, undefined, hoy);
+      mostrarXpFlotante(habit.id, xp);
       setMarcando(null);
     }, 120);
   }
@@ -489,9 +513,15 @@ export default function Inicio() {
           className="h-3 w-full overflow-hidden rounded-full bg-border"
         >
           <div
-            className="h-full rounded-full bg-gradient-to-r from-accent to-accent-strong transition-all duration-500"
+            className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-accent to-accent-strong transition-all duration-500"
             style={{ width: `${progreso}%` }}
-          />
+          >
+            <span
+              key={state.juego?.xpTotal ?? 0}
+              aria-hidden="true"
+              className="animate-brillo absolute inset-y-0 w-1/3 bg-white/40"
+            />
+          </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
           <span>{PUNTOS_POR_REGISTRO} pts por momento · {PUNTOS_OBJETIVO_DIARIO} bonus al cumplir objetivo</span>
@@ -572,6 +602,7 @@ export default function Inicio() {
                 marcando={marcando}
                 expandedMoment={expandedMoment}
                 subtareasTemp={subtareasTemp}
+                xpFlotantes={xpFlotantes.filter((f) => f.habitId === habit.id)}
                 onMarcar={alMarcar}
                 onDeshacer={deshacer}
                 onToggleSubtarea={toggleSubtarea}
@@ -606,6 +637,7 @@ export default function Inicio() {
                       marcando={marcando}
                       expandedMoment={expandedMoment}
                       subtareasTemp={subtareasTemp}
+                      xpFlotantes={xpFlotantes.filter((f) => f.habitId === habit.id)}
                       onMarcar={alMarcar}
                       onDeshacer={deshacer}
                       onToggleSubtarea={toggleSubtarea}
@@ -720,7 +752,7 @@ export default function Inicio() {
         </ul>
       </section>
       {toast && (
-        <div role="status" className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-foreground px-4 py-2.5 text-sm font-medium text-background shadow-lg">
+        <div role="status" className="animate-toast-in fixed bottom-24 left-1/2 z-40 flex items-center gap-2 whitespace-nowrap rounded-full bg-foreground px-4 py-2.5 text-sm font-medium text-background shadow-lg">
           <IconCheck className="h-4 w-4 shrink-0" />
           {toast}
         </div>
@@ -791,6 +823,7 @@ function HabitCard({
   marcando,
   expandedMoment,
   subtareasTemp,
+  xpFlotantes,
   onMarcar,
   onDeshacer,
   onToggleSubtarea,
@@ -804,6 +837,7 @@ function HabitCard({
   marcando: string | null;
   expandedMoment: string | null;
   subtareasTemp: Record<string, string[]>;
+  xpFlotantes: XpFlotanteItem[];
   onMarcar: (habit: Habit, momentId: string) => void;
   onDeshacer: (event: CompletionEvent) => void;
   onToggleSubtarea: (habitId: string, momentId: string, subtarea: string) => void;
@@ -826,7 +860,8 @@ function HabitCard({
   });
 
   return (
-    <article className="card overflow-hidden transition-shadow hover:shadow-md">
+    <article className="card relative overflow-hidden transition-shadow hover:shadow-md">
+      <XpFlotante items={xpFlotantes} />
       <div className="h-1 w-full" style={{ backgroundColor: habit.color }} />
       <div className="p-5">
         <header className="flex items-center gap-3">
@@ -845,7 +880,10 @@ function HabitCard({
                 </span>
               )}
               {racha >= 3 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                <span
+                  key={racha}
+                  className="animate-pop-in inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                >
                   <IconFuego className="h-3 w-3" /> {racha}d
                 </span>
               )}
@@ -1037,7 +1075,7 @@ function CantidadCard({
         −
       </button>
       <div className="min-w-20 text-center">
-        <p className="text-3xl font-bold tabular-nums" aria-live="polite">{hoyEventos.length}</p>
+        <p key={hoyEventos.length} className="animate-pop-in text-3xl font-bold tabular-nums" aria-live="polite">{hoyEventos.length}</p>
         <p className="text-xs text-muted">{habit.unidad || "registros"}</p>
       </div>
       <button

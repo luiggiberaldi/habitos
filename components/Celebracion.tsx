@@ -18,8 +18,9 @@ export interface CelebracionData {
   /**
    * "trofeo": revelado de logro — la medalla entra con pop elástico, onda
    * expansiva, ráfaga de confeti y el XP sube contando. Solo CSS + canvas.
+   * "sacudida": el icono se sacude una vez (p. ej. XP negativo en sueño).
    */
-  efecto?: "trofeo";
+  efecto?: "trofeo" | "sacudida";
   /** XP a animar con contador cuando efecto === "trofeo". */
   xp?: number;
 }
@@ -120,7 +121,11 @@ export default function Celebracion({
               <TrofeoRevelado icono={data.icono} titulo={data.titulo} detalle={data.detalle} xp={data.xp} />
             ) : (
               <>
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft text-accent">
+                <div
+                  className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft text-accent ${
+                    data.efecto === "sacudida" ? "animate-shake" : ""
+                  }`}
+                >
                   {data.icono}
                 </div>
                 <h2 className="mt-4 text-xl font-bold">{data.titulo}</h2>
@@ -129,7 +134,11 @@ export default function Celebracion({
             ))}
           {data.accion ? (
             <>
-              <Link href={data.accion.href} onClick={onCerrar} className="btn-primary mt-6 w-full justify-center">
+              <Link
+                href={data.accion.href}
+                onClick={onCerrar}
+                className={`btn-primary mt-6 w-full justify-center ${data.efecto === "trofeo" ? "animate-boton-latido" : ""}`}
+              >
                 {data.accion.etiqueta}
               </Link>
               <button

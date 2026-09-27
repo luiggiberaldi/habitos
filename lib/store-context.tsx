@@ -82,7 +82,7 @@ interface StoreContextValue {
   guardarHabit: (habit: Habit) => void;
   eliminarHabit: (id: string) => void;
   guardarSettings: (settings: Settings) => void;
-  registrar: (habitId: string, momentId: string | undefined, fecha: string, subtareasCompletadas?: string[]) => void;
+  registrar: (habitId: string, momentId: string | undefined, fecha: string, subtareasCompletadas?: string[]) => number;
   /**
    * Marca de sueño ("levantar" | "acostar") con su hora real.
    * Sin fechaForzada, atribuye la fecha según la regla de medianoche.
@@ -650,6 +650,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           void publicarXpLiga(supabase, userId, perfilId, nuevo.juego);
         }
         logEvent("COMPLETION_REGISTERED", "completion", eventId, { habitId, momentId, fecha, subtareasCompletadas });
+        return xpGanado;
       },
       registrarSueno: (habitId, cual, horaReal, fechaForzada) => {
         const previo = stateRef.current;

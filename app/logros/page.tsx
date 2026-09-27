@@ -21,13 +21,17 @@ function TarjetaLogro({
   logro,
   desbloqueado,
   reclamado,
+  indice,
   onCelebrar,
 }: {
   logro: LogroDef;
   desbloqueado: boolean;
   reclamado: boolean;
+  /** Posición en la grilla: entrada escalonada (tope 600ms). */
+  indice: number;
   onCelebrar: (logro: LogroDef) => void;
 }) {
+  const retrasoEntrada = `${Math.min(indice, 10) * 60}ms`;
   const Icono = ICONOS_LOGRO[logro.icono];
   const pendiente = desbloqueado && !reclamado;
   const contenido = (
@@ -63,7 +67,7 @@ function TarjetaLogro({
         : "border-border bg-surface-2/40 opacity-60"
   }`;
   return desbloqueado ? (
-    <li className="relative pt-2">
+    <li className="animate-entrada relative pt-2" style={{ animationDelay: retrasoEntrada }}>
       {pendiente && (
         <span className="absolute left-1/2 top-0 z-10 -translate-x-1/2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-foreground shadow">
           Sin abrir
@@ -79,7 +83,7 @@ function TarjetaLogro({
       </button>
     </li>
   ) : (
-    <li className={clases}>{contenido}</li>
+    <li className={`animate-entrada ${clases}`} style={{ animationDelay: retrasoEntrada }}>{contenido}</li>
   );
 }
 
@@ -176,12 +180,13 @@ export default function Logros() {
               </span>
             </div>
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {deCategoria.map((logro) => (
+              {deCategoria.map((logro, i) => (
                 <TarjetaLogro
                   key={logro.id}
                   logro={logro}
                   desbloqueado={desbloqueados.has(logro.id)}
                   reclamado={reclamados.has(logro.id)}
+                  indice={i}
                   onCelebrar={celebrar}
                 />
               ))}

@@ -2,6 +2,33 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-27 (paquete de animaciones P1–P3 — SIN commitear)
+
+- luigi aprobó añadir las 3 prioridades del audit de animaciones.
+- P1: `+N XP` flotante al marcar hábito — `components/ui/XpFlotante.tsx` nuevo
+  (etiqueta sube 58px y se desvanece, 1.15s); `registrar` del store-context
+  ahora retorna el XP ganado (el UI lo captura en `alMarcarMomento` y
+  `alRegistrarCantidad`); `HabitCard` lo renderiza con `relative`.
+- P1: pop elástico en el número del stepper de cantidad (`key={n}` +
+  `animate-pop-in`); subida de nivel ahora usa el revelado de trofeo
+  (`efecto: "trofeo"`, confeti + pop, sin contador); teaser de logro con el
+  mismo efecto y el botón "Ir a reclamar" latiendo (`animate-boton-latido`).
+- P2: entrada escalonada (`animate-entrada`, 60ms de delay, tope 600ms) en la
+  grilla de /logros y las tarjetas de /niveles; pop en la píldora de racha al
+  cambiar el valor; pop en el chip de hora marcada de la tarjeta Sueño.
+- P2: sueño con XP negativo → el icono de la celebración se sacude
+  (`efecto: "sacudida"` + `animate-shake`).
+- P3: barrido de brillo en la barra de XP del banner (se repite cada vez que
+  cambia el XP), slide lateral entre pasos del wizard (`key={paso}`), slide-up
+  en el toast.
+- Keyframes nuevos en globals.css: `ui-xp-flotar`, `ui-entrada`, `ui-brillo`,
+  `ui-boton-latido`, `ui-toast-in`, `ui-paso-in`; la regla de
+  `prefers-reduced-motion` ahora también anula `animation-delay`.
+- Validación: tsc limpio, eslint 0 errores, build OK, smokes 110/110 + 59/59
+  + 5/5 + 16/16 (190/190).
+- Pendiente: revisión visual de 10 segundos en el teléfono de luigi (las
+  animaciones son subjetivas; ajustar según su feedback).
+
 ## 2026-09-27 (perfiles en la nube — commiteado y pusheado, sin desplegar)
 
 - Migración `0014_endurecer_perfiles.sql` aplicada con autorización de luigi (HTTP 201): borra las firmas viejas de RPC sin `p_perfil_id` (verificado: solo quedan las versiones con perfil), crea `rpc_perfil_reciente`, y añade las 7 FK hacia `perfiles` con `ON DELETE CASCADE`.

@@ -243,7 +243,7 @@ function BotonMarca({
       <span className="font-semibold text-fg">{esLevantar ? "Me levanté" : "Me acosté"}</span>
       <span className="text-xs text-muted">
         {marcado && horaMarcada ? (
-          <span className="inline-flex items-center gap-1 text-accent">
+          <span key={horaMarcada} className="animate-pop-in inline-flex items-center gap-1 text-accent">
             <IconCheck className="h-3.5 w-3.5" /> {formatHoraA12(horaMarcada)}
           </span>
         ) : (
