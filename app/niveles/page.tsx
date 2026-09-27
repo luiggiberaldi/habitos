@@ -3,18 +3,22 @@
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useStoreState } from "../../lib/store-context";
-import { NIVELES, nivelParaXp } from "../../lib/gamificacion";
+import { NIVELES, nivelEfectivo } from "../../lib/gamificacion";
 import { AvatarNivel, PALETA } from "../../components/AvatarNivel";
-import { IconCheck, IconFlechaAtras } from "../../lib/icons";
+import { IconCheck, IconFlechaAtras, IconRayo } from "../../lib/icons";
 
 /**
  * /niveles — mapa de los 9 niveles: qué XP pide cada uno, cuánto falta
- * desde el XP actual y la frase que representa a cada nivel.
+ * desde el XP actual y la frase que representa a cada nivel. Más abajo,
+ * la economía del juego: cuánto XP da cada acción.
  */
 export default function Niveles() {
   const { state } = useStoreState();
   const xpTotal = state.juego?.xpTotal ?? 0;
-  const actual = useMemo(() => nivelParaXp(xpTotal), [xpTotal]);
+  const actual = useMemo(
+    () => nivelEfectivo(xpTotal, state.juego?.nivelMaximo ?? 1),
+    [xpTotal, state.juego],
+  );
   const refActual = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
@@ -117,6 +121,43 @@ export default function Niveles() {
           );
         })}
       </ol>
+
+      <section aria-labelledby="titulo-economia" className="card p-4 sm:p-5">
+        <h2 id="titulo-economia" className="flex items-center gap-2 text-base font-bold">
+          <IconRayo className="h-5 w-5 text-accent" aria-hidden="true" />
+          Cómo ganar XP
+        </h2>
+        <ul className="mt-3 flex flex-col gap-2.5 text-sm">
+          <li className="flex items-baseline justify-between gap-3">
+            <span className="text-muted">Registrar un hábito</span>
+            <span className="shrink-0 font-bold">10 + 1 por nivel</span>
+          </li>
+          <li className="flex items-baseline justify-between gap-3">
+            <span className="text-muted">Completar el objetivo del día</span>
+            <span className="shrink-0 font-bold">+5 por hábito</span>
+          </li>
+          <li className="flex items-baseline justify-between gap-3">
+            <span className="text-muted">Cofre del día perfecto</span>
+            <span className="shrink-0 font-bold">15–160 según nivel</span>
+          </li>
+          <li className="flex items-baseline justify-between gap-3">
+            <span className="text-muted">Desafío semanal</span>
+            <span className="shrink-0 font-bold">+50</span>
+          </li>
+          <li className="flex items-baseline justify-between gap-3">
+            <span className="text-muted">Logros (se reclaman tocándolos)</span>
+            <span className="shrink-0 font-bold">10–400</span>
+          </li>
+          <li className="flex items-baseline justify-between gap-3">
+            <span className="text-muted">Sueño, por puntualidad</span>
+            <span className="shrink-0 font-bold">+10 a −10</span>
+          </li>
+        </ul>
+        <p className="mt-3 text-xs text-muted">
+          Los niveles nunca bajan: si una penalización te resta XP, conservas
+          tu nivel hasta recuperar el progreso.
+        </p>
+      </section>
     </div>
   );
 }

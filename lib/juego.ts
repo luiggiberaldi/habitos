@@ -22,10 +22,12 @@ import {
   logrosNuevos,
   LOGROS,
   mensajeSueno,
+  nivelEfectivo,
   nivelParaXp,
   objetivoEnFecha,
   rachaActual,
   tirarCofre,
+  xpPorRegistro,
   xpSuenoDeEvento,
 } from "./gamificacion";
 
@@ -36,6 +38,7 @@ export function juegoInicial(): JuegoState {
     xpTotal: 0,
     xpSemanal: 0,
     semanaXp: inicioSemana(todayKey()),
+    nivelMaximo: 1,
     congeladores: 0,
     diasProtegidos: [],
     logros: [],
@@ -58,9 +61,16 @@ export function normalizarJuego(value: unknown): JuegoState {
   const base = juegoInicial();
   if (!value || typeof value !== "object") return base;
   const p = value as Partial<JuegoState>;
+  // Migración: sin nivelMaximo previo se toma el nivel por XP actual (no se
+  // puede recuperar historial perdido por penalizaciones viejas).
+  const nivelMigrado =
+    typeof p.nivelMaximo === "number" && p.nivelMaximo >= 1 && p.nivelMaximo <= 9
+      ? Math.floor(p.nivelMaximo)
+      : nivelParaXp(typeof p.xpTotal === "number" ? p.xpTotal : 0).nivel;
   return {
     ...base,
     ...p,
+    nivelMaximo: nivelMigrado,
     diasProtegidos: Array.isArray(p.diasProtegidos) ? p.diasProtegidos : [],
     logros: Array.isArray(p.logros) ? p.logros : [],
     // Migración: los logros desbloqueados antes del reclamo por tap ya
@@ -142,7 +152,7 @@ export function aplicarRecompensas(
   const eventos: EventoJuego[] = [];
   let juego: JuegoState = normalizarJuego(despues.juego);
   const hoy = fecha;
-  const nivelAntes = nivelParaXp(juego.xpTotal).nivel;
+  const nivelAntes = nivelEfectivo(juego.xpTotal, juego.nivelMaximo).nivel;
 
   // 1. La semana de XP rueda los lunes.
   const semana = inicioSemana(hoy);
@@ -151,9 +161,10 @@ export function aplicarRecompensas(
   }
 
   // 2. XP base del registro (+ bonus si con este tap se cumplió el objetivo).
-  // Sueño: el XP base viene por puntualidad (puede ser negativo) y NO lleva
-  // el bonus de objetivo diario: el acuerdo es solo el XP por puntualidad.
-  let xpGanado = ctx.xpBase ?? PUNTOS_POR_REGISTRO;
+  // El XP base escala con el nivel efectivo (10–18). Sueño: el XP base viene
+  // por puntualidad (puede ser negativo) y NO lleva el bonus de objetivo
+  // diario: el acuerdo es solo el XP por puntualidad.
+  let xpGanado = ctx.xpBase ?? xpPorRegistro(nivelAntes);
   const objetivo = objetivoEnFecha(habit, fecha);
   const compAntes = completadosPara(habit, fecha, antes.completions).size;
   const compDespues = completadosPara(habit, fecha, despues.completions).size;
@@ -239,7 +250,7 @@ export function aplicarRecompensas(
 
   // 7. Día completo → cofre sorpresa (una vez por fecha).
   if (diaCompleto(despues.habits, fecha, despues.completions, juego.diasProtegidos) && juego.ultimoCofre !== fecha) {
-    const premio = tirarCofre(juego.congeladores);
+    const premio = tirarCofre(juego.congeladores, nivelAntes);
     juego = {
       ...juego,
       diasCompletos: juego.diasCompletos + 1,
@@ -280,8 +291,11 @@ export function aplicarRecompensas(
     }
   }
 
-  // 10. ¿Subió de nivel?
-  const nivelDespues = nivelParaXp(juego.xpTotal);
+  // 10. ¿Subió de nivel? El nivel efectivo nunca baja: se guarda el máximo
+  // alcanzado y solo se celebra cuando ese máximo crece.
+  const nivelMaximo = Math.max(juego.nivelMaximo, nivelParaXp(juego.xpTotal).nivel);
+  juego = { ...juego, nivelMaximo };
+  const nivelDespues = nivelEfectivo(juego.xpTotal, nivelMaximo);
   if (nivelDespues.nivel > nivelAntes) {
     eventos.push({
       tipo: "subida-nivel",
@@ -298,7 +312,8 @@ export function aplicarRecompensas(
 /**
  * Reclama el premio de XP de un logro desbloqueado (tap en la sala de
  * trofeos). El XP se otorga UNA sola vez: si el logro no está desbloqueado
- * o ya fue reclamado, no hace nada.
+ * o ya fue reclamado, no hace nada. El reclamo suma al XP de por vida pero
+ * NO al semanal: la liga mide actividad reciente, no trofeos viejos.
  */
 export function reclamarLogro(
   state: AppState,
@@ -309,15 +324,17 @@ export function reclamarLogro(
   if (!def || !juego.logros.includes(logroId) || juego.logrosReclamados.includes(logroId)) {
     return { state, xpGanado: 0, subioNivel: null };
   }
-  const nivelAntes = nivelParaXp(juego.xpTotal).nivel;
+  const nivelAntes = nivelEfectivo(juego.xpTotal, juego.nivelMaximo).nivel;
+  const xpTotal = juego.xpTotal + def.xp;
+  const nivelMaximo = Math.max(juego.nivelMaximo, nivelParaXp(xpTotal).nivel);
   const juego2: JuegoState = {
     ...juego,
     logrosReclamados: [...juego.logrosReclamados, logroId],
-    xpTotal: juego.xpTotal + def.xp,
-    xpSemanal: juego.xpSemanal + def.xp,
+    xpTotal,
+    nivelMaximo,
     actualizadoEn: new Date().toISOString(),
   };
-  const nivelDespues = nivelParaXp(juego2.xpTotal);
+  const nivelDespues = nivelEfectivo(xpTotal, nivelMaximo);
   return {
     state: { ...state, juego: juego2 },
     xpGanado: def.xp,
@@ -455,6 +472,15 @@ export function reconciliarJuego(state: AppState): AppState {
     }
   }
 
+  // El nivel máximo nunca baja aunque el XP total haya retrocedido.
+  {
+    const porXp = nivelParaXp(juego.xpTotal).nivel;
+    if (juego.nivelMaximo < porXp) {
+      juego = { ...juego, nivelMaximo: porXp };
+      marcar();
+    }
+  }
+
   if (!cambió) return state;
   return { ...state, juego: { ...juego, actualizadoEn: new Date().toISOString() } };
 }
@@ -501,6 +527,7 @@ export function fusionarJuego(local: JuegoState, remoto: JuegoState | null): Jue
     xpTotal: Math.max(a.xpTotal, b.xpTotal),
     xpSemanal,
     semanaXp: semana,
+    nivelMaximo: Math.max(a.nivelMaximo, b.nivelMaximo),
     congeladores: Math.max(a.congeladores, b.congeladores),
     diasProtegidos: union(a.diasProtegidos, b.diasProtegidos),
     logros: union(a.logros, b.logros),

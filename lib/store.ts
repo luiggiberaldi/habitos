@@ -1,7 +1,7 @@
 import type { AppState, CompletionEvent, Habit, MarcaSueno, Moment, Settings } from "./types";
 import { addDays, completadosPara, hhmmDeTimestamp, inicioSemana, todayKey } from "./dates";
 import { eventIdCantidad } from "./event-id";
-import { objetivoEnFecha, PUNTOS_OBJETIVO_DIARIO, PUNTOS_POR_REGISTRO, minutosDeRetraso, xpPorPuntualidad, xpSuenoDeEvento } from "./gamificacion";
+import { objetivoEnFecha, PUNTOS_OBJETIVO_DIARIO, minutosDeRetraso, nivelEfectivo, xpPorPuntualidad, xpPorRegistro, xpSuenoDeEvento } from "./gamificacion";
 import { juegoInicial, normalizarJuego, aplicarRecompensas, type EventoJuego } from "./juego";
 
 export const STORAGE_KEY = "habitos-app-v1";
@@ -145,10 +145,14 @@ export function deshacerConJuego(state: AppState, eventId: string): AppState {
   const evento = state.completions.find((e) => e.eventId === eventId);
   if (!evento) return state;
   const habit = state.habits.find((h) => h.id === evento.habitId);
+  const juego = normalizarJuego(state.juego);
 
   // Sueño: se revierte el XP por puntualidad que otorgó (o se devuelve el que
   // quitó). Espejo determinista de registrarSuenoConJuego (sin bonus diario).
-  let xp = habit?.tipo === "sueno" && habit ? xpSuenoDeEvento(habit, evento) : PUNTOS_POR_REGISTRO;
+  // El XP base escala con el nivel efectivo actual (aproximación: el evento
+  // no guarda con qué nivel se otorgó; en la práctica se deshace al momento).
+  const nivelAlDeshacer = nivelEfectivo(juego.xpTotal, juego.nivelMaximo).nivel;
+  let xp = habit?.tipo === "sueno" && habit ? xpSuenoDeEvento(habit, evento) : xpPorRegistro(nivelAlDeshacer);
   if (habit && habit.tipo !== "sueno") {
     const objetivo = objetivoEnFecha(habit, evento.fecha);
     const conEvento = completadosPara(habit, evento.fecha, state.completions).size;
@@ -164,7 +168,6 @@ export function deshacerConJuego(state: AppState, eventId: string): AppState {
     }
   }
 
-  const juego = normalizarJuego(state.juego);
   const xpTotal = Math.max(0, juego.xpTotal - xp);
   // El xpSemanal solo se toca si el evento pertenece a su semana en curso.
   const xpSemanal =

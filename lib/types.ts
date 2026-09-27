@@ -102,6 +102,11 @@ export interface JuegoState {
   xpSemanal: number;
   /** Lunes de la semana a la que pertenece xpSemanal (YYYY-MM-DD). */
   semanaXp: string;
+  /**
+   * Nivel más alto alcanzado: el nivel efectivo nunca baja de aquí aunque
+   * las penalizaciones resten XP. Los niveles son irreversibles.
+   */
+  nivelMaximo: number;
   /** Congeladores de racha disponibles (tope MAX_CONGELADORES). */
   congeladores: number;
   /** Fechas (YYYY-MM-DD) protegidas automáticamente por un congelador. */

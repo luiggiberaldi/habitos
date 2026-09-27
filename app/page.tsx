@@ -11,7 +11,7 @@ import {
   NIVELES,
   diasCumplidosEnSemana,
   fraseIdentidad,
-  nivelParaXp,
+  nivelEfectivo,
   puntosTotalesParaFecha,
   rachaActual,
   resumenSemanal,
@@ -247,8 +247,12 @@ export default function Inicio() {
     [state.habits, hoy, state.completions],
   );
 
-  // Juego: nivel por XP de por vida, frase de identidad y desafíos vigentes.
-  const nivel = useMemo(() => nivelParaXp(state.juego?.xpTotal ?? 0), [state.juego]);
+  // Juego: nivel efectivo (nunca baja del máximo alcanzado), frase de
+  // identidad y desafíos vigentes.
+  const nivel = useMemo(
+    () => nivelEfectivo(state.juego?.xpTotal ?? 0, state.juego?.nivelMaximo ?? 1),
+    [state.juego],
+  );
   const frase = useMemo(
     () => (state.juego ? fraseIdentidad(state.habits, state.juego) : null),
     [state.habits, state.juego],

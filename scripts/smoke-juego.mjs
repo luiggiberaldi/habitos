@@ -192,7 +192,7 @@ const sinLogrosNuevos = { logros: TODOS_LOS_LOGROS };
   const r2 = s.registrarConJuego(r1.state, "h1", "m2", hoy, `${hoy}T18:00:00.000Z`);
   check(
     "al cumplir el objetivo y el día: +5 bonus + cofre",
-    r2.state.juego.xpTotal >= 45 || r2.state.juego.congeladores === 1,
+    r2.state.juego.xpTotal >= 40 || r2.state.juego.congeladores === 1, // 10+10+5+15 (cofre mínimo en nivel 1)
   );
   check("hay eventos de juego (cofre por día completo)", r2.eventos.some((e) => e.tipo === "cofre"));
   const r3 = s.registrarConJuego(r2.state, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
@@ -278,7 +278,7 @@ const sinLogrosNuevos = { logros: TODOS_LOS_LOGROS };
   const c1 = j.reclamarLogro(r.state, "primer-habito");
   check("reclamar otorga el XP del logro", c1.xpGanado === 10 && c1.state.juego.xpTotal === antes + 10);
   check("reclamar marca el logro como reclamado", c1.state.juego.logrosReclamados.includes("primer-habito"));
-  check("reclamar también suma al XP semanal", c1.state.juego.xpSemanal === c1.state.juego.xpTotal);
+  check("reclamar NO toca el XP semanal (la liga mide actividad reciente)", c1.state.juego.xpSemanal === r.state.juego.xpSemanal);
   check("quedan 2 premios pendientes", j.premiosPendientes(c1.state.juego) === 2);
   // Reclamar los demás deja la sala en cero.
   const c1b = j.reclamarLogro(c1.state, "dia-perfecto");
@@ -441,6 +441,60 @@ const sinLogrosNuevos = { logros: TODOS_LOS_LOGROS };
   const crudo = { habits: [], completions: [], settings: null };
   const n = s.normalizarEstado(crudo);
   check("normalizarEstado rellena juego por defecto", n.juego && n.juego.xpTotal === 0 && Array.isArray(n.juego.logros));
+}
+
+// ── Economía rebalanceada: XP escalado, cofre escalado, niveles fijos ─────
+{
+  // xpPorRegistro escala con el nivel efectivo: 10 en nivel 1, 18 en nivel 9.
+  check("xpPorRegistro(1) = 10", g.xpPorRegistro(1) === 10);
+  check("xpPorRegistro(9) = 18", g.xpPorRegistro(9) === 18);
+  check("xpPorRegistro satura en [1,9]", g.xpPorRegistro(0) === 10 && g.xpPorRegistro(99) === 18);
+
+  // El registro escala con el nivel efectivo: a 6000 XP la base es 18.
+  const stAlta = mkState([mkHabit()], [], { xpTotal: 6000, xpSemanal: 0, ...sinLogrosNuevos });
+  const rAlta = s.registrarConJuego(stAlta, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
+  const evCofreAlta = rAlta.eventos.find((e) => e.tipo === "cofre");
+  const xpCofreAlta = evCofreAlta && evCofreAlta.dato !== "congelador" ? Number(String(evCofreAlta.dato).split(":")[1] || 0) : 0;
+  check("en nivel 9 el registro da 18 base + 5 bonus", rAlta.state.juego.xpTotal - 6000 - xpCofreAlta === 23);
+
+  // tirarCofre escala con el nivel: 15–120 en nivel 1, 55–160 en nivel 9.
+  let min1 = 999, max1 = 0, min9 = 999, max9 = 0, huboCongelador = false;
+  for (let i = 0; i < 400; i++) {
+    const c1 = g.tirarCofre(2, 1); // tope de congeladores → siempre XP
+    if (!c1.congelador) { min1 = Math.min(min1, c1.xp); max1 = Math.max(max1, c1.xp); }
+    const c9 = g.tirarCofre(2, 9);
+    if (!c9.congelador) { min9 = Math.min(min9, c9.xp); max9 = Math.max(max9, c9.xp); }
+    if (g.tirarCofre(0, 1).congelador) huboCongelador = true;
+  }
+  check("cofre nivel 1 en [15,120]", min1 >= 15 && max1 <= 120);
+  check("cofre nivel 9 en [55,160]", min9 >= 55 && max9 <= 160);
+  check("el cofre puede dar congelador con cupo", huboCongelador);
+
+  // Niveles fijos: el XP bajo el umbral no degrada el nivel efectivo.
+  const stFija = mkState([mkHabit()], [], { xpTotal: 100, xpSemanal: 0, nivelMaximo: 2, ...sinLogrosNuevos });
+  const ef = g.nivelEfectivo(stFija.juego.xpTotal, stFija.juego.nivelMaximo);
+  check("el nivel efectivo no baja del máximo alcanzado", ef.nivel === 2 && ef.progreso === 0);
+  check("nivelParaXp puro sigue calculando por XP", g.nivelParaXp(100).nivel === 1);
+
+  // Migración: sin nivelMaximo previo se toma el nivel por XP actual.
+  const migrada = j.normalizarJuego({ xpTotal: 500 });
+  check("normalizarJuego migra nivelMaximo desde el XP", migrada.nivelMaximo === 3);
+
+  // fusionarJuego converge nivelMaximo por máximo.
+  const fa = { ...j.juegoInicial(), nivelMaximo: 2 };
+  const fb = { ...j.juegoInicial(), nivelMaximo: 5 };
+  check("fusionarJuego toma el mayor nivelMaximo", j.fusionarJuego(fa, fb).nivelMaximo === 5);
+
+  // El pool de logros ya no domina la curva (< 40% de la meta de Leyenda).
+  const pool = g.LOGROS.reduce((a, l) => a + l.xp, 0);
+  check("pool de logros < 40% de 6000 XP", pool < 2400);
+
+  // Deshacer revierte el XP escalado: marcar→desmarcar no farmea en nivel 9.
+  const stDes = mkState([mkHabit({ objetivo: 2 })], [], { xpTotal: 6000, xpSemanal: 100, ...sinLogrosNuevos });
+  const rDes = s.registrarConJuego(stDes, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
+  check("en nivel 9 el registro suma 18", rDes.state.juego.xpTotal === 6018);
+  const uDes = s.deshacerConJuego(rDes.state, `h1|m1|${hoy}`);
+  check("deshacer en nivel 9 revierte 18 (no farmea)", uDes.juego.xpTotal === 6000 && uDes.juego.xpSemanal === 100);
 }
 
 rmSync(outDir, { recursive: true, force: true });
