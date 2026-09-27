@@ -41,8 +41,10 @@ export default function GestionHabitos() {
   );
 
   const contadores = useMemo(() => {
-    const c = { todos: state.habits.length, activo: 0, pausado: 0, archivado: 0 };
-    for (const h of state.habits) c[h.estado]++;
+    // Igual que la lista: Sueño no se gestiona aquí, tampoco se cuenta.
+    const visibles = state.habits.filter((h) => h.tipo !== "sueno");
+    const c = { todos: visibles.length, activo: 0, pausado: 0, archivado: 0 };
+    for (const h of visibles) c[h.estado]++;
     return c;
   }, [state.habits]);
 
