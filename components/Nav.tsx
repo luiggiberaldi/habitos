@@ -19,7 +19,7 @@ const items = [
 
 export default function Nav() {
   const pathname = usePathname();
-  const { user, cerrarSesion } = useAuth();
+  const { user, perfil, cerrarSesion } = useAuth();
   const { sincronizarAhora } = useStoreActions();
 
   // E3: reenviar la cola pendiente antes de salir — si no, quedaba huérfana
@@ -73,10 +73,12 @@ export default function Nav() {
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-all hover:bg-surface-2 hover:text-foreground"
           >
             <IconCerrarSesion className="h-5 w-5" />
-            Cerrar sesión
+            {perfil ? "Cambiar de perfil" : "Cerrar sesión"}
           </button>
-          {user && (
-            <p className="mt-1 px-3 text-xs text-muted truncate">{user.email}</p>
+          {perfil ? (
+            <p className="mt-1 truncate px-3 text-xs text-muted">{perfil.nombre}</p>
+          ) : (
+            user && <p className="mt-1 truncate px-3 text-xs text-muted">{user.email}</p>
           )}
         </div>
       </aside>
@@ -107,7 +109,7 @@ export default function Nav() {
             className="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-[11px] font-medium text-muted transition-colors hover:text-foreground min-h-[44px]"
           >
             <IconCerrarSesion className="h-5 w-5" />
-            <span className="truncate max-w-full">Salir</span>
+            <span className="truncate max-w-full">{perfil ? "Perfil" : "Salir"}</span>
           </button>
         </div>
       </nav>

@@ -27,6 +27,13 @@ import { getSupabase } from "./supabase";
 import { todayKey, addDays } from "./dates";
 import { useAuth } from "../components/AuthGate";
 import { logEvent, flushLog, type LogAction } from "./logger";
+import { fijarSufijoNotificaciones } from "./notifications";
+import {
+  claveEstado,
+  clavePendientes as clavePendientesAmbito,
+  clavesDeDatos,
+  sufijoAmbito,
+} from "./perfiles";
 
 /** Auditoría: cada evento de juego del dominio se refleja en el activity_log. */
 const ACCION_POR_TIPO_EVENTO: Record<TipoEventoJuego, LogAction> = {
@@ -43,10 +50,10 @@ let appOpenedLogged = false;
 
 const PENDING_KEY_BASE = "habitos-pending-sync-v1";
 
-/** P1.5: la cola offline se nombra por usuario. Al cambiar de sesión se recarga
- *  desde la clave del usuario activo (y se vacía en memoria si no hay sesión). */
-function clavePendientes(userId: string | undefined): string {
-  return userId ? `${PENDING_KEY_BASE}:${userId}` : PENDING_KEY_BASE;
+/** P1.5: la cola offline se nombra por identidad (perfil local o usuario nube).
+ *  Al cambiar de identidad se recarga desde la clave activa. */
+function clavePendientes(sufijo: string | null): string {
+  return sufijo ? clavePendientesAmbito(sufijo) : PENDING_KEY_BASE;
 }
 
 interface StoreContextValue {
@@ -126,9 +133,12 @@ function guardarPendientes(clave: string, ops: PendingOp[]): void {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const userId = user?.id;
-  const storageKey = userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY;
+  const { user, perfil } = useAuth();
+  const userId = user?.id ?? null;
+  // Identidad de datos: perfil local (`perfil:<id>`) o cuenta nube (`<userId>`).
+  // Todo (estado, colas, logs, notificaciones) se aísla por este sufijo.
+  const sufijo = sufijoAmbito(perfil?.id ?? null, userId);
+  const storageKey = sufijo ? claveEstado(sufijo) : STORAGE_KEY;
 
   // Siempre se arranca con el estado inicial por defecto para el render del servidor
   // y el primer render de hidratación (evita mismatch de hidratación).
@@ -143,6 +153,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     stateRef.current = state;
   }, [state]);
 
+  // Notificaciones: aislar "ya enviadas" por identidad (perfil o cuenta).
+  useEffect(() => {
+    fijarSufijoNotificaciones(sufijo);
+  }, [sufijo]);
+
   // La carga desde localStorage se difiere (post-paint) para no ejecutar setState
   // síncrono dentro del efecto y para no romper la hidratación.
   useEffect(() => {
@@ -151,7 +166,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!activo) return;
       // Juego: backfill idempotente de XP/logros/desafíos sobre datos existentes.
       setState(reconciliarJuego(cargarEstadoGuardado(storageKey)));
-      pendientesRef.current = leerPendientes(clavePendientes(userId)); // P1.5
+      pendientesRef.current = leerPendientes(clavePendientes(sufijo)); // P1.5
       setEstadoCargado(true);
       // Auditoría: apertura de la app + subir eventos que quedaron en cola.
       if (!appOpenedLogged) {
@@ -164,7 +179,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       activo = false;
       cancelAnimationFrame(raf);
     };
-  }, [storageKey, userId]);
+  }, [storageKey, sufijo]);
 
   // P2.11: persistencia con debounce (~500 ms) para no serializar el estado
   // completo en cada tap; flush en pagehide para no perder el último cambio.
@@ -233,21 +248,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     }
     pendientesRef.current = restantes;
-    guardarPendientes(clavePendientes(userId), restantes); // P1.5
+    guardarPendientes(clavePendientes(sufijo), restantes); // P1.5
     sincronizandoRef.current = false;
-  }, [userId]);
+  }, [userId, sufijo]);
 
   /** Encola una operación para reintento cuando vuelva la conexión. */
   const encolar = useCallback((op: PendingOp): void => {
     const previos = pendientesRef.current;
     pendientesRef.current = [...previos, op];
-    guardarPendientes(clavePendientes(userId), pendientesRef.current);
+    guardarPendientes(clavePendientes(sufijo), pendientesRef.current);
     // E2: guardarPendientes recorta a 200 en silencio — si se descartó la más
     // antigua, que el usuario lo vea en vez de perderla sin rastro.
     if (previos.length >= 200) {
       setErrorSync("cola de sincronización llena: el cambio más antiguo se descartó");
     }
-  }, [userId]);
+  }, [sufijo]);
 
   /**
    * Descarga los datos del usuario desde Supabase y hace merge bidireccional:
@@ -635,14 +650,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             if (error) throw new Error(`No se pudo borrar tus datos en la nube (${tabla}). Revisa tu conexión e inténtalo de nuevo.`);
           }
         }
-        // 2. Limpia todo el almacenamiento local de la app (estado + cola pendiente).
+        // 2. Limpia el almacenamiento local DE ESTA IDENTIDAD (perfil o cuenta).
+        //    Acotado al sufijo: jamás toca los datos de otros perfiles ni el
+        //    registro de perfiles. Sin sufijo (modo local heredado), limpieza amplia.
         try {
-          const borrar: string[] = [];
-          for (let i = 0; i < window.localStorage.length; i++) {
-            const k = window.localStorage.key(i);
-            if (k && k.startsWith("habitos-")) borrar.push(k);
+          if (sufijo) {
+            for (const k of clavesDeDatos(sufijo)) window.localStorage.removeItem(k);
+          } else {
+            const borrar: string[] = [];
+            for (let i = 0; i < window.localStorage.length; i++) {
+              const k = window.localStorage.key(i);
+              if (k && k.startsWith("habitos-")) borrar.push(k);
+            }
+            for (const k of borrar) window.localStorage.removeItem(k);
           }
-          for (const k of borrar) window.localStorage.removeItem(k);
         } catch {
           /* almacenamiento no disponible */
         }
@@ -668,7 +689,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
     }
     },
-    [userId, sincronizar, rehidratarFn, reenviarPendientes, storageKey],
+    [userId, sincronizar, rehidratarFn, reenviarPendientes, storageKey, sufijo],
   );
 
   // Rehidratar al iniciar sesión (cambio de usuario) y al volver a estar online.

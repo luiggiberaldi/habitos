@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStoreActions, useStoreState } from "../../lib/store-context";
+import { useAuth } from "../../components/AuthGate";
 import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
-import { IconAlerta, IconCampana, IconDescanso, IconLuna, IconMovimiento, IconSistema, IconSol } from "../../lib/icons";
+import { IconAlerta, IconCampana, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
 
 export default function Ajustes() {
   const { state, errorSync } = useStoreState();
   const { guardarSettings, rehidratar } = useStoreActions();
+  const { perfil, cambiarModo, cerrarSesion } = useAuth();
   const settings = state.settings;
   const [notificationMessage, setNotificationMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -213,6 +215,43 @@ export default function Ajustes() {
           </label>
         </div>
       </section>
+
+      {/* Perfil local activo */}
+      {perfil && (
+        <section className="card p-4 sm:p-5">
+          <div className="flex items-center gap-3">
+            <span
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white"
+              style={{ backgroundColor: perfil.color }}
+            >
+              {(perfil.nombre.trim()[0] ?? "?").toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate font-semibold">{perfil.nombre}</h2>
+              <p className="text-sm text-muted">Perfil en este dispositivo</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => void cerrarSesion()}
+              className="btn-secondary min-h-11 flex-1"
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconPersona className="h-4 w-4" />
+                Cambiar de perfil
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => cambiarModo("cuenta")}
+              className="btn-secondary min-h-11 flex-1"
+            >
+              Usar cuenta en la nube
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Zona de peligro */}
       <section className="card border-red-500/30 p-4 sm:p-5">

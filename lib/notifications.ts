@@ -1,8 +1,24 @@
 import type { AppState, Habit } from "./types";
 import { getSupabase } from "./supabase";
 import { logEvent } from "./logger";
+import { claveNotifEnviadas } from "./perfiles";
 
-const LAST_SENT_KEY = "habitos-notificaciones-enviadas-v1";
+const LAST_SENT_KEY_BASE = "habitos-notificaciones-enviadas-v1";
+
+/**
+ * Sufijo de identidad para aislar las notificaciones enviadas por perfil.
+ * Lo fija el StoreProvider al montar/cambiar de identidad; por defecto se usa
+ * la clave histórica sin sufijo (modo local heredado).
+ */
+let sufijoNotif: string | null = null;
+
+export function fijarSufijoNotificaciones(sufijo: string | null): void {
+  sufijoNotif = sufijo;
+}
+
+function lastSentKey(): string {
+  return sufijoNotif ? claveNotifEnviadas(sufijoNotif) : LAST_SENT_KEY_BASE;
+}
 const MINUTE = 60_000;
 
 function vapidPublicKey(): string | null {
@@ -162,7 +178,7 @@ function estaEnDescanso(hora: string, inicio: string, fin: string): boolean {
 
 function obtenerEnviadas(): Set<string> {
   try {
-    const data: unknown = JSON.parse(localStorage.getItem(LAST_SENT_KEY) ?? "[]");
+    const data: unknown = JSON.parse(localStorage.getItem(lastSentKey()) ?? "[]");
     return new Set(Array.isArray(data) ? data.filter((x): x is string => typeof x === "string") : []);
   } catch {
     return new Set();
@@ -172,7 +188,7 @@ function obtenerEnviadas(): Set<string> {
 function guardarEnviadas(keys: Set<string>, now: number): void {
   const cutoff = now - 2 * 24 * 60 * MINUTE;
   const fresh = [...keys].filter((key) => Number(key.split("|").at(-1)) >= cutoff).slice(-300);
-  try { localStorage.setItem(LAST_SENT_KEY, JSON.stringify(fresh)); } catch { /* almacenamiento no disponible */ }
+  try { localStorage.setItem(lastSentKey(), JSON.stringify(fresh)); } catch { /* almacenamiento no disponible */ }
 }
 
 export async function revisarRecordatorios(state: AppState): Promise<number> {
