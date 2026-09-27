@@ -9,7 +9,7 @@
  *    fallback a caché, sin dejar crecer la caché sin cota.
  */
 const VERSION = "habitos-v2";
-const CORE = ["/", "/offline", "/manifest.json", "/icon.svg", "/icon-192.png"];
+const CORE = ["/", "/offline", "/manifest.json", "/icon.svg", "/icon-192.png", "/badge.png"];
 const MAX_ENTRIES = 50;
 const OFFLINE_URL = "/offline";
 
@@ -48,8 +48,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || "Hábitos", {
       body: data.body || "Tu recordatorio de hábito está listo.",
-      icon: "/icon.svg",
-      badge: "/icon.svg",
+      icon: "/icon-192.png",
+      badge: "/badge.png",
       tag: `habito-${habitId}-${momentId}-${new Date().toISOString().slice(0, 16)}`,
       data: data.data || { url: "/" },
       actions: data.actions || [],

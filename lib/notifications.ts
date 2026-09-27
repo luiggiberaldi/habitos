@@ -151,8 +151,8 @@ export async function notificarAhora(title: string, body: string, tag: string): 
   await registration.showNotification(title, {
     body,
     tag,
-    icon: "/icon.svg",
-    badge: "/icon.svg",
+    icon: "/icon-192.png",
+    badge: "/badge.png",
     data: { url: "/" },
   });
 }
@@ -259,8 +259,8 @@ export async function revisarRecordatorios(state: AppState): Promise<number> {
     await registration.showNotification(titulo, {
       body: cuerpo,
       tag: `habito-${item.habit.id}-${item.momentId}-${fecha}`,
-      icon: "/icon.svg",
-      badge: "/icon.svg",
+      icon: "/icon-192.png",
+      badge: "/badge.png",
       data: { url: esSueno ? "/?sueno=1" : "/" },
     });
     sent.add(item.key);
