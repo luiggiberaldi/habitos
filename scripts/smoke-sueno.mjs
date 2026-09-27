@@ -122,6 +122,34 @@ check(
   "acostar de madrugada pertenece a anoche",
   g.fechaParaMarcaSueno("acostar", "01:00", ahora) === ayer,
 );
+{
+  // nocheParaAcostar: avance de ciclo cuando la noche ya está completa.
+  const hay = (pares) => (cual, fecha) =>
+    pares.includes(`${cual}|${fecha}`);
+  const manana9 = new Date(2026, 8, 27, 9, 7); // hoy 09:07
+  const noche26 = "2026-09-26";
+  const hoy27 = "2026-09-27";
+  check(
+    "noche completa en la mañana: avanza a esta noche",
+    g.nocheParaAcostar(manana9, hay([`acostar|${noche26}`, `levantar|${hoy27}`])) === hoy27,
+  );
+  check(
+    "noche incompleta (falta levantar): sigue en anoche para corregir",
+    g.nocheParaAcostar(manana9, hay([`acostar|${noche26}`])) === noche26,
+  );
+  check(
+    "nada marcado en la mañana: anoche (olvido)",
+    g.nocheParaAcostar(manana9, hay([])) === noche26,
+  );
+  check(
+    "en la noche sin marcar: esta noche",
+    g.nocheParaAcostar(new Date(2026, 8, 27, 23, 0), hay([])) === hoy27,
+  );
+  check(
+    "de madrugada con anoche marcada (sin levantar): edita anoche",
+    g.nocheParaAcostar(new Date(2026, 8, 28, 1, 0), hay([`acostar|${hoy27}`])) === hoy27,
+  );
+}
 
 // ── Seed y protecciones ─────────────────────────────────────────────────────
 const semilla = s.crearHabitoSueno("x");

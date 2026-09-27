@@ -1,5 +1,5 @@
 import type { CompletionEvent, DesafioSemanal, Habit, JuegoState, MarcaSueno } from "./types";
-import { addDays, completadosPara, esDescanso, hhmmDeTimestamp, inicioSemana, moverFecha, todayKey } from "./dates";
+import { addDays, completadosPara, esDescanso, hhmmDeFecha, hhmmDeTimestamp, inicioSemana, moverFecha, todayKey } from "./dates";
 
 export const PUNTOS_POR_REGISTRO = 10;
 export const PUNTOS_OBJETIVO_DIARIO = 5;
@@ -545,6 +545,26 @@ export function fechaParaMarcaSueno(cual: MarcaSueno, horaReal: string, ahora: D
   const hoy = todayKey(ahora);
   if (cual === "levantar") return hoy;
   return horaReal < "12:00" ? moverFecha(hoy, -1) : hoy;
+}
+
+/**
+ * Noche a la que apunta "Me acosté" en la tarjeta: la candidata por la regla
+ * del mediodía (antes de las 12:00 → anoche, para olvidos; después → esta
+ * noche), pero si esa noche ya está completa (acostar + levantar marcados)
+ * se avanza de inmediato al siguiente ciclo, sin pasar de hoy.
+ */
+export function nocheParaAcostar(
+  ahora: Date,
+  hayMarca: (cual: MarcaSueno, fecha: string) => boolean,
+): string {
+  const hoy = todayKey(ahora);
+  let noche = hhmmDeFecha(ahora) < "12:00" ? moverFecha(hoy, -1) : hoy;
+  const completa = (n: string) => hayMarca("acostar", n) && hayMarca("levantar", moverFecha(n, 1));
+  if (completa(noche)) {
+    const siguiente = moverFecha(noche, 1);
+    if (siguiente <= hoy) noche = siguiente;
+  }
+  return noche;
 }
 
 /** XP que otorgó (o quitó) un evento de sueño: espejo para deshacer/backfill. */

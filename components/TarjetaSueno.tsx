@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { formatHoraA12, hhmmDeFecha, hhmmDeTimestamp, moverFecha, todayKey } from "../lib/dates";
-import { nochesSueno } from "../lib/gamificacion";
+import { useEffect, useState } from "react";
+import { formatHoraA12, hhmmDeFecha, hhmmDeTimestamp, todayKey } from "../lib/dates";
+import { nochesSueno, nocheParaAcostar } from "../lib/gamificacion";
 import { IconAjustes, IconCheck, IconLuna, IconSol, IconX } from "../lib/icons";
 import { TimeField } from "./TimeField";
 import { useStoreActions, useStoreState } from "../lib/store-context";
@@ -261,12 +261,11 @@ export function TarjetaSueno({ habit }: { habit: Habit }) {
   const [configAbierta, setConfigAbierta] = useState(false);
 
   const hoy = todayKey();
-  const ahora = useMemo(() => new Date(), []);
-  // "Me acosté" después de medianoche pertenece a la noche anterior.
-  const nocheAcostar = hhmmDeFecha(ahora) < "12:00" ? moverFecha(hoy, -1) : hoy;
-
+  // "Me acosté" después de medianoche pertenece a la noche anterior, pero si
+  // esa noche ya está completa se avanza de inmediato al siguiente ciclo.
   const evento = (cual: MarcaSueno, fecha: string) =>
     completions.find((c) => c.habitId === habit.id && c.momentId === cual && c.fecha === fecha) ?? null;
+  const nocheAcostar = nocheParaAcostar(new Date(), (cual, fecha) => evento(cual, fecha) !== null);
 
   const levantarHoy = evento("levantar", hoy);
   const acostarNoche = evento("acostar", nocheAcostar);
@@ -283,17 +282,14 @@ export function TarjetaSueno({ habit }: { habit: Habit }) {
         : null;
 
   const abrir = (cual: MarcaSueno) => {
-    // `ahora` fresco en cada apertura: el memoizado del componente puede tener
+    // `ahora` fresco en cada apertura: el estado del componente puede tener
     // horas si la app quedó abierta. La sugerencia es siempre la hora actual
-    // (editable); la noche se resuelve con la regla de medianoche.
+    // (editable); la noche avanza al siguiente ciclo si la anterior completó.
     const ahoraFresco = new Date();
-    const hoyFresco = todayKey(ahoraFresco);
     const fecha =
       cual === "levantar"
-        ? hoyFresco
-        : hhmmDeFecha(ahoraFresco) < "12:00"
-          ? moverFecha(hoyFresco, -1)
-          : hoyFresco;
+        ? todayKey(ahoraFresco)
+        : nocheParaAcostar(ahoraFresco, (c, f) => evento(c, f) !== null);
     const existente = evento(cual, fecha);
     setModal({
       cual,
