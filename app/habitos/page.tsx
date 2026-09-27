@@ -2,33 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useStoreActions, useStoreState } from "../../lib/store-context";
-import { Select } from "../../components/Select";
-import { DIAS_SEMANA } from "../../lib/dates";
-import type { Categoria, Habit, EstadoHabit, TipoHabit } from "../../lib/types";
+import type { Habit, EstadoHabit } from "../../lib/types";
 import { habitColors as COLORES } from "../../lib/design-tokens";
+import { WizardHabito } from "../../components/WizardHabito";
 import {
-  IconAlerta,
   IconBorrar,
   IconCategoria,
   IconCheck,
   IconDescanso,
   IconDuplicar,
   IconEditar,
-  IconFlechaAtras,
   IconPlus,
   IconRayo,
-  IconX,
 } from "../../lib/icons";
-
-const CATEGORIAS: { valor: Categoria; etiqueta: string }[] = [
-  { valor: "salud", etiqueta: "Salud" },
-  { valor: "productividad", etiqueta: "Productividad" },
-  { valor: "crecimiento", etiqueta: "Crecimiento" },
-  { valor: "bienestar", etiqueta: "Bienestar" },
-  { valor: "personal", etiqueta: "Personal" },
-  { valor: "otro", etiqueta: "Otro" },
-];
-
 
 import { PLANTILLAS, habitoDesdePlantilla, type Plantilla } from "../../lib/plantillas";
 
@@ -111,16 +97,15 @@ export default function GestionHabitos() {
   }
 
   if (formulario) {
+    const esNuevo = !state.habits.some((h) => h.id === formulario.id);
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-        <button
-          type="button"
-          onClick={() => setFormulario(null)}
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground transition-colors"
-        >
-          <IconFlechaAtras className="h-4 w-4" /> Volver
-        </button>
-        <HabitForm habit={formulario} onGuardar={guardar} onCancelar={() => setFormulario(null)} />
+        <WizardHabito
+          habit={formulario}
+          esNuevo={esNuevo}
+          onGuardar={guardar}
+          onCancelar={() => setFormulario(null)}
+        />
       </div>
     );
   }
@@ -271,298 +256,3 @@ export default function GestionHabitos() {
   );
 }
 
-function HabitForm({
-  habit,
-  onGuardar,
-  onCancelar,
-}: {
-  habit: Habit;
-  onGuardar: (habit: Habit) => void;
-  onCancelar: () => void;
-}) {
-  const [draft, setDraft] = useState<Habit>(structuredClone(habit));
-  const [errorNom, setErrorNom] = useState<string | null>(null);
-  const [errorForm, setErrorForm] = useState<string | null>(null); // P2.5
-
-  function patch(p: Partial<Habit>) {
-    setDraft((prev) => ({ ...prev, ...p }));
-    if ("nombre" in p && p.nombre !== undefined) setErrorNom(null);
-  }
-
-  function alternarMomento(id: string) {
-    setDraft((prev) => {
-      const existentes = prev.momentos.filter((m) => m.id !== id);
-      return { ...prev, momentos: existentes.length === prev.momentos.length ? prev.momentos : existentes };
-    });
-  }
-
-  return (
-    <form
-      className="card flex min-w-0 flex-col gap-5 p-4 sm:p-6"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const nombre = draft.nombre.trim();
-        if (!nombre) {
-          setErrorNom("El nombre es obligatorio.");
-          return;
-        }
-        // P2.5: un hábito "momento" necesita al menos un momento y el objetivo
-        // no puede exceder la cantidad de momentos (sería imposible de cumplir).
-        const momentos = draft.momentos.filter((m) => m.id);
-        if ((draft.tipo ?? "momento") === "momento") {
-          if (momentos.length === 0) {
-            setErrorForm("Añade al menos un momento para un hábito por momento.");
-            return;
-          }
-          if (draft.objetivo > momentos.length) {
-            setErrorForm(`El objetivo (${draft.objetivo}) no puede ser mayor que la cantidad de momentos (${momentos.length}).`);
-            return;
-          }
-        }
-        setErrorForm(null);
-        onGuardar({ ...draft, nombre, momentos });
-      }}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-bold">{habit.id ? "Editar hábito" : "Nuevo hábito"}</h2>
-        <button type="button" onClick={onCancelar} className="btn-secondary !py-1.5 !text-sm">
-          Cancelar
-        </button>
-      </div>
-
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Nombre *</span>
-        <input value={draft.nombre} onChange={(e) => patch({ nombre: e.target.value })} placeholder="p. ej. Meditar cada mañana" className="input-field" aria-invalid={!!errorNom} />
-        {errorNom && (
-          <span role="alert" className="flex items-center gap-1.5 text-sm font-medium text-danger">
-            <IconAlerta className="h-4 w-4 shrink-0" />
-            {errorNom}
-          </span>
-        )}
-      </label>
-
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Descripción</span>
-        <input value={draft.descripcion ?? ""} onChange={(e) => patch({ descripcion: e.target.value })} placeholder="Opcional" className="input-field" />
-      </label>
-
-      <div>
-        <span className="mb-2 block text-sm font-medium">Categoría</span>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIAS.map((c) => (
-            <button
-              key={c.valor}
-              type="button"
-              onClick={() => patch({ categoria: c.valor })}
-              className={`inline-flex items-center gap-1.5 chip ${
-                draft.categoria === c.valor ? "chip-active" : "hover:border-accent"
-              }`}
-            >
-              <IconCategoria categoria={c.valor} className="h-4 w-4" />
-              {c.etiqueta}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <span className="mb-2 block text-sm font-medium">Tipo de registro</span>
-        <div className="flex flex-wrap gap-2">
-          {([{ valor: "momento", etiqueta: "Por momento" }, { valor: "cantidad", etiqueta: "Por cantidad" }] as { valor: TipoHabit; etiqueta: string }[]).map((t) => (
-            <button
-              key={t.valor}
-              type="button"
-              onClick={() =>
-                patch({
-                  tipo: t.valor,
-                  // P2.5: al volver a "momento" sin momentos, crear uno por defecto —
-                  // un hábito de momento sin momentos es imposible de completar.
-                  ...(t.valor === "cantidad"
-                    ? { momentos: [] }
-                    : draft.momentos.length > 0
-                      ? {}
-                      : { momentos: [{ id: uid(), tipo: "ventana", ventana: "cualquier" }] }),
-                })
-              }
-              className={`chip capitalize ${(draft.tipo ?? "momento") === t.valor ? "chip-active" : "hover:border-accent"}`}
-            >
-              {t.etiqueta}
-              {t.valor === "cantidad" && draft.tipo === "cantidad" && draft.momentos.length === 0 && (
-                <span className="ml-1 text-[10px] text-muted">· contador</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <span className="mb-2 block text-sm font-medium">Color</span>
-        <div className="flex flex-wrap gap-2">
-          {COLORES.map((color) => (
-            <button
-              key={color}
-              type="button"
-              onClick={() => patch({ color })}
-              className={`h-10 w-10 rounded-full transition-transform ${draft.color === color ? "ring-2 ring-accent ring-offset-2 ring-offset-surface scale-110" : "hover:scale-110"}`}
-              style={{ backgroundColor: color }}
-              aria-label={`Color ${color}`}
-            />
-          ))}
-        </div>
-      </div>
-
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Días de la semana</span>
-        <div className="flex flex-wrap gap-1.5">
-          {DIAS_SEMANA.map((dia, i) => {
-            const sel = draft.dias.includes(i);
-            return (
-              <button
-                key={dia}
-                type="button"
-                onClick={() =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    dias: sel ? prev.dias.filter((d) => d !== i) : [...prev.dias, i].sort(),
-                  }))
-                }
-                className={`flex h-10 w-10 items-center justify-center rounded-lg text-sm font-medium transition-colors ${
-                  sel ? "bg-accent text-accent-foreground" : "border border-border text-muted hover:border-accent"
-                }`}
-                aria-pressed={sel}
-                title={dia}
-              >
-                {dia.slice(0, 2)}
-              </button>
-            );
-          })}
-        </div>
-      </label>
-
-      {draft.tipo === "cantidad" ? (
-        <>
-          <label className="flex flex-wrap items-center gap-3">
-            <span className="flex-1 text-sm font-medium">Meta diaria</span>
-            <input
-              type="number"
-              min={1}
-              max={200}
-              value={draft.objetivo}
-              onChange={(e) => patch({ objetivo: Math.max(1, Math.min(200, Number(e.target.value) || 1)) })}
-              className="input-field w-24 min-h-10 text-center"
-            />
-          </label>
-          <label className="flex items-center gap-3">
-            <span className="flex-1 text-sm font-medium">Unidad</span>
-            <input
-              value={draft.unidad ?? ""}
-              onChange={(e) => patch({ unidad: e.target.value })}
-              placeholder="p. ej. vasos, litros, km"
-              className="input-field flex-1 min-w-0"
-            />
-          </label>
-        </>
-      ) : (
-        <label className="flex flex-wrap items-center gap-3">
-          <span className="flex-1 text-sm font-medium">Objetivo diario</span>
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={draft.objetivo}
-            onChange={(e) => patch({ objetivo: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })}
-            className="input-field w-24 min-h-10 text-center"
-          />
-        </label>
-      )}
-
-      {draft.tipo === "cantidad" ? (
-        <p className="rounded-xl border border-border bg-surface/50 px-3 py-2 text-xs text-muted">
-          Cada registro añadirá un recuento con la hora y fecha exacta, sin momentos del día programados.
-        </p>
-      ) : null}
-
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-medium">Momentos del día</span>
-          <button
-            type="button"
-            onClick={() => setDraft((prev) => ({ ...prev, momentos: [...prev.momentos, { id: uid(), tipo: "hora", hora: "09:00" }] }))}
-            className="min-h-10 text-sm font-medium text-accent hover:underline"
-          >
-            + Añadir
-          </button>
-        </div>
-        <div className="flex flex-col gap-2">
-          {draft.momentos.map((moment) => (
-            <div key={moment.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-2">
-              <Select
-                value={moment.tipo}
-                ariaLabel="Tipo de momento"
-                options={[
-                  { value: "hora", label: "Hora fija" },
-                  { value: "ventana", label: "Ventana" },
-                ]}
-                onChange={(v) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    momentos: prev.momentos.map((m) =>
-                      m.id === moment.id
-                        ? { ...m, tipo: v as "hora" | "ventana", hora: v === "hora" ? m.hora ?? "09:00" : undefined, ventana: v === "ventana" ? m.ventana ?? "cualquier" : undefined }
-                        : m,
-                    ),
-                  }))
-                }
-                className="min-w-0 flex-1 basis-28"
-              />
-              {moment.tipo === "hora" ? (
-                <input type="time" aria-label="Hora del momento" value={moment.hora ?? "09:00"} onChange={(e) => setDraft((prev) => ({ ...prev, momentos: prev.momentos.map((m) => (m.id === moment.id ? { ...m, hora: e.target.value } : m)) }))} className="input-field !py-1.5 min-w-0 flex-1 basis-28" />
-              ) : (
-                <Select
-                  value={moment.ventana ?? "cualquier"}
-                  ariaLabel="Ventana del momento"
-                  options={[
-                    { value: "manana", label: "Mañana" },
-                    { value: "tarde", label: "Tarde" },
-                    { value: "noche", label: "Noche" },
-                    { value: "cualquier", label: "Cualquier momento" },
-                  ]}
-                  onChange={(v) => setDraft((prev) => ({ ...prev, momentos: prev.momentos.map((m) => (m.id === moment.id ? { ...m, ventana: v } : m)) }))}
-                  className="min-w-0 flex-1 basis-28"
-                />
-              )}
-              <button type="button" onClick={() => alternarMomento(moment.id)} className="btn-icon ml-auto min-h-[36px] min-w-[36px] hover:!text-danger" title="Quitar" aria-label="Quitar momento">
-                <IconX className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <span className="mb-2 block text-sm font-medium">Estado</span>
-        <div className="flex flex-wrap gap-2">
-          {(["activo", "pausado", "archivado"] as const).map((e) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => patch({ estado: e })}
-              className={`chip capitalize ${draft.estado === e ? "chip-active" : "hover:border-accent"}`}
-            >
-              {e}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {errorForm && (
-        <p role="alert" className="text-sm text-danger">
-          {errorForm}
-        </p>
-      )}
-      <button type="submit" disabled={!draft.nombre.trim()} className="btn-primary w-full justify-center">
-        <IconCheck className="h-4 w-4" /> Guardar hábito
-      </button>
-    </form>
-  );
-}
