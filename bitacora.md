@@ -11,6 +11,7 @@
 - Auditoría día completo: el sueño participa con semántica de noche (acostar N + levantar N+1 atribuido al día del despertar); puntos mostrados con nivel efectivo; desafío semanal 25–65 XP según meta; cantidad idempotente por `eventId`; deshacer revierte días completos; backfill en dos pasadas.
 - Wizard de 3 pasos para crear/editar hábitos; "Tu espacio" en Ajustes aclara dispositivo vs nube; foco de inputs con una sola línea ancha.
 - Puente WhatsApp Nivel 2 + asistente conversacional (`estado`, `resumen`, `racha`, `crear`) y coach semanal; actualización instantánea de la PWA.
+- Regla permanente: programando, todo lo que se haga debe documentarse en el repo — ningún commit sin su entrada en `bitacora.md`; quedó como regla obligatoria en `agent.md`.
 
 ## 2026-09-26
 - Añadido soporte de hábitos por cantidad en la aplicación, con su contador diario, registro de eventos, deshacer y estadísticas.
