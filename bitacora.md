@@ -167,3 +167,11 @@
 **Qué cambió:** se creó `ROADMAP-SENDA.md` con el plan completo de la suite, y se guardaron los logos oficiales en `public/senda/` (logo.png wordmark, icono.png icono app; colores: petróleo #0C3544, menta #4CBF9A).
 
 **Por qué:** luigi cerró el brainstorm: la suite se llamará **Senda**, se construye todo lo propuesto (finanzas + mercado + control + inteligencia cruzada), y pidió el roadmap. Fases: 0 Fundación (núcleo, hogar, tasas, recordatorios genéricos, branding) → 1 Finanzas (libro contable) → 2 Mercado (inventario, factura por WhatsApp) → 3 Control (recordatorios de pago, presupuestos, deudas, metas, cierre de mes) → 4 Inteligencia cruzada. Incluye decisiones tomadas, arquitectura, modelo de datos y preguntas abiertas. Nada está construido todavía: es solo el plan.
+
+## 2026-09-27 — Reglas canónicas + criterios de salida del roadmap
+
+**Qué cambió:** nuevo `docs/REGLAS.md` como checklist único de reglas (documentación, UI, WhatsApp/agente, datos, deploys, alcance); `agent.md` ahora lo referencia como canónico; `ROADMAP-SENDA.md` ganó criterios de salida con método de verificación por fase.
+
+**Por qué:** luigi pidió que todo vaya documentado cumpliendo las reglas y quiso mis opiniones antes de empezar. Opiniones aplicadas: bitácora cronológica + READMEs de dominio por módulo; toda entrada cierra con "cómo se verificó"; reglas antes dispersas en 4 lugares ahora en un solo checklist; commits con prefijo de módulo; renombre del repo local diferido (solo GitHub/branding en Fase 0); fases con salida verificable y "verificado en teléfono" explícito.
+
+**Verificación:** solo documentación, sin código: no requiere typecheck. Contenido revisado contra `agent.md`, `docs/reglas-ui.md` y las reglas dictadas por luigi el 2026-09-27.

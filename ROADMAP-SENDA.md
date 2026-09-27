@@ -53,6 +53,8 @@ Objetivo: el núcleo compartido sobre el que se montan los módulos.
 - Router de intents de WhatsApp por módulo (`finanzas …`, `mercado …`).
 - Branding Senda (tokens `#0C3544`/`#4CBF9A`, PWA icons desde `public/senda/`).
 - Salida: app abre como Senda, hogar creado, tasas visibles, recordatorio genérico enviando push.
+  Verificación: `tsc`+build limpios; push de prueba recibido en el teléfono de luigi;
+  tasa del día visible y con fecha/fuente; `docs/REGLAS.md` como checklist canónico.
 
 ### Fase 1 — Finanzas: el libro
 Objetivo: el registro contable del hogar, usable en el día a día.
@@ -62,6 +64,9 @@ Objetivo: el registro contable del hogar, usable en el día a día.
 - **Dashboard del hogar**: patrimonio total en $, resultado del mes, gasto por categoría.
 - WhatsApp: "gasté 20 en taxi", "cuánto llevo gastado este mes".
 - Salida: dos personas registrando en cuentas reales durante 1 semana sin descuadres.
+  Verificación: suma de movimientos por cuenta == saldo mostrado en cada cuenta;
+  un egreso en Bs convertido con la tasa de su fecha (no la actual); transferencia
+  entre cuentas no aparece como gasto en el reporte.
 
 ### Fase 2 — Mercado
 Objetivo: saber qué hay, qué se acaba y cuándo comprar.
@@ -73,6 +78,9 @@ Objetivo: saber qué hay, qué se acaba y cuándo comprar.
 - Cantidad sugerida de compra + **presupuesto mensual de mercado** (= Σ consumo_mensual × precio actual; alimenta el presupuesto de finanzas).
 - **Factura por WhatsApp**: foto → resumen (artículos, cantidades, precios, match con productos, cuenta del egreso) → confirmación de luigi → registro en inventario + egreso.
 - Salida: una compra semanal completa procesada por WhatsApp de punta a punta.
+  Verificación: foto de factura real → resumen presentado → "sí" de luigi →
+  stock actualizado, egreso creado y linkeado; un producto nuevo creado con los 4
+  obligatorios; historial de precios del producto con variación Bs y $.
 
 ### Fase 3 — Control
 Objetivo: que el dinero se maneje solo por defecto.
@@ -83,6 +91,9 @@ Objetivo: que el dinero se maneje solo por defecto.
 - **Metas de ahorro compartidas** con progreso visible (+XP por aporte).
 - **Cierre de mes**: resumen, comparativa, archivo, reinicio de presupuestos. Coach mensual automático.
 - Salida: un mes cerrado con presupuestos, recordatorios y deudas sin intervención manual salvo confirmar.
+  Verificación: recordatorio del 27 disparó push a tiempo; al marcar "pagado" se creó
+  el egreso y se reprogramó al mes siguiente; alerta al llegar al 80% del presupuesto;
+  deuda saldada generó su movimiento; `tsc`+build limpios.
 
 ### Fase 4 — Inteligencia cruzada
 Objetivo: la suite como un solo sistema, no módulos pegados.
@@ -90,6 +101,8 @@ Objetivo: la suite como un solo sistema, no módulos pegados.
 - Consultas WhatsApp globales ("¿cuánto debo en total?", "¿qué me falta comprar?").
 - Alertas inteligentes (paralelo se movió X%, producto subió Y%).
 - Salida: 3 correlaciones útiles generadas sin que luigi las pida.
+  Verificación: cada correlación cita datos reales (montos, fechas); ninguna se envió
+  sin que el contenido fuera verificable en la app.
 
 ## 4. Modelo de datos (resumen)
 
