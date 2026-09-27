@@ -218,76 +218,105 @@ export default function Ajustes() {
         </div>
       </section>
 
-      {/* Perfil local activo */}
-      {perfil && (
-        <section className="card p-4 sm:p-5">
-          <div className="flex items-center gap-3">
-            <AvatarPerfil perfil={perfil} className="h-11 w-11 shrink-0 text-lg" />
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate font-semibold">{perfil.nombre}</h2>
-              <p className="text-sm text-muted">Perfil en este dispositivo</p>
+      {/* Tu espacio: este dispositivo y nube son dos lugares separados. */}
+      <section className="card p-4 sm:p-5" aria-label="Tu espacio">
+        <h2 className="font-semibold">Tu espacio</h2>
+        <p className="mt-1 text-sm text-muted">
+          Son dos lugares separados y tus datos se conservan en cada uno: cambiar solo mueve la app de un lugar al otro.
+        </p>
+        <div className="mt-4 flex flex-col gap-3">
+          {/* Este dispositivo: perfiles locales */}
+          <div className={`rounded-2xl border-2 p-4 ${perfil ? "border-accent bg-accent-soft" : "border-border"}`}>
+            <div className="flex items-center gap-3">
+              {perfil ? (
+                <AvatarPerfil perfil={perfil} className="h-11 w-11 shrink-0 text-lg" />
+              ) : (
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+                  <IconPersona className="h-5 w-5" />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-2 font-semibold">
+                  Este dispositivo
+                  {perfil && (
+                    <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
+                      En uso
+                    </span>
+                  )}
+                </p>
+                <p className="text-sm text-muted">
+                  {perfil ? `${perfil.nombre} · ` : ""}Perfiles tipo Netflix: viven solo en este aparato, sin nube. Hasta 6, con PIN opcional.
+                </p>
+              </div>
             </div>
+            {perfil ? (
+              <button
+                type="button"
+                onClick={() => void cerrarSesion()}
+                className="btn-secondary mt-3 min-h-11 w-full"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <IconPersona className="h-4 w-4" />
+                  Cambiar de perfil
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => cambiarModo("perfiles")}
+                className="btn-secondary mt-3 min-h-11 w-full"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <IconPersona className="h-4 w-4" />
+                  Usar perfiles en este dispositivo
+                </span>
+              </button>
+            )}
           </div>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => void cerrarSesion()}
-              className="btn-secondary min-h-11 flex-1"
-            >
-              <span className="inline-flex items-center gap-2">
-                <IconPersona className="h-4 w-4" />
-                Cambiar de perfil
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => cambiarModo("cuenta")}
-              className="btn-secondary min-h-11 flex-1"
-            >
-              Usar cuenta en la nube
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={() => void volverAlMenu()}
-            className="mt-2 min-h-11 w-full rounded-xl text-sm font-medium text-muted transition-colors hover:text-foreground"
-          >
-            Volver al menú de acceso
-          </button>
-        </section>
-      )}
 
-      {/* Modo de acceso: cuenta en la nube */}
-      {!perfil && (
-        <section className="card p-4 sm:p-5">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-              <IconCandado className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="font-semibold">Cuenta en la nube</h2>
-              <p className="truncate text-sm text-muted">{user?.email ?? "Sesión iniciada"}</p>
+          {/* Nube: un correo es un usuario */}
+          <div className={`rounded-2xl border-2 p-4 ${!perfil ? "border-accent bg-accent-soft" : "border-border"}`}>
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+                <IconCandado className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-2 font-semibold">
+                  Nube
+                  {!perfil && (
+                    <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
+                      En uso
+                    </span>
+                  )}
+                </p>
+                <p className="truncate text-sm text-muted">
+                  {user?.email ?? "Cuenta en la nube"} · Un correo es un usuario; los datos se sincronizan entre tus aparatos.
+                </p>
+              </div>
             </div>
+            {!perfil ? (
+              <p className="mt-3 text-sm text-muted">
+                ¿Otro usuario? Vuelve al menú de acceso y registra otro correo: cada correo es un usuario con sus propios datos.
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => cambiarModo("cuenta")}
+                className="btn-secondary mt-3 min-h-11 w-full"
+              >
+                Usar cuenta en la nube
+              </button>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => cambiarModo("perfiles")}
-            className="btn-secondary mt-3 min-h-11 w-full sm:w-auto"
-          >
-            <span className="inline-flex items-center gap-2">
-              <IconPersona className="h-4 w-4" />
-              Usar perfiles en este dispositivo
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => void volverAlMenu()}
-            className="mt-2 min-h-11 w-full rounded-xl text-sm font-medium text-muted transition-colors hover:text-foreground sm:w-auto sm:px-4"
-          >
-            Volver al menú de acceso
-          </button>
-        </section>
-      )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void volverAlMenu()}
+          className="mt-3 min-h-11 w-full rounded-xl text-sm font-medium text-muted transition-colors hover:text-foreground"
+        >
+          Volver al menú de acceso
+        </button>
+      </section>
 
       {/* Zona de peligro */}
       <section className="card border-red-500/30 p-4 sm:p-5">

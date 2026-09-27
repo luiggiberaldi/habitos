@@ -215,7 +215,7 @@ function ElegirModo({ onElegir }: { onElegir: (m: ModoAuth) => void }) {
             <span>
               <span className="block font-semibold">Perfiles en este dispositivo</span>
               <span className="mt-0.5 block text-sm text-muted">
-                Tipo Netflix: cada persona con sus hábitos, sin contraseñas.
+                Tipo Netflix: cada persona con sus hábitos. Solo en este aparato, sin nube.
               </span>
             </span>
           </button>
@@ -230,7 +230,7 @@ function ElegirModo({ onElegir }: { onElegir: (m: ModoAuth) => void }) {
             <span>
               <span className="block font-semibold">Cuenta en la nube</span>
               <span className="mt-0.5 block text-sm text-muted">
-                Con correo y clave: tus datos se respaldan y sincronizan.
+                Con correo y clave: un correo es un usuario; tus datos se respaldan y sincronizan.
               </span>
             </span>
           </button>
