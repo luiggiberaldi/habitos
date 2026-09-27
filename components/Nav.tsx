@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import Logo from "./Logo";
 import { useAuth } from "./AuthGate";
 import { useStoreActions } from "../lib/store-context";
-import { IconAjustes, IconEstadisticas, IconInicio, IconLista, IconUsuarios, IconCerrarSesion } from "../lib/icons";
+import { IconAjustes, IconEstadisticas, IconInicio, IconLista, IconCerrarSesion } from "../lib/icons";
+// import { IconUsuarios } from "../lib/icons"; // Liga oculta por ahora
 
 const items = [
   { href: "/", label: "Hoy", icon: IconInicio },
   { href: "/habitos", label: "Hábitos", icon: IconLista },
-  { href: "/liga", label: "Liga", icon: IconUsuarios },
+  // { href: "/liga", label: "Liga", icon: IconUsuarios }, // ← pestaña oculta por ahora
   { href: "/estadisticas", label: "Estadísticas", icon: IconEstadisticas },
   { href: "/ajustes", label: "Ajustes", icon: IconAjustes },
 ];
