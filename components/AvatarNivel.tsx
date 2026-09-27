@@ -9,7 +9,7 @@ import { useId } from "react";
  * disciplina, maestría, inspiración y leyenda.
  */
 
-const PALETA: Record<number, { de: string; a: string }> = {
+export const PALETA: Record<number, { de: string; a: string }> = {
   1: { de: "#fcd34d", a: "#f59e0b" }, // Chispa
   2: { de: "#fb923c", a: "#ea580c" }, // Impulso
   3: { de: "#fde047", a: "#ca8a04" }, // Ritmo
