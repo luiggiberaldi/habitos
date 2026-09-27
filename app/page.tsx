@@ -248,9 +248,18 @@ export default function Inicio() {
       {/* Header sticky: banner con el degradado del nivel actual */}
       <header className="sticky top-0 z-20 -mx-4 bg-background/85 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div
-          className="rounded-3xl p-5 text-white shadow-lg"
-          style={{ background: `linear-gradient(135deg, ${palNivel.de}, ${palNivel.a})` }}
+          className="relative overflow-hidden rounded-3xl p-5 text-white"
+          style={{
+            background: `linear-gradient(135deg, ${palNivel.de}, ${palNivel.a} 55%, ${palNivel.profundo})`,
+            boxShadow: `0 18px 40px -12px ${palNivel.a}b3`,
+          }}
         >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{ background: `radial-gradient(120% 90% at 20% 0%, ${palNivel.suave}66, transparent 60%)` }}
+          />
+          <div className="relative [text-shadow:0_1px_10px_rgba(0,0,0,0.30)]">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">Tus hábitos</h1>
@@ -269,7 +278,7 @@ export default function Inicio() {
               : "Nivel máximo alcanzado"}
           </p>
           <div
-            className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-white/25"
+            className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-black/25"
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}
@@ -296,6 +305,7 @@ export default function Inicio() {
                 {state.juego!.congeladores === 1 ? "congelador" : "congeladores"}
               </span>
             )}
+          </div>
           </div>
         </div>
       </header>

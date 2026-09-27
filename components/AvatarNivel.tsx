@@ -9,16 +9,16 @@ import { useId } from "react";
  * disciplina, maestría, inspiración y leyenda.
  */
 
-export const PALETA: Record<number, { de: string; a: string }> = {
-  1: { de: "#fcd34d", a: "#f59e0b" }, // Chispa
-  2: { de: "#fb923c", a: "#ea580c" }, // Impulso
-  3: { de: "#fde047", a: "#ca8a04" }, // Ritmo
-  4: { de: "#4ade80", a: "#16a34a" }, // Constancia
-  5: { de: "#2dd4bf", a: "#0d9488" }, // Hábito
-  6: { de: "#60a5fa", a: "#2563eb" }, // Disciplina
-  7: { de: "#818cf8", a: "#4f46e5" }, // Maestría
-  8: { de: "#e879f9", a: "#a855f7" }, // Inspiración
-  9: { de: "#fbbf24", a: "#b45309" }, // Leyenda
+export const PALETA: Record<number, { de: string; a: string; profundo: string; suave: string }> = {
+  1: { de: "#fbbf24", a: "#fb7185", profundo: "#9f1239", suave: "#fef3c7" }, // Chispa: amarillo → coral brasas
+  2: { de: "#fb923c", a: "#e11d48", profundo: "#881337", suave: "#ffedd5" }, // Impulso: naranja → rojo despegue
+  3: { de: "#facc15", a: "#65a30d", profundo: "#365314", suave: "#fef9c3" }, // Ritmo: amarillo → lima flow
+  4: { de: "#4ade80", a: "#0d9488", profundo: "#134e4a", suave: "#dcfce7" }, // Constancia: verde → teal maduro
+  5: { de: "#2dd4bf", a: "#2563eb", profundo: "#1e3a8a", suave: "#ccfbf1" }, // Hábito: teal → azul confianza
+  6: { de: "#60a5fa", a: "#4f46e5", profundo: "#312e81", suave: "#dbeafe" }, // Disciplina: azul → índigo foco
+  7: { de: "#818cf8", a: "#a855f7", profundo: "#581c87", suave: "#e0e7ff" }, // Maestría: índigo → violeta arte
+  8: { de: "#e879f9", a: "#f59e0b", profundo: "#78350f", suave: "#fae8ff" }, // Inspiración: magenta → dorado spotlight
+  9: { de: "#f59e0b", a: "#78350e", profundo: "#451a03", suave: "#fef3c7" }, // Leyenda: ámbar → bronce hall of fame
 };
 
 const BLANCO = "#ffffff";
