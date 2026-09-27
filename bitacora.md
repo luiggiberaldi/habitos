@@ -183,3 +183,11 @@
 **Por qué:** decisión de luigi. Se revierte la idea de "XP global de la suite": el juego no cruza a dinero.
 
 **Verificación:** solo documentación, sin código.
+
+## 2026-09-27 — Roadmap reformulado + mockup de la suite
+
+**Qué cambió:** `ROADMAP-SENDA.md` reescrito con las decisiones de método: evolución del repo (no rewrite), Hábitos con cero cambios visibles, rename de GitHub sí / directorio local no, deploy en el mismo proyecto hasta el lanzamiento, orden fino de Fase 0 (shell+rebrand antes que extracción del núcleo). Nuevo `mockups/suite-senda.html`: prototipo navegable de 4 pantallas (Inicio/hub, Hábitos, Finanzas, Mercado).
+
+**Por qué:** luigi pidió reformular el roadmap y ver cómo quedaría la suite. El mockup usa branding Senda (petróleo/menta), respeta las 3 reglas de UI y muestra el modelo de navegación (hub + tabs).
+
+**Verificación:** solo documentación y mockup estático, sin código funcional.
