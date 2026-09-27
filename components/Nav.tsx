@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthGate";
 import AvatarPerfil from "./AvatarPerfil";
+import Logo from "./Logo";
 import { useStoreActions, useStoreState } from "../lib/store-context";
 import { premiosPendientes } from "../lib/juego";
 import { IconAjustes, IconCaja, IconEstadisticas, IconInicio, IconLista, IconMaletin, IconMas, IconMedalla, IconCerrarSesion, IconTrofeo } from "../lib/icons";
@@ -66,7 +67,7 @@ export default function Nav() {
       {/* Sidebar desktop */}
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-border md:bg-surface md:fixed md:inset-y-0 md:z-30">
         <div className="flex h-16 items-center border-b border-border px-5">
-          <img src="/senda/logo.png" alt="Senda" className="h-8 w-auto" />
+          <Logo className="h-9 w-9" withWordmark />
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
           <p className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-muted">Senda</p>

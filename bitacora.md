@@ -199,3 +199,11 @@
 **Por qué:** Fase 0 del roadmap: shell + rebrand antes de la extracción del núcleo (riesgo bajo primero). Hábitos queda visualmente intacto; solo cambió su ruta.
 
 **Verificación:** `tsc` limpio, `npm run build` ok (15 rutas), smokes p0 5/5, p1p2 16/16, juego 110/110, sueño 59/59. Pendiente: verificación visual en el teléfono de luigi.
+
+## 2026-09-27 — Revert del branding Senda: flama + brasas, solo cambia el nombre
+
+**Qué cambió:** luigi no aprobó el branding petróleo/menta. Se revierte a la identidad anterior: logo de la flama (`components/Logo.tsx`, cuyo wordmark ahora dice "Senda"), paleta brasas (`#E8491D` / `#CE3F14`), theme-color `#E8491D`, manifest con nombre "Senda" e iconos PWA regenerados desde `public/icon.svg` (192/512/maskable/apple-touch). Hub, sidebar y placeholders usan el degradado brasa y los tintados de antes. Eliminados los tokens `senda`/`sendaGradient`. El único cambio de marca visible es el nombre: Hábitos → Senda.
+
+**Por qué:** petición directa de luigi: "no me gusta, deja el logo y la paleta de antes y cámbiale solo el nombre de habitos a senda para ver como queda".
+
+**Verificación:** `tsc` limpio, `npm run build` ok. Pendiente: revisión visual en su teléfono.

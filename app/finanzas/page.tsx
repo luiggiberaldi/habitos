@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { senda, sendaGradient } from "../../lib/design-tokens";
+import { flameGradient } from "../../lib/design-tokens";
 import { IconMaletin, IconFlechaAtras } from "../../lib/icons";
 
 /** Placeholder de Finanzas hasta la Fase 1. */
@@ -23,14 +23,14 @@ export default function FinanzasProximamente() {
       </div>
       <span
         className="rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white"
-        style={{ background: sendaGradient }}
+        style={{ background: flameGradient }}
       >
         Próximamente
       </span>
       <Link
         href="/"
         className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold"
-        style={{ background: senda.mentaSuave, color: senda.mentaOscuro }}
+        style={{ background: "#FFEDE3", color: "#CE3F14" }}
       >
         <IconFlechaAtras className="h-4 w-4" aria-hidden="true" />
         Volver al inicio

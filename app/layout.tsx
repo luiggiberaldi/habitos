@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   // Fase 3 (PWA): enlaza el manifest y el icono instalable.
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon-192.png",
+    icon: "/icon.svg",
     apple: "/apple-touch-icon.png",
   },
 };
@@ -34,7 +34,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0C3544",
+  themeColor: "#E8491D",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

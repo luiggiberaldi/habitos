@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { senda, sendaGradient } from "../../lib/design-tokens";
+import { flameGradient } from "../../lib/design-tokens";
 import { IconCaja, IconFlechaAtras } from "../../lib/icons";
 
 /** Placeholder de Mercado hasta la Fase 2. */
@@ -10,7 +10,7 @@ export default function MercadoProximamente() {
     <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-16 text-center sm:px-6">
       <span
         className="flex h-20 w-20 items-center justify-center rounded-3xl"
-        style={{ background: senda.mentaSuave }}
+        style={{ background: "#FFEDE3" }}
       >
         <IconCaja className="h-10 w-10" aria-hidden="true" />
       </span>
@@ -23,14 +23,14 @@ export default function MercadoProximamente() {
       </div>
       <span
         className="rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white"
-        style={{ background: sendaGradient }}
+        style={{ background: flameGradient }}
       >
         Próximamente
       </span>
       <Link
         href="/"
         className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold"
-        style={{ background: senda.mentaSuave, color: senda.mentaOscuro }}
+        style={{ background: "#FFEDE3", color: "#CE3F14" }}
       >
         <IconFlechaAtras className="h-4 w-4" aria-hidden="true" />
         Volver al inicio

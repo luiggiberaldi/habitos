@@ -68,22 +68,3 @@ export const habitColors = [
   "#22c55e",
 ];
 
-// ── Marca Senda (suite) ──────────────────────────────────────────────────────
-// Petróleo + menta del logo oficial (public/senda/). Se usa en el chrome de la
-// suite (hub, tabs, módulos nuevos). Hábitos conserva su paleta brasa.
-export const senda = {
-  /** Petróleo — primario Senda. */
-  petroleo: "#0C3544",
-  /** Petróleo profundo — fondos oscuros. */
-  petroleoOscuro: "#082A36",
-  /** Menta — acento Senda. */
-  menta: "#4CBF9A",
-  /** Menta oscuro — texto sobre claro. */
-  mentaOscuro: "#2E9E7B",
-  /** Menta suave — fondos tintados. */
-  mentaSuave: "#4CBF9A1F",
-} as const;
-
-/** Degradado Senda para encabezados (css `background`). */
-export const sendaGradient =
-  "linear-gradient(135deg, #0C3544 0%, #10444F 60%, #0C3544 100%)";

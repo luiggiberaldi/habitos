@@ -6,8 +6,9 @@ import { useStoreState } from "../lib/store-context";
 import { useAuth } from "../components/AuthGate";
 import { nivelEfectivo, NIVELES } from "../lib/gamificacion";
 import { completadosPara, esDescanso, todayKey } from "../lib/dates";
-import { senda, sendaGradient } from "../lib/design-tokens";
+import { flameGradient } from "../lib/design-tokens";
 import { AvatarNivel } from "../components/AvatarNivel";
+import Logo from "../components/Logo";
 import {
   IconCaja,
   IconChevronDerecha,
@@ -55,19 +56,21 @@ export default function Hub() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      {/* Encabezado Senda */}
+      {/* Encabezado */}
       <header
         className="relative overflow-hidden rounded-3xl p-5 text-white"
-        style={{ background: sendaGradient, boxShadow: "0 18px 40px -12px rgba(12,53,68,.45)" }}
+        style={{ background: flameGradient, boxShadow: "0 18px 40px -12px rgba(248,72,24,.45)" }}
       >
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
-          style={{ background: "radial-gradient(120% 90% at 85% 0%, rgba(76,191,154,.25), transparent 60%)" }}
+          style={{ background: "radial-gradient(120% 90% at 85% 0%, rgba(255,255,255,.18), transparent 60%)" }}
         />
-        <div className="relative">
-          <img src="/senda/logo.png" alt="Senda" className="h-9 w-auto" />
-          <p className="mt-3 text-xs" style={{ color: "#BFD9D2" }}>{fechaHoy}</p>
+        <div className="relative [text-shadow:0_1px_10px_rgba(0,0,0,0.30)]">
+          <span className="inline-flex items-center gap-2 rounded-2xl bg-white/95 px-2.5 py-1.5 shadow">
+            <Logo className="h-7 w-7" withWordmark wordmarkClassName="text-base font-bold tracking-tight text-[#CE3F14]" />
+          </span>
+          <p className="mt-3 text-xs text-white/85">{fechaHoy}</p>
           <h1 className="mt-0.5 text-2xl font-bold tracking-tight">
             {nombre ? `Hola, ${nombre}` : "Hola"}
           </h1>
@@ -101,15 +104,14 @@ export default function Hub() {
               className="h-full rounded-full"
               style={{
                 width: `${Math.round(nivel.progreso * 100)}%`,
-                background: `linear-gradient(90deg, ${senda.menta}, ${senda.petroleo})`,
+                background: flameGradient,
               }}
             />
           </div>
         </div>
         <Link
           href="/niveles"
-          className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold transition-colors hover:opacity-80"
-          style={{ background: senda.mentaSuave, color: senda.mentaOscuro }}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-bold text-accent transition-colors hover:opacity-80"
         >
           Ver niveles
           <IconChevronDerecha className="h-3.5 w-3.5" aria-hidden="true" />
@@ -174,9 +176,9 @@ export default function Hub() {
           >
             <span
               className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl p-3"
-              style={{ background: senda.mentaSuave }}
+              style={{ background: "#EAF4EF" }}
             >
-              <IconCaja className="h-7 w-7" aria-hidden="true" />
+              <IconCaja className="h-7 w-7 text-[#2E9E7B]" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-2 text-base font-bold text-foreground">
