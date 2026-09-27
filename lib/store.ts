@@ -137,6 +137,34 @@ export function actualizarSettings(state: AppState, settings: Settings): AppStat
   return { ...state, settings };
 }
 
+const TEMAS_VALIDOS = ["claro", "oscuro", "sistema"] as const;
+
+/**
+ * Endurece los ajustes guardados: si el localStorage trae un settings
+ * incompleto o corrupto (p. ej. sin `horasDescanso`), se rellena con los
+ * valores por defecto en vez de romper la UI que los lee.
+ */
+function normalizarSettings(value: unknown, fallback: Settings): Settings {
+  const p = (value && typeof value === "object" ? value : {}) as Partial<Settings> & {
+    horasDescanso?: Partial<Settings["horasDescanso"]>;
+  };
+  const hd = (
+    p.horasDescanso && typeof p.horasDescanso === "object" ? p.horasDescanso : {}
+  ) as { inicio?: string; fin?: string };
+  return {
+    notificaciones: typeof p.notificaciones === "boolean" ? p.notificaciones : fallback.notificaciones,
+    horasDescanso: {
+      inicio: typeof hd.inicio === "string" && hd.inicio ? hd.inicio : fallback.horasDescanso.inicio,
+      fin: typeof hd.fin === "string" && hd.fin ? hd.fin : fallback.horasDescanso.fin,
+    },
+    tema: (TEMAS_VALIDOS as readonly string[]).includes(p.tema as string)
+      ? (p.tema as Settings["tema"])
+      : fallback.tema,
+    reducirMovimiento:
+      typeof p.reducirMovimiento === "boolean" ? p.reducirMovimiento : fallback.reducirMovimiento,
+  };
+}
+
 export function normalizarEstado(value: unknown): AppState {
   const fallback = crearEstadoInicial();
   if (!value || typeof value !== "object") return fallback;
@@ -173,7 +201,7 @@ export function normalizarEstado(value: unknown): AppState {
     }
     return typeof event.habitId === "string" && typeof event.momentId === "string" && /^\d{4}-\d{2}-\d{2}$/.test(event.fecha) && (event as CompletionEvent).momentId ? true : false;
   });
-  return { habits: conHistorial, completions, juego: normalizarJuego(partial.juego), settings: partial.settings ?? fallback.settings, version: 1 };
+  return { habits: conHistorial, completions, juego: normalizarJuego(partial.juego), settings: normalizarSettings(partial.settings, fallback.settings), version: 1 };
 }
 
 /**

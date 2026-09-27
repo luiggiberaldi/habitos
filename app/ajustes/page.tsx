@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useStoreActions, useStoreState } from "../../lib/store-context";
 import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
-import { IconCampana, IconDescanso, IconLuna, IconMovimiento, IconSistema, IconSol } from "../../lib/icons";
+import { IconAlerta, IconCampana, IconDescanso, IconLuna, IconMovimiento, IconSistema, IconSol } from "../../lib/icons";
 
 export default function Ajustes() {
   const { state, errorSync } = useStoreState();
@@ -12,6 +13,7 @@ export default function Ajustes() {
   const [notificationMessage, setNotificationMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [reintentando, setReintentando] = useState(false);
+  const [mostrarReinicio, setMostrarReinicio] = useState(false);
 
   // P1.9: el toggle cablea la suscripción web push de verdad — antes solo pedía
   // permiso local y suscribirPush() nunca se invocaba desde la UI.
@@ -211,6 +213,120 @@ export default function Ajustes() {
           </label>
         </div>
       </section>
+
+      {/* Zona de peligro */}
+      <section className="card border-red-500/30 p-4 sm:p-5">
+        <div className="flex items-center gap-3">
+          <IconAlerta className="h-5 w-5 shrink-0 text-red-500" />
+          <div>
+            <h2 className="font-semibold text-red-500">Zona de peligro</h2>
+            <p className="text-sm text-muted">Borra todos tus datos y empieza desde cero.</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMostrarReinicio(true)}
+          className="mt-3 min-h-11 w-full rounded-xl border border-red-500/50 px-4 text-sm font-semibold text-red-500 hover:bg-red-500/10 sm:w-auto"
+        >
+          Reiniciar la app
+        </button>
+      </section>
+
+      {mostrarReinicio && <ModalReinicio onCerrar={() => setMostrarReinicio(false)} />}
+    </div>
+  );
+}
+
+/** Confirmación propia (nada de confirm() nativo) para reiniciar la app. */
+function ModalReinicio({ onCerrar }: { onCerrar: () => void }) {
+  const { reiniciarTodo } = useStoreActions();
+  const router = useRouter();
+  const [armado, setArmado] = useState(false);
+  const [borrando, setBorrando] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCerrar();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  async function ejecutar() {
+    // Doble toque: el primero arma, el segundo ejecuta.
+    if (!armado) {
+      setArmado(true);
+      return;
+    }
+    setBorrando(true);
+    setError("");
+    try {
+      await reiniciarTodo();
+      onCerrar();
+      router.push("/");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo reiniciar la app.");
+    } finally {
+      setBorrando(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onCerrar}
+      role="presentation"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reinicio-titulo"
+        className="card w-full max-w-sm p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-3">
+          <IconAlerta className="h-6 w-6 shrink-0 text-red-500" />
+          <div>
+            <h2 id="reinicio-titulo" className="text-lg font-bold">
+              ¿Empezar desde cero?
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Se borrarán tus hábitos, registros, rachas, XP, logros y desafíos, en este dispositivo
+              y en la nube. Esta acción no se puede deshacer.
+            </p>
+          </div>
+        </div>
+        {error && (
+          <p role="alert" className="mt-3 text-sm text-red-500">
+            {error}
+          </p>
+        )}
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            autoFocus
+            onClick={() => {
+              setArmado(false);
+              onCerrar();
+            }}
+            disabled={borrando}
+            className="min-h-11 flex-1 rounded-xl border border-border px-4 text-sm font-medium hover:bg-accent-soft disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={ejecutar}
+            disabled={borrando}
+            className={`min-h-11 flex-1 rounded-xl px-4 text-sm font-semibold text-white disabled:opacity-50 ${
+              armado ? "bg-red-600 hover:bg-red-700" : "bg-red-500/90 hover:bg-red-600"
+            }`}
+          >
+            {borrando ? "Borrando…" : armado ? "Toca de nuevo para confirmar" : "Borrar todo"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

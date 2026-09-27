@@ -224,6 +224,7 @@ export function aplicarRecompensas(
       detalle: premio.congelador
         ? "Día completo: ganaste un congelador de racha."
         : `Día completo: bonus sorpresa de +${premio.xp} XP.`,
+      dato: premio.congelador ? "congelador" : `xp:${premio.xp}`,
     });
   }
 

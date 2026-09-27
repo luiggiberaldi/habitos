@@ -18,6 +18,8 @@ import {
 import { suscribirEventosJuego, type EventoJuego } from "../lib/juego";
 import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
 import Celebracion, { type CelebracionData } from "../components/Celebracion";
+import CofreFlip, { type PremioCofreUI } from "../components/ui/CofreFlip";
+import CheckAnimado from "../components/ui/CheckAnimado";
 import Logo from "../components/Logo";
 import { AvatarNivel, PALETA } from "../components/AvatarNivel";
 import {
@@ -53,6 +55,12 @@ const ICONOS_LOGRO: Record<IconoLogro, (props: { className?: string }) => React.
   medalla: IconMedalla,
 };
 
+function premioDesdeDato(dato: string | undefined): PremioCofreUI {
+  if (dato === "congelador") return { tipo: "congelador", cantidad: 0 };
+  const m = /^xp:(\d+)$/.exec(dato ?? "");
+  return { tipo: "xp", cantidad: m ? Number(m[1]) : 0 };
+}
+
 function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
   switch (e.tipo) {
     case "subida-nivel": {
@@ -70,7 +78,12 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
       return { icono: <Icono className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
     }
     case "cofre":
-      return { icono: <IconRegalo className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+      return {
+        icono: <IconRegalo className="h-8 w-8" />,
+        titulo: e.titulo,
+        detalle: e.detalle,
+        cuerpo: <CofreFlip premio={premioDesdeDato(e.dato)} />,
+      };
     case "desafio":
       return { icono: <IconObjetivo className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
     default:
@@ -736,24 +749,19 @@ function HabitCard({
                       {isExpanded ? "Ocultar" : `${moment.subtareas!.length} recordatorio${moment.subtareas!.length !== 1 ? "s" : ""}`}
                     </button>
                   )}
-                  {hecho && event ? (
-                    <button
-                      type="button"
-                      onClick={() => onDeshacer(event)}
-                      className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-accent-soft px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent/25"
-                    >
-                      <IconCheck className="h-4 w-4" /> Hecho
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => onMarcar(habit, moment.id)}
-                      disabled={pulsando}
-                      className="btn-secondary min-h-10 !py-1.5 !px-3 !text-sm"
-                    >
-                      {pulsando ? "…" : "Marcar"}
-                    </button>
-                  )}
+                  <CheckAnimado
+                    marcado={hecho}
+                    deshabilitado={pulsando}
+                    etiqueta={
+                      hecho
+                        ? `Deshacer registro de ${etiquetaMoment(moment)}`
+                        : `Marcar ${etiquetaMoment(moment)} como hecho`
+                    }
+                    onCambiar={(nuevo) => {
+                      if (nuevo) onMarcar(habit, moment.id);
+                      else if (event) onDeshacer(event);
+                    }}
+                  />
                 </div>
 
                 {/* Checklist de subtareas */}

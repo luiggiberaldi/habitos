@@ -47,6 +47,8 @@ interface StoreContextValue {
   /** Actualiza campos del estado de juego (p. ej. nombre visible en la liga). */
   actualizarJuego: (parcial: Partial<JuegoState>) => void;
   rehidratar: () => Promise<void>;
+  /** Borra todos los datos (local + nube) y deja la app en cero. */
+  reiniciarTodo: () => Promise<void>;
   /** E3: reenvía la cola pendiente ahora (p. ej. antes de cerrar sesión). */
   sincronizarAhora: () => Promise<void>;
   /** Descripción del último error de sincronización no-red, o null si todo está al día. */
@@ -562,8 +564,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
         }
       },
+      reiniciarTodo: async () => {
+        // 1. Nube primero (si hay sesión): borra todas las filas del usuario.
+        //    Si falla, se aborta sin tocar lo local para no dejar estados a medias.
+        const supabase = getSupabase();
+        if (supabase && userId) {
+          for (const tabla of ["completions", "deleted_habits", "habits", "game_state"] as const) {
+            const { error } = await supabase.from(tabla).delete().eq("user_id", userId);
+            if (error) throw new Error(`No se pudo borrar tus datos en la nube (${tabla}). Revisa tu conexión e inténtalo de nuevo.`);
+          }
+        }
+        // 2. Limpia todo el almacenamiento local de la app (estado + cola pendiente).
+        try {
+          const borrar: string[] = [];
+          for (let i = 0; i < window.localStorage.length; i++) {
+            const k = window.localStorage.key(i);
+            if (k && k.startsWith("habitos-")) borrar.push(k);
+          }
+          for (const k of borrar) window.localStorage.removeItem(k);
+        } catch {
+          /* almacenamiento no disponible */
+        }
+        pendientesRef.current = [];
+        // 3. Estado vacío real, sin demos: empezar desde 0.
+        const vacio: AppState = { ...crearEstadoInicial(), habits: [], completions: [], juego: juegoInicial() };
+        setState(vacio);
+        try {
+          window.localStorage.setItem(storageKey, JSON.stringify(vacio));
+        } catch {
+          /* almacenamiento no disponible */
+        }
+        logEvent("APP_RESET", "app", null, null);
+      },
     }),
-    [userId, sincronizar, rehidratarFn, reenviarPendientes],
+    [userId, sincronizar, rehidratarFn, reenviarPendientes, storageKey],
   );
 
   // Rehidratar al iniciar sesión (cambio de usuario) y al volver a estar online.

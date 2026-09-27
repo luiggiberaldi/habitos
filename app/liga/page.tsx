@@ -20,6 +20,8 @@ import {
   IconUsuarios,
   IconX,
 } from "../../lib/icons";
+import StatefulButton from "../../components/ui/StatefulButton";
+import { SkeletonLiga } from "../../components/ui/Skeleton";
 
 export default function Liga() {
   const { user } = useAuth();
@@ -81,6 +83,21 @@ export default function Liga() {
     }
   }
 
+  /**
+   * Como conCarga pero sin estado "ocupado": el StatefulButton maneja su
+   * propio estado visual. Re-lanza el error para que el botón no muestre éxito.
+   */
+  async function ejecutar(fn: () => Promise<void>): Promise<void> {
+    setError(null);
+    setOk(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Algo salió mal.");
+      throw e;
+    }
+  }
+
   const guardarNombre = (): void => {
     const limpio = nombreVisible.trim().slice(0, 30);
     actualizarJuego({ nombreLiga: limpio });
@@ -88,7 +105,7 @@ export default function Liga() {
   };
 
   const crear = (): Promise<void> =>
-    conCarga(async () => {
+    ejecutar(async () => {
       const supabase = getSupabase();
       if (!supabase || !user) throw new Error("Inicia sesión para crear una liga.");
       const vista = await crearLiga(supabase, user.id, nombreNueva, nombreVisible);
@@ -99,7 +116,7 @@ export default function Liga() {
     });
 
   const unirse = (): Promise<void> =>
-    conCarga(async () => {
+    ejecutar(async () => {
       const supabase = getSupabase();
       if (!supabase || !user) throw new Error("Inicia sesión para unirte a una liga.");
       const vista = await unirseALiga(supabase, user.id, codigoUnirse, nombreVisible);
@@ -174,7 +191,7 @@ export default function Liga() {
       </section>
 
       {cargando ? (
-        <p className="text-sm text-muted">Cargando tus ligas…</p>
+        <SkeletonLiga />
       ) : ligas.length === 0 ? (
         <>
           {/* Crear liga */}
@@ -194,9 +211,13 @@ export default function Liga() {
                 className="input-field min-h-11 flex-1"
                 aria-label="Nombre de la liga"
               />
-              <button type="button" onClick={() => void crear()} disabled={ocupado} className="btn-primary min-h-11 disabled:opacity-50">
-                {ocupado ? "Creando…" : "Crear liga"}
-              </button>
+              <StatefulButton
+                onAccion={crear}
+                textoCargando="Creando…"
+                textoExito="¡Liga creada!"
+              >
+                Crear liga
+              </StatefulButton>
             </div>
           </section>
 
@@ -217,9 +238,13 @@ export default function Liga() {
                 className="input-field min-h-11 flex-1 uppercase tracking-widest"
                 aria-label="Código de la liga"
               />
-              <button type="button" onClick={() => void unirse()} disabled={ocupado} className="btn-primary min-h-11 disabled:opacity-50">
-                {ocupado ? "Uniendo…" : "Unirse"}
-              </button>
+              <StatefulButton
+                onAccion={unirse}
+                textoCargando="Uniendo…"
+                textoExito="¡Dentro!"
+              >
+                Unirse
+              </StatefulButton>
             </div>
           </section>
         </>
@@ -324,14 +349,14 @@ export default function Liga() {
                         className="input-field min-h-11 flex-1 uppercase tracking-widest"
                         aria-label="Código de otra liga"
                       />
-                      <button
-                        type="button"
-                        onClick={() => void unirse()}
-                        disabled={ocupado}
-                        className="btn-secondary min-h-11 disabled:opacity-50"
+                      <StatefulButton
+                        variante="secondary"
+                        onAccion={unirse}
+                        textoCargando="Uniendo…"
+                        textoExito="¡Dentro!"
                       >
                         Unirse
-                      </button>
+                      </StatefulButton>
                     </div>
                   </div>
                 )}

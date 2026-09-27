@@ -184,6 +184,53 @@ const mkState = (habits = [], completions = []) => ({
   );
 }
 
+// ── Endurecimiento de settings: settings incompleto no rompe ──────────────
+{
+  // settings sin horasDescanso (el caso que rompía /ajustes)
+  const n1 = normalizarEstado({
+    habits: [],
+    completions: [],
+    settings: { notificaciones: true, tema: "oscuro" },
+  });
+  check(
+    "settings sin horasDescanso se rellena con defaults",
+    n1.settings.horasDescanso.inicio === "22:00" &&
+      n1.settings.horasDescanso.fin === "08:00" &&
+      n1.settings.notificaciones === true &&
+      n1.settings.tema === "oscuro",
+  );
+  // settings ausente por completo
+  const n2 = normalizarEstado({ habits: [], completions: [] });
+  check(
+    "settings ausente usa defaults completos",
+    n2.settings.tema === "sistema" &&
+      n2.settings.horasDescanso.inicio === "22:00" &&
+      n2.settings.reducirMovimiento === false,
+  );
+  // tema inválido vuelve al default
+  const n3 = normalizarEstado({
+    habits: [],
+    completions: [],
+    settings: { tema: "neon", horasDescanso: { inicio: "23:00", fin: "06:00" } },
+  });
+  check(
+    "tema inválido se reemplaza por el default y respeta horasDescanso válidas",
+    n3.settings.tema === "sistema" &&
+      n3.settings.horasDescanso.inicio === "23:00" &&
+      n3.settings.horasDescanso.fin === "06:00",
+  );
+  // horasDescanso parcial (solo inicio)
+  const n4 = normalizarEstado({
+    habits: [],
+    completions: [],
+    settings: { horasDescanso: { inicio: "21:30" } },
+  });
+  check(
+    "horasDescanso parcial rellena solo lo que falta",
+    n4.settings.horasDescanso.inicio === "21:30" && n4.settings.horasDescanso.fin === "08:00",
+  );
+}
+
 console.log(`\n${ok} OK, ${fail} FALLAS`);
 rmSync(outDir, { recursive: true, force: true });
 process.exit(fail === 0 ? 0 : 1);

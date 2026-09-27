@@ -298,6 +298,19 @@ select.input-field:focus {
 .avn-d3 { animation-delay: 0.54s; }
 .avn-d4 { animation-delay: 0.72s; }
 
+/* ===== Micro-interacciones UI (StatefulButton, CofreFlip) ===== */
+@keyframes ui-pop-in {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-pop-in { animation: ui-pop-in 0.35s ease-out; }
+@keyframes ui-flotar {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-flotar { animation: ui-flotar 2.8s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

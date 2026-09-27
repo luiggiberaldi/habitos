@@ -7,9 +7,10 @@ export type LogAction =
   | "COMPLETION_REGISTERED"
   | "COMPLETION_UNDONE"
   | "SUBTASK_CHECKED"
-  | "SETTINGS_UPDATED";
+  | "SETTINGS_UPDATED"
+  | "APP_RESET";
 
-export type LogEntityType = "habit" | "completion" | "settings" | "subtask";
+export type LogEntityType = "habit" | "completion" | "settings" | "subtask" | "app";
 
 /**
  * E5 (decisión de diseño, antes P3.7): logEvent es fire-and-forget a propósito.
