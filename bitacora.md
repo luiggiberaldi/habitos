@@ -12,6 +12,20 @@
 - Validación: tsc limpio, eslint 0 errores, smokes 110/110 + 59/59 + 5/5 + 16/16, `next build` OK, ciclo hash/verificación probado en Node.
 - Fix del gate pre-commit (bloqueaba el commit): el lint corría sobre `.vercel/output` (artefactos de build, 56 errores ajenos) → añadido `.vercel/**` a los ignores de `eslint.config.mjs`; además `@ts-ignore` → `@ts-expect-error` en `crear-usuario/index.ts`. El gate (typecheck + lint + smokes) ahora pasa limpio sin `--no-verify`.
 
+## 2026-09-27 (revelado de trofeo en /logros — SIN commitear)
+
+- luigi eligió "Revelado de trofeo" entre 3 propuestas (sello, legendario).
+- Al tocar un logro (reclamar o revivir) el modal Celebracion ahora muestra:
+  medalla con pop elástico (scale 0→1.18→0.94→1, 0.65s), doble onda expansiva
+  detrás, ráfaga de confeti en canvas (90 partículas, paleta brasa, ~1.4s con
+  gravedad) y el "+N XP" subiendo con contador animado (easeOutCubic, 0.9s).
+- Nuevo `components/ui/Confeti.tsx` (canvas, sin dependencias) y keyframes
+  `ui-trofeo-pop` / `ui-trofeo-onda` en globals.css. `CelebracionData` acepta
+  `efecto: "trofeo"` + `xp`; opt-in, el resto de celebraciones intacto.
+- Respeta `prefers-reduced-motion` (sin confeti, XP final directo, animaciones
+  anuladas por la regla global). `tabular-nums` en el contador para que no tiemble.
+- tsc/eslint limpios, build ok, smokes 190/190.
+
 ## 2026-09-27 (perfiles en la nube — DESPLEGADO a producción)
 
 - luigi autorizó el deploy: `vercel --prod` → https://habitos-gdr2rof49-luiggi2.vercel.app (alias prod https://habitos-amber.vercel.app, 200 ok).

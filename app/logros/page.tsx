@@ -103,10 +103,12 @@ export default function Logros() {
       if (res.xpGanado > 0) {
         setRevivir({
           icono: <Icono className="h-10 w-10" />,
-          titulo: `+${res.xpGanado} XP`,
+          titulo: logro.nombre,
           detalle: res.nivel
-            ? `${logro.nombre} · ${logro.mensaje} · ¡Subiste al nivel ${res.nivel.nivel}: ${res.nivel.nombre}!`
-            : `${logro.nombre} · ${logro.mensaje}`,
+            ? `${logro.mensaje} · ¡Subiste al nivel ${res.nivel.nivel}: ${res.nivel.nombre}!`
+            : logro.mensaje,
+          efecto: "trofeo",
+          xp: res.xpGanado,
         });
         return;
       }
@@ -114,8 +116,10 @@ export default function Logros() {
     // Ya reclamado: revive la animación sin otorgar XP de nuevo.
     setRevivir({
       icono: <Icono className="h-10 w-10" />,
-      titulo: `¡${logro.nombre}!`,
+      titulo: logro.nombre,
       detalle: `Ya reclamaste sus +${logro.xp} XP · ${logro.mensaje}`,
+      efecto: "trofeo",
+      xp: logro.xp,
     });
   };
 

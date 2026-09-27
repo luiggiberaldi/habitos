@@ -323,6 +323,20 @@ select.input-field:focus {
 }
 .animate-shake { animation: ui-shake 0.4s ease-in-out; }
 
+/* ===== Revelado de trofeo (sala de logros) ===== */
+@keyframes ui-trofeo-pop {
+  0% { opacity: 0; transform: scale(0); }
+  55% { opacity: 1; transform: scale(1.18); }
+  75% { transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-trofeo-pop { animation: ui-trofeo-pop 0.65s cubic-bezier(0.34, 1.4, 0.64, 1); }
+@keyframes ui-trofeo-onda {
+  0% { opacity: 0.7; transform: scale(0.45); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+.animate-trofeo-onda { animation: ui-trofeo-onda 0.9s ease-out 0.1s both; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

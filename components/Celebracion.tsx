@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { IconX } from "../lib/icons";
 import Sparkles from "./ui/Sparkles";
+import Confeti from "./ui/Confeti";
 
 export interface CelebracionData {
   icono: ReactNode;
@@ -14,6 +15,70 @@ export interface CelebracionData {
   cuerpo?: ReactNode;
   /** Acción principal opcional (p. ej. ir a reclamar un premio). */
   accion?: { etiqueta: string; href: string };
+  /**
+   * "trofeo": revelado de logro — la medalla entra con pop elástico, onda
+   * expansiva, ráfaga de confeti y el XP sube contando. Solo CSS + canvas.
+   */
+  efecto?: "trofeo";
+  /** XP a animar con contador cuando efecto === "trofeo". */
+  xp?: number;
+}
+
+/** Contador animado 0 → objetivo (~0.9s, easeOutCubic). */
+function useCountUp(objetivo: number, ms = 900): number {
+  const [valor, setValor] = useState(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? objetivo
+      : 0,
+  );
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    const inicio = performance.now();
+    const tick = (ahora: number): void => {
+      const t = Math.min(1, (ahora - inicio) / ms);
+      setValor(Math.round((1 - Math.pow(1 - t, 3)) * objetivo));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [objetivo, ms]);
+  return valor;
+}
+
+function TrofeoRevelado({
+  icono,
+  titulo,
+  detalle,
+  xp,
+}: {
+  icono: ReactNode;
+  titulo: string;
+  detalle: string;
+  xp?: number;
+}) {
+  const xpAnimado = useCountUp(xp ?? 0);
+  return (
+    <div className="relative">
+      <div className="relative mx-auto h-24 w-24">
+        <span aria-hidden="true" className="animate-trofeo-onda absolute inset-0 rounded-full bg-accent-soft" />
+        <span
+          aria-hidden="true"
+          className="animate-trofeo-onda absolute inset-0 rounded-full bg-accent-soft [animation-delay:160ms]"
+        />
+        <span className="animate-trofeo-pop absolute inset-0 flex items-center justify-center rounded-full bg-accent-soft text-accent">
+          {icono}
+        </span>
+      </div>
+      <h2 className="mt-4 text-xl font-bold">{titulo}</h2>
+      {typeof xp === "number" && xp > 0 && (
+        <p className="mt-1 text-3xl font-extrabold tabular-nums text-accent">+{xpAnimado} XP</p>
+      )}
+      <p className="mt-2 text-sm text-muted">{detalle}</p>
+      <Confeti className="pointer-events-none absolute -inset-6 h-[calc(100%+3rem)] w-[calc(100%+3rem)]" />
+    </div>
+  );
 }
 
 /**
@@ -50,15 +115,18 @@ export default function Celebracion({
       >
         <Sparkles className="absolute inset-0 h-full w-full opacity-60" densidad={28} />
         <div className="relative">
-          {data.cuerpo ?? (
-            <>
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft text-accent">
-                {data.icono}
-              </div>
-              <h2 className="mt-4 text-xl font-bold">{data.titulo}</h2>
-              <p className="mt-2 text-sm text-muted">{data.detalle}</p>
-            </>
-          )}
+          {data.cuerpo ??
+            (data.efecto === "trofeo" ? (
+              <TrofeoRevelado icono={data.icono} titulo={data.titulo} detalle={data.detalle} xp={data.xp} />
+            ) : (
+              <>
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft text-accent">
+                  {data.icono}
+                </div>
+                <h2 className="mt-4 text-xl font-bold">{data.titulo}</h2>
+                <p className="mt-2 text-sm text-muted">{data.detalle}</p>
+              </>
+            ))}
           {data.accion ? (
             <>
               <Link href={data.accion.href} onClick={onCerrar} className="btn-primary mt-6 w-full justify-center">
