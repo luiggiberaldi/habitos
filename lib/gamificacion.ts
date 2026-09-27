@@ -202,18 +202,20 @@ export interface NivelDef {
   nombre: string;
   /** XP total necesario para alcanzar este nivel. */
   xp: number;
+  /** Frase que representa el espíritu del nivel. */
+  mensaje: string;
 }
 
 export const NIVELES: NivelDef[] = [
-  { nivel: 1, nombre: "Chispa", xp: 0 },
-  { nivel: 2, nombre: "Impulso", xp: 150 },
-  { nivel: 3, nombre: "Ritmo", xp: 400 },
-  { nivel: 4, nombre: "Constancia", xp: 800 },
-  { nivel: 5, nombre: "Hábito", xp: 1400 },
-  { nivel: 6, nombre: "Disciplina", xp: 2200 },
-  { nivel: 7, nombre: "Maestría", xp: 3200 },
-  { nivel: 8, nombre: "Inspiración", xp: 4500 },
-  { nivel: 9, nombre: "Leyenda", xp: 6000 },
+  { nivel: 1, nombre: "Chispa", xp: 0, mensaje: "Todo gran fuego empieza con una chispa." },
+  { nivel: 2, nombre: "Impulso", xp: 150, mensaje: "Ya agarraste vuelo. No lo sueltes." },
+  { nivel: 3, nombre: "Ritmo", xp: 400, mensaje: "La constancia le gana a la intensidad." },
+  { nivel: 4, nombre: "Constancia", xp: 800, mensaje: "Los días difíciles también cuentan." },
+  { nivel: 5, nombre: "Hábito", xp: 1400, mensaje: "Ya no es esfuerzo: es quien eres." },
+  { nivel: 6, nombre: "Disciplina", xp: 2200, mensaje: "Lo haces incluso sin ganas. Eso es poder." },
+  { nivel: 7, nombre: "Maestría", xp: 3200, mensaje: "Dominas el proceso, no solo el resultado." },
+  { nivel: 8, nombre: "Inspiración", xp: 4500, mensaje: "Tu ejemplo enciende a otros." },
+  { nivel: 9, nombre: "Leyenda", xp: 6000, mensaje: "Esto ya es para siempre." },
 ];
 
 export interface NivelActual {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useStoreActions, useStoreState } from "../lib/store-context";
 import { useAuth } from "../components/AuthGate";
 import {
@@ -29,6 +30,7 @@ import {
   IconCategoria,
   IconCheck,
   IconChevronAbajo,
+  IconChevronDerecha,
   IconCopo,
   IconFuego,
   IconObjetivo,
@@ -326,6 +328,13 @@ export default function Inicio() {
                 {state.juego!.congeladores === 1 ? "congelador" : "congeladores"}
               </span>
             )}
+            <Link
+              href="/niveles"
+              className="ml-auto inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-bold transition-colors hover:bg-white/30"
+            >
+              Ver niveles
+              <IconChevronDerecha className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
           </div>
           </div>
         </div>
