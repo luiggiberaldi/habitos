@@ -12,6 +12,7 @@ import {
   rachaActual,
 } from "../../lib/gamificacion";
 import { useStoreState } from "../../lib/store-context";
+import EstanteLogros from "../../components/EstanteLogros";
 import ResumenSemanal from "../../components/ResumenSemanal";
 import {
   IconCategoria,
@@ -588,6 +589,9 @@ export default function Estadisticas() {
           })
         )}
       </section>
+
+      {/* Sala de trofeos: los logros viven aquí, no en el inicio */}
+      <EstanteLogros logros={state.juego?.logros ?? []} />
     </div>
   );
 }

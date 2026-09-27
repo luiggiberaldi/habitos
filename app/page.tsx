@@ -13,7 +13,6 @@ import {
   puntosTotalesParaFecha,
   rachaActual,
   resumenSemanal,
-  type IconoLogro,
 } from "../lib/gamificacion";
 import { suscribirEventosJuego, type EventoJuego } from "../lib/juego";
 import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
@@ -22,22 +21,18 @@ import ResumenSemanal from "../components/ResumenSemanal";
 import CofreFlip, { type PremioCofreUI } from "../components/ui/CofreFlip";
 import CheckAnimado from "../components/ui/CheckAnimado";
 import Logo from "../components/Logo";
+import { ICONOS_LOGRO } from "../components/EstanteLogros";
 import { AvatarNivel, PALETA } from "../components/AvatarNivel";
 import {
   IconAlerta,
-  IconCandado,
   IconCategoria,
   IconCheck,
   IconChevronAbajo,
   IconCopo,
-  IconCorona,
-  IconEstrella,
   IconFuego,
-  IconMedalla,
   IconObjetivo,
   IconRegalo,
   IconReloj,
-  IconSol,
   IconTrofeo,
   IconRayo,
 } from "../lib/icons";
@@ -46,16 +41,6 @@ import type { CompletionEvent, Habit, Moment } from "../lib/types";
 function etiquetaMoment(moment: Moment): string {
   return moment.tipo === "hora" && moment.hora ? formatHoraA12(moment.hora) : idiomaDeVentana(moment.ventana);
 }
-
-const ICONOS_LOGRO: Record<IconoLogro, (props: { className?: string }) => React.JSX.Element> = {
-  fuego: IconFuego,
-  trofeo: IconTrofeo,
-  corona: IconCorona,
-  estrella: IconEstrella,
-  sol: IconSol,
-  rayo: IconRayo,
-  medalla: IconMedalla,
-};
 
 function premioDesdeDato(dato: string | undefined): PremioCofreUI {
   if (dato === "congelador") return { tipo: "congelador", cantidad: 0 };
@@ -436,43 +421,6 @@ export default function Inicio() {
           </ul>
         </section>
       )}
-
-      {/* Estante de logros: pocos y difíciles; los bloqueados se muestran para dar meta */}
-      <section className="card p-5" aria-label="Logros">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <h2 className="font-semibold">Logros</h2>
-            <p className="mt-1 text-xs text-muted">Pocos, difíciles y para siempre</p>
-          </div>
-          <span className="rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-muted">
-            {(state.juego?.logros ?? []).length}/{LOGROS.length}
-          </span>
-        </div>
-        <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {LOGROS.map((logro) => {
-            const desbloqueado = (state.juego?.logros ?? []).includes(logro.id);
-            const Icono = ICONOS_LOGRO[logro.icono];
-            return (
-              <li
-                key={logro.id}
-                className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center ${
-                  desbloqueado ? "border-accent/30 bg-accent-soft/40" : "border-border bg-surface-2/40 opacity-60"
-                }`}
-              >
-                <span
-                  className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                    desbloqueado ? "bg-accent-soft text-accent" : "bg-surface-2 text-muted"
-                  }`}
-                >
-                  {desbloqueado ? <Icono className="h-5 w-5" /> : <IconCandado className="h-5 w-5" />}
-                </span>
-                <p className="text-xs font-semibold leading-tight">{logro.nombre}</p>
-                <p className="text-[10px] leading-tight text-muted">{logro.descripcion}</p>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
 
       {/* Resumen semanal */}
       <section className="card p-5">
