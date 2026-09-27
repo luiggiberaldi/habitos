@@ -1,5 +1,5 @@
-import { getSupabase, getSessionUser } from "./supabase";
-import { claveColaLog, leerPerfilActivoId } from "./perfiles";
+import { getSupabase, getCachedUser, asegurarSesion } from "./supabase";
+import { claveColaLog } from "./ambito";
 
 export type LogAction =
   // Hábitos
@@ -36,12 +36,6 @@ export type LogAction =
   // Push
   | "PUSH_SUBSCRIBED"
   | "PUSH_UNSUBSCRIBED"
-  // Perfiles locales
-  | "PERFIL_CREATED"
-  | "PERFIL_ACTIVADO"
-  | "PERFIL_ACTUALIZADO"
-  | "PERFIL_ELIMINADO"
-  | "MODO_CAMBIADO"
   // Ajustes / app
   | "SETTINGS_UPDATED"
   | "APP_OPENED"
@@ -63,7 +57,6 @@ export type LogEntityType =
   | "juego"
   | "liga"
   | "push"
-  | "perfil"
   | "navegacion"
   | "sync"
   | "app";
@@ -88,24 +81,20 @@ interface LogRow {
  *   localStorage (tope 500, se descarta lo más antiguo) y `flushLog` intenta
  *   subirla. El flush se dispara en cada evento, al abrir la app y al
  *   recuperar conexión.
- * - División por identidad: con perfil local activo, la cola es
- *   `habitos-log-queue-v1:perfil:<id>` y NO se sube a la nube (los datos del
- *   perfil viven solo en el dispositivo); con cuenta Supabase, la cola es por
- *   userId y sí se inserta en `activity_log`.
+ * - División por identidad: la cola es `habitos-log-queue-v1:<userId>` y se
+ *   inserta en `activity_log` cuando hay conexión.
  * - Telemetría, no estado: si algún día el log se vuelve crítico, hay que
  *   encolarlo como PendingOp en vez de tragar el error aquí.
  */
 
 const MAX_QUEUE = 500;
 
-/** Sufijo de ámbito para la cola: perfil local o userId de la nube. */
+/** Sufijo de ámbito para la cola: el userId de la sesión cacheada (offline-first). */
 async function sufijoCola(): Promise<{ sufijo: string; nubeUserId: string | null } | null> {
   if (typeof window === "undefined") return null;
-  const perfilId = leerPerfilActivoId();
-  if (perfilId) return { sufijo: `perfil:${perfilId}`, nubeUserId: null };
   const supabase = getSupabase();
   if (!supabase) return null;
-  const user = await getSessionUser().catch(() => null);
+  const user = await getCachedUser().catch(() => null);
   if (!user) return null;
   return { sufijo: user.id, nubeUserId: user.id };
 }
@@ -133,7 +122,7 @@ export function logEvent(
   entityType: LogEntityType,
   entityId: string | null,
   payload: Record<string, unknown> | null,
-  /** Sufijo de ámbito explícito (p. ej. `perfil:<id>`); si se omite se resuelve la identidad activa. */
+  /** Sufijo de ámbito explícito (userId); si se omite se resuelve la identidad activa. */
   ambitoForzado?: string,
 ): void {
   // Fire-and-forget: nunca bloquear ni romper al caller.
@@ -146,7 +135,7 @@ export function logEvent(
       const cola = leerCola(id.sufijo);
       cola.push({ action, entity_type: entityType, entity_id: entityId, payload, ts: Date.now() });
       guardarCola(id.sufijo, cola);
-      // Solo la nube sube al activity_log; el perfil local queda en el dispositivo.
+      // La cola siempre pertenece a la identidad única y se sube al activity_log.
       if (id.nubeUserId) await flushLog();
     } catch {
       /* silencioso: el log no debe romper la app */
@@ -156,16 +145,16 @@ export function logEvent(
 
 let flushing = false;
 
-/** Sube la cola pendiente de eventos (solo modo cuenta). Se llama en cada evento, al abrir la app y al volver la conexión. */
+/** Sube la cola pendiente de eventos. Se llama en cada evento, al abrir la app y al volver la conexión. */
 export async function flushLog(): Promise<void> {
   if (flushing || typeof window === "undefined") return;
-  // En modo perfil local no hay a dónde subir: la cola queda en el dispositivo.
-  if (leerPerfilActivoId()) return;
   const supabase = getSupabase();
   if (!supabase) return;
   flushing = true;
   try {
-    const user = await getSessionUser().catch(() => null);
+    // Token fresco antes de subir (si venció offline, se refresca aquí).
+    await asegurarSesion();
+    const user = await getCachedUser().catch(() => null);
     if (!user) return;
     const cola = leerCola(user.id);
     if (cola.length === 0) return;

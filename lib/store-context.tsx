@@ -36,8 +36,9 @@ import {
   claveEstado,
   clavePendientes as clavePendientesAmbito,
   clavesDeDatos,
-  sufijoAmbito,
-} from "./perfiles";
+  sufijoDeUsuario,
+} from "./ambito";
+import { asegurarSesion } from "./supabase";
 
 /** Auditoría: cada evento de juego del dominio se refleja en el activity_log. */
 const ACCION_POR_TIPO_EVENTO: Record<TipoEventoJuego, LogAction | null> = {
@@ -70,7 +71,7 @@ let appOpenedLogged = false;
 
 const PENDING_KEY_BASE = "habitos-pending-sync-v1";
 
-/** P1.5: la cola offline se nombra por identidad (perfil local o usuario nube).
+/** P1.5: la cola offline se nombra por identidad (userId de la cuenta).
  *  Al cambiar de identidad se recarga desde la clave activa. */
 function clavePendientes(sufijo: string | null): string {
   return sufijo ? clavePendientesAmbito(sufijo) : PENDING_KEY_BASE;
@@ -165,11 +166,11 @@ function guardarPendientes(clave: string, ops: PendingOp[]): void {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const { user, perfil } = useAuth();
+  const { user } = useAuth();
   const userId = user?.id ?? null;
-  // Identidad de datos: perfil local (`perfil:<id>`) o cuenta nube (`<userId>`).
+  // Identidad única offline-first: el userId de la cuenta en la nube.
   // Todo (estado, colas, logs, notificaciones) se aísla por este sufijo.
-  const sufijo = sufijoAmbito(perfil?.id ?? null, userId);
+  const sufijo = sufijoDeUsuario(userId);
   const storageKey = sufijo ? claveEstado(sufijo) : STORAGE_KEY;
 
   // Siempre se arranca con el estado inicial por defecto para el render del servidor
@@ -185,7 +186,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     stateRef.current = state;
   }, [state]);
 
-  // Notificaciones: aislar "ya enviadas" por identidad (perfil o cuenta).
+  // Notificaciones: aislar "ya enviadas" por identidad (userId).
   useEffect(() => {
     fijarSufijoNotificaciones(sufijo);
   }, [sufijo]);
@@ -244,6 +245,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!supabase || !userId || sincronizandoRef.current) return;
     const ops = pendientesRef.current;
     if (ops.length === 0) return;
+
+    // Token fresco: si venció mientras estábamos offline, se refresca aquí
+    // para que la cola no choque con 401 al volver la red.
+    await asegurarSesion();
 
     sincronizandoRef.current = true;
     const restantes: PendingOp[] = [];
@@ -479,6 +484,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async (op: PendingOp, req: () => PromiseLike<{ error: unknown }>, descripcion: string): Promise<void> => {
       const supabase = getSupabase();
       if (!supabase || !userId) return;
+      // Sesión fresca antes de escribir (lectura local; solo toca la red si
+      // el token venció). Evita 401 en taps hechos tras volver la conexión.
+      await asegurarSesion();
       const manejarFallo = (e: unknown): void => {
         const mensaje = (e as { message?: string })?.message ?? String(e);
         if (esErrorRed(e)) {
@@ -802,9 +810,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             if (error) throw new Error(`No se pudo borrar tus datos en la nube (${tabla}). Revisa tu conexión e inténtalo de nuevo.`);
           }
         }
-        // 2. Limpia el almacenamiento local DE ESTA IDENTIDAD (perfil o cuenta).
-        //    Acotado al sufijo: jamás toca los datos de otros perfiles ni el
-        //    registro de perfiles. Sin sufijo (modo local heredado), limpieza amplia.
+        // 2. Limpia el almacenamiento local DE ESTA IDENTIDAD (userId).
+        //    Acotado al sufijo: jamás toca los datos de otros usuarios.
+        //    Sin sufijo (modo local heredado), limpieza amplia.
         try {
           if (sufijo) {
             for (const k of clavesDeDatos(sufijo)) window.localStorage.removeItem(k);

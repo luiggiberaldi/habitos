@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
 import { useAuth } from "./AuthGate";
-import AvatarPerfil from "./AvatarPerfil";
 import { useStoreActions, useStoreState } from "../lib/store-context";
 import { premiosPendientes } from "../lib/juego";
 import { IconAjustes, IconEstadisticas, IconInicio, IconLista, IconCerrarSesion, IconTrofeo } from "../lib/icons";
@@ -21,7 +20,7 @@ const items = [
 
 export default function Nav() {
   const pathname = usePathname();
-  const { user, perfil, modo, cerrarSesion, volverAlMenu } = useAuth();
+  const { user, cerrarSesion } = useAuth();
   const { sincronizarAhora } = useStoreActions();
   const { state } = useStoreState();
   // Premios de logros desbloqueados sin reclamar (tap en la sala de trofeos).
@@ -33,10 +32,7 @@ export default function Nav() {
     try {
       await sincronizarAhora();
     } finally {
-      // En modo nube vuelve al menú "¿Cómo quieres entrar?"; en modo
-      // perfiles, al selector de perfiles (el menú de usuarios de ese modo).
-      if (modo === "cuenta") await volverAlMenu();
-      else await cerrarSesion();
+      await cerrarSesion();
     }
   };
 
@@ -91,16 +87,9 @@ export default function Nav() {
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-all hover:bg-surface-2 hover:text-foreground"
           >
             <IconCerrarSesion className="h-5 w-5" />
-            {perfil ? "Cambiar de perfil" : "Salir al menú"}
+            Cerrar sesión
           </button>
-          {perfil ? (
-            <div className="mt-1 flex items-center gap-2 px-3">
-              <AvatarPerfil perfil={perfil} className="h-6 w-6 text-[10px]" />
-              <p className="truncate text-xs text-muted">{perfil.nombre}</p>
-            </div>
-          ) : (
-            user && <p className="mt-1 truncate px-3 text-xs text-muted">{user.email}</p>
-          )}
+          {user && <p className="mt-1 truncate px-3 text-xs text-muted">{user.email}</p>}
         </div>
       </aside>
 
@@ -136,15 +125,11 @@ export default function Nav() {
           })}
           <button
             onClick={salir}
-            aria-label={
-              perfil
-                ? `Cambiar de perfil (activo: ${perfil.nombre})`
-                : "Salir al menú de acceso"
-            }
+            aria-label="Cerrar sesión"
             className="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-[11px] font-medium text-muted transition-colors hover:text-foreground min-h-[44px]"
           >
             <IconCerrarSesion className="h-5 w-5" />
-            <span className="truncate max-w-full">{perfil ? perfil.nombre : "Salir"}</span>
+            <span className="truncate max-w-full">Salir</span>
           </button>
         </div>
       </nav>

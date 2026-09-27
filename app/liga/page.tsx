@@ -14,7 +14,6 @@ import {
 } from "../../lib/liga";
 import {
   IconAlerta,
-  IconCandado,
   IconCheck,
   IconPlus,
   IconTrofeo,
@@ -26,7 +25,7 @@ import { SkeletonLiga } from "../../components/ui/Skeleton";
 import { logEvent } from "../../lib/logger";
 
 export default function Liga() {
-  const { user, perfil } = useAuth();
+  const { user } = useAuth();
   const { state } = useStoreState();
   const { actualizarJuego } = useStoreActions();
   const [ligas, setLigas] = useState<LigaVista[]>([]);
@@ -149,28 +148,6 @@ export default function Liga() {
       setError("No se pudo copiar el código.");
     }
   };
-
-  // Los perfiles locales viven solo en el dispositivo: la liga necesita cuenta en la nube.
-  if (perfil && !user) {
-    return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-        <header>
-          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
-            <IconUsuarios className="h-6 w-6 text-accent" />
-            Liga semanal
-          </h1>
-        </header>
-        <section className="card p-6 text-center">
-          <IconCandado className="mx-auto h-10 w-10 text-muted" />
-          <h2 className="mt-3 font-semibold">La liga necesita una cuenta en la nube</h2>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
-            Estás usando el perfil local <strong className="text-foreground">{perfil.nombre}</strong>, cuyos datos
-            viven solo en este dispositivo. Para competir en la liga entra con tu cuenta.
-          </p>
-        </section>
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">

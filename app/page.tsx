@@ -43,7 +43,7 @@ import {
   IconSol,
   IconLuna,
 } from "../lib/icons";
-import { sufijoAmbito } from "../lib/perfiles";
+import { sufijoDeUsuario } from "../lib/ambito";
 import type { CompletionEvent, Habit, Moment } from "../lib/types";
 
 function etiquetaMoment(moment: Moment): string {
@@ -98,7 +98,7 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
 export default function Inicio() {
   const { state } = useStoreState();
   const { registrar, registrarSueno, deshacer, posponerHabit } = useStoreActions();
-  const { perfil, user } = useAuth();
+  const { user } = useAuth();
   const [mostrarPospuestos, setMostrarPospuestos] = useState(false);
   const [marcando, setMarcando] = useState<string | null>(null);
   const [subtareasTemp, setSubtareasTemp] = useState<Record<string, string[]>>({});
@@ -113,7 +113,7 @@ export default function Inicio() {
 
   /* --- Congelador: aviso cuando la racha fue protegida --- */
   const [descartados, setDescartados] = useState<string[]>([]);
-  const sufijo = sufijoAmbito(perfil?.id ?? null, user?.id ?? null);
+  const sufijo = sufijoDeUsuario(user?.id ?? null);
 
   /** Días protegidos recientes (últimos 3 días, sin contar hoy). */
   const protegidosRecientes = useMemo(() => {
@@ -360,12 +360,6 @@ export default function Inicio() {
               <div className="min-w-0">
                 <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">Tus hábitos</h1>
                 <p className="text-xs text-white/85">{fechaHoy}</p>
-                {perfil && (
-                  <span className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold text-white">
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: perfil.color }} />
-                    <span className="truncate">{perfil.nombre}</span>
-                  </span>
-                )}
               </div>
             </div>
             <div className="shrink-0 rounded-full bg-white/20 p-1 ring-2 ring-white/50">

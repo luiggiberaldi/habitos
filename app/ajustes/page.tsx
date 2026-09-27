@@ -4,15 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStoreActions, useStoreState } from "../../lib/store-context";
 import { useAuth } from "../../components/AuthGate";
-import AvatarPerfil from "../../components/AvatarPerfil";
 import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
-import { IconAlerta, IconCampana, IconCandado, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
+import { IconAlerta, IconCampana, IconCerrarSesion, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
 import { TimeField } from "../../components/TimeField";
 
 export default function Ajustes() {
   const { state, errorSync } = useStoreState();
   const { guardarSettings, rehidratar } = useStoreActions();
-  const { user, perfil, cambiarModo, cerrarSesion, volverAlMenu } = useAuth();
+  const { user, sinConexion, cerrarSesion } = useAuth();
   const settings = state.settings;
   const [notificationMessage, setNotificationMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -218,103 +217,31 @@ export default function Ajustes() {
         </div>
       </section>
 
-      {/* Tu espacio: este dispositivo y nube son dos lugares separados. */}
-      <section className="card p-4 sm:p-5" aria-label="Tu espacio">
-        <h2 className="font-semibold">Tu espacio</h2>
-        <p className="mt-1 text-sm text-muted">
-          Son dos lugares separados y tus datos se conservan en cada uno: cambiar solo mueve la app de un lugar al otro.
-        </p>
-        <div className="mt-4 flex flex-col gap-3">
-          {/* Este dispositivo: perfiles locales */}
-          <div className={`rounded-2xl border-2 p-4 ${perfil ? "border-accent bg-accent-soft" : "border-border"}`}>
-            <div className="flex items-center gap-3">
-              {perfil ? (
-                <AvatarPerfil perfil={perfil} className="h-11 w-11 shrink-0 text-lg" />
-              ) : (
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-                  <IconPersona className="h-5 w-5" />
-                </span>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-2 font-semibold">
-                  Este dispositivo
-                  {perfil && (
-                    <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
-                      En uso
-                    </span>
-                  )}
-                </p>
-                <p className="text-sm text-muted">
-                  {perfil ? `${perfil.nombre} · ` : ""}Perfiles tipo Netflix: viven solo en este aparato, sin nube. Hasta 6, con PIN opcional.
-                </p>
-              </div>
-            </div>
-            {perfil ? (
-              <button
-                type="button"
-                onClick={() => void cerrarSesion()}
-                className="btn-secondary mt-3 min-h-11 w-full"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <IconPersona className="h-4 w-4" />
-                  Cambiar de perfil
-                </span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => cambiarModo("perfiles")}
-                className="btn-secondary mt-3 min-h-11 w-full"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <IconPersona className="h-4 w-4" />
-                  Usar perfiles en este dispositivo
-                </span>
-              </button>
-            )}
-          </div>
-
-          {/* Nube: un correo es un usuario */}
-          <div className={`rounded-2xl border-2 p-4 ${!perfil ? "border-accent bg-accent-soft" : "border-border"}`}>
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-                <IconCandado className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-2 font-semibold">
-                  Nube
-                  {!perfil && (
-                    <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">
-                      En uso
-                    </span>
-                  )}
-                </p>
-                <p className="truncate text-sm text-muted">
-                  {user?.email ?? "Cuenta en la nube"} · Un correo es un usuario; los datos se sincronizan entre tus aparatos.
-                </p>
-              </div>
-            </div>
-            {!perfil ? (
-              <p className="mt-3 text-sm text-muted">
-                ¿Otro usuario? Vuelve al menú de acceso y registra otro correo: cada correo es un usuario con sus propios datos.
-              </p>
-            ) : (
-              <button
-                type="button"
-                onClick={() => cambiarModo("cuenta")}
-                className="btn-secondary mt-3 min-h-11 w-full"
-              >
-                Usar cuenta en la nube
-              </button>
-            )}
+      {/* Cuenta: identidad única offline-first. */}
+      <section className="card p-4 sm:p-5" aria-label="Cuenta">
+        <h2 className="font-semibold">Cuenta</h2>
+        <div className="mt-4 flex items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+            <IconPersona className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold">{user?.email ?? "Cuenta local"}</p>
+            <p className="text-sm text-muted">
+              {sinConexion
+                ? "Sin conexión: tus cambios se guardan y se subirán solos."
+                : "Tus datos se sincronizan entre tus aparatos."}
+            </p>
           </div>
         </div>
         <button
           type="button"
-          onClick={() => void volverAlMenu()}
-          className="mt-3 min-h-11 w-full rounded-xl text-sm font-medium text-muted transition-colors hover:text-foreground"
+          onClick={() => void cerrarSesion()}
+          className="btn-secondary mt-4 min-h-11 w-full"
         >
-          Volver al menú de acceso
+          <span className="inline-flex items-center gap-2">
+            <IconCerrarSesion className="h-4 w-4" />
+            Cerrar sesión
+          </span>
         </button>
       </section>
 

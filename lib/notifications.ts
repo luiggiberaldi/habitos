@@ -1,14 +1,14 @@
 import type { AppState, Habit } from "./types";
 import { getSupabase } from "./supabase";
 import { logEvent } from "./logger";
-import { claveNotifEnviadas } from "./perfiles";
+import { claveNotifEnviadas } from "./ambito";
 
 const LAST_SENT_KEY_BASE = "habitos-notificaciones-enviadas-v1";
 
 /**
- * Sufijo de identidad para aislar las notificaciones enviadas por perfil.
- * Lo fija el StoreProvider al montar/cambiar de identidad; por defecto se usa
- * la clave histórica sin sufijo (modo local heredado).
+ * Sufijo de identidad (userId) para aislar las notificaciones enviadas por
+ * usuario. Lo fija el StoreProvider al montar/cambiar de identidad; por
+ * defecto se usa la clave histórica sin sufijo (modo local heredado).
  */
 let sufijoNotif: string | null = null;
 
