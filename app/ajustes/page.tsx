@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { useStoreActions, useStoreState } from "../../lib/store-context";
 import { useAuth } from "../../components/AuthGate";
 import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
-import { IconAlerta, IconCampana, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
+import { IconAlerta, IconCampana, IconCandado, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
 
 export default function Ajustes() {
   const { state, errorSync } = useStoreState();
   const { guardarSettings, rehidratar } = useStoreActions();
-  const { perfil, cambiarModo, cerrarSesion } = useAuth();
+  const { user, perfil, cambiarModo, cerrarSesion } = useAuth();
   const settings = state.settings;
   const [notificationMessage, setNotificationMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -250,6 +250,31 @@ export default function Ajustes() {
               Usar cuenta en la nube
             </button>
           </div>
+        </section>
+      )}
+
+      {/* Modo de acceso: cuenta en la nube */}
+      {!perfil && (
+        <section className="card p-4 sm:p-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+              <IconCandado className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-semibold">Cuenta en la nube</h2>
+              <p className="truncate text-sm text-muted">{user?.email ?? "Sesión iniciada"}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => cambiarModo("perfiles")}
+            className="btn-secondary mt-3 min-h-11 w-full sm:w-auto"
+          >
+            <span className="inline-flex items-center gap-2">
+              <IconPersona className="h-4 w-4" />
+              Usar perfiles en este dispositivo
+            </span>
+          </button>
         </section>
       )}
 

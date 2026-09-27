@@ -76,7 +76,15 @@ export default function Nav() {
             {perfil ? "Cambiar de perfil" : "Cerrar sesión"}
           </button>
           {perfil ? (
-            <p className="mt-1 truncate px-3 text-xs text-muted">{perfil.nombre}</p>
+            <div className="mt-1 flex items-center gap-2 px-3">
+              <span
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                style={{ backgroundColor: perfil.color }}
+              >
+                {(perfil.nombre.trim()[0] ?? "?").toUpperCase()}
+              </span>
+              <p className="truncate text-xs text-muted">{perfil.nombre}</p>
+            </div>
           ) : (
             user && <p className="mt-1 truncate px-3 text-xs text-muted">{user.email}</p>
           )}
@@ -105,11 +113,11 @@ export default function Nav() {
           })}
           <button
             onClick={salir}
-            aria-label="Cerrar sesión"
+            aria-label={perfil ? `Cambiar de perfil (activo: ${perfil.nombre})` : "Cerrar sesión"}
             className="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-[11px] font-medium text-muted transition-colors hover:text-foreground min-h-[44px]"
           >
             <IconCerrarSesion className="h-5 w-5" />
-            <span className="truncate max-w-full">{perfil ? "Perfil" : "Salir"}</span>
+            <span className="truncate max-w-full">{perfil ? perfil.nombre : "Salir"}</span>
           </button>
         </div>
       </nav>
