@@ -63,6 +63,11 @@ export interface Habit {
    * Se ignora solo una vez que la fecha pasa.
    */
   pospuestoHasta?: string;
+  /**
+   * Motivo del aplazamiento ("Enfermedad", "Período", texto libre…).
+   * Se limpia al devolver el hábito a hoy.
+   */
+  pospuestoMotivo?: string;
 }
 
 /**

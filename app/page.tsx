@@ -18,6 +18,7 @@ import {
 } from "../lib/gamificacion";
 import { suscribirEventosJuego, type EventoJuego } from "../lib/juego";
 import { etiquetaAncla, horaAncla } from "../lib/anclas";
+import ModalMotivo from "../components/ModalMotivo";
 import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, hhmmDeFecha, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
 import Celebracion, { type CelebracionData } from "../components/Celebracion";
 import { TarjetaSueno } from "../components/TarjetaSueno";
@@ -113,6 +114,7 @@ export default function Inicio() {
   const { registrar, registrarSueno, deshacer, posponerHabit } = useStoreActions();
   const { user, perfilId } = useAuth();
   const [mostrarPospuestos, setMostrarPospuestos] = useState(false);
+  const [motivoPosponer, setMotivoPosponer] = useState<Habit | null>(null);
   const [marcando, setMarcando] = useState<string | null>(null);
   // Etiquetas "+N XP" flotantes por tarjeta (se retiran solas tras la animación).
   const [xpFlotantes, setXpFlotantes] = useState<(XpFlotanteItem & { habitId: string })[]>([]);
@@ -618,7 +620,7 @@ export default function Inicio() {
                 onToggleSubtarea={toggleSubtarea}
                 onExpand={(id) => setExpandedMoment(id)}
                 onRegistrarCantidad={alRegistrarCantidad}
-                onPosponer={(h) => posponerHabit(h.id)}
+                onPosponer={(h) => setMotivoPosponer(h)}
               />
             ))}
           </section>
@@ -654,7 +656,7 @@ export default function Inicio() {
                       onToggleSubtarea={toggleSubtarea}
                       onExpand={(id) => setExpandedMoment(id)}
                       onRegistrarCantidad={alRegistrarCantidad}
-                      onPosponer={(h) => posponerHabit(h.id)}
+                      onPosponer={(h) => setMotivoPosponer(h)}
                     />
                   ))}
                 </div>
@@ -687,7 +689,9 @@ export default function Inicio() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{habit.nombre}</p>
-                        <p className="text-xs text-muted">Vuelve mañana solo</p>
+                        <p className="truncate text-xs text-muted">
+                          {habit.pospuestoMotivo ? `${habit.pospuestoMotivo} · vuelve mañana` : "Vuelve mañana solo"}
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -770,6 +774,16 @@ export default function Inicio() {
       )}
       {celebraciones.length > 0 && (
         <Celebracion data={celebraciones[0]} onCerrar={cerrarCelebracion} />
+      )}
+      {motivoPosponer && (
+        <ModalMotivo
+          habit={motivoPosponer}
+          onConfirmar={(motivo) => {
+            posponerHabit(motivoPosponer.id, motivo);
+            setMotivoPosponer(null);
+          }}
+          onClose={() => setMotivoPosponer(null)}
+        />
       )}
       {infoCongelador && (
         <div

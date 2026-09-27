@@ -97,7 +97,7 @@ interface StoreContextValue {
   /** Modo vacaciones: pausa o reanuda todos los hábitos no archivados de una vez. */
   cambiarEstadoTodos: (estado: "activo" | "pausado") => void;
   /** Aplaza un hábito para mañana (toggle: si ya está aplazado, lo devuelve a hoy). */
-  posponerHabit: (id: string) => void;
+  posponerHabit: (id: string, motivo?: string) => void;
   /**
    * Reclama el premio de XP de un logro desbloqueado (tap en la sala de
    * trofeos). Devuelve el XP ganado y el nivel alcanzado si subió.
@@ -873,14 +873,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         logEvent("APP_RESET", "app", null, null);
       },
-      posponerHabit: (id) => {
+      posponerHabit: (id, motivo) => {
         const h = stateRef.current.habits.find((x) => x.id === id);
         if (!h || h.estado !== "activo") return;
         const manana = todayKey(addDays(new Date(), 1));
         // Toggle: si ya está aplazado para mañana, se devuelve a hoy.
         const pospuestoHasta = h.pospuestoHasta === manana ? undefined : manana;
-        guardar({ ...h, pospuestoHasta });
-        logEvent(pospuestoHasta ? "HABIT_SNOOZED" : "HABIT_UNSNOOZED", "habit", id, { pospuestoHasta: pospuestoHasta ?? null });
+        const pospuestoMotivo = pospuestoHasta ? (motivo?.trim() || undefined) : undefined;
+        guardar({ ...h, pospuestoHasta, pospuestoMotivo });
+        logEvent(pospuestoHasta ? "HABIT_SNOOZED" : "HABIT_UNSNOOZED", "habit", id, {
+          pospuestoHasta: pospuestoHasta ?? null,
+          motivo: pospuestoMotivo ?? null,
+        });
       },
     }
     },
