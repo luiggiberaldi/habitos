@@ -6,6 +6,7 @@ import { useStoreActions, useStoreState } from "../../lib/store-context";
 import { useAuth } from "../../components/AuthGate";
 import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
 import { IconAlerta, IconCampana, IconCerrarSesion, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
+import GestionUsuarios from "../../components/GestionUsuarios";
 import { TimeField } from "../../components/TimeField";
 
 export default function Ajustes() {
@@ -244,6 +245,8 @@ export default function Ajustes() {
           </span>
         </button>
       </section>
+
+      <GestionUsuarios />
 
       {/* Zona de peligro */}
       <section className="card border-red-500/30 p-4 sm:p-5">

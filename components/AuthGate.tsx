@@ -194,7 +194,7 @@ function LoginScreen({ supabase }: { supabase: NonNullable<ReturnType<typeof get
         </form>
 
         <p className="mt-6 text-center text-xs text-muted">
-          Cada persona entra con su propio correo. Para crear una cuenta nueva, pídele un enlace de invitación al administrador.
+          Cada persona entra con su propio correo. Si no tienes cuenta, pídele al administrador que te cree una desde la app.
         </p>
       </div>
     </div>
