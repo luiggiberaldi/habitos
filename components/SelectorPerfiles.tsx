@@ -7,6 +7,7 @@ import Onboarding, { type DatosOnboarding } from "./Onboarding";
 import Logo from "./Logo";
 import { logEvent } from "../lib/logger";
 import SelectorAvatar from "./SelectorAvatar";
+import CampoClave from "./CampoClave";
 import { crearEstadoInicial, crearHabitoSueno } from "../lib/store";
 import type { AppState } from "../lib/types";
 import { habitoDesdePlantilla } from "../lib/plantillas";
@@ -261,9 +262,9 @@ function ModalPerfil({
       <label className="mb-1 block text-xs font-medium text-muted" htmlFor="pin-actual">
         PIN actual
       </label>
-      <input
+      <CampoClave
         id="pin-actual"
-        type="password"
+        nombre="PIN actual"
         inputMode="numeric"
         autoComplete="off"
         maxLength={4}
@@ -392,9 +393,9 @@ function ModalPerfil({
             <label className="mb-1 block text-xs font-medium text-muted" htmlFor="pin-nuevo">
               {perfil?.pin ? "Nuevo PIN" : "PIN"}
             </label>
-            <input
+            <CampoClave
               id="pin-nuevo"
-              type="password"
+              nombre="PIN"
               inputMode="numeric"
               autoComplete="off"
               maxLength={4}
@@ -418,9 +419,9 @@ function ModalPerfil({
                 <label className="mb-1 mt-3 block text-xs font-medium text-muted" htmlFor="pin-confirmar">
                   Confirmar PIN
                 </label>
-                <input
+                <CampoClave
                   id="pin-confirmar"
-                  type="password"
+                  nombre="PIN"
                   inputMode="numeric"
                   autoComplete="off"
                   maxLength={4}
@@ -588,18 +589,20 @@ function ModalPin({
           ))}
         </div>
 
-        <input
-          type="password"
-          inputMode="numeric"
-          autoComplete="off"
-          autoFocus
-          maxLength={4}
-          value={intento}
-          onChange={(e) => manejarCambio(e.target.value)}
-          aria-label="PIN de 4 dígitos"
-          placeholder="••••"
-          className="input-field mx-auto mt-4 w-36 text-center text-2xl tracking-[0.5em]"
-        />
+        <div className="mx-auto mt-4 w-44">
+          <CampoClave
+            nombre="PIN"
+            inputMode="numeric"
+            autoComplete="off"
+            autoFocus
+            maxLength={4}
+            value={intento}
+            onChange={(e) => manejarCambio(e.target.value)}
+            aria-label="PIN de 4 dígitos"
+            placeholder="••••"
+            className="input-field w-full text-center text-2xl tracking-[0.5em]"
+          />
+        </div>
 
         <p role="alert" aria-live="assertive" className="mt-3 min-h-5 text-sm font-medium text-red-500">
           {fallos > 0 ? "PIN incorrecto, intenta de nuevo." : ""}

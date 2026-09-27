@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, type FormEvent, type Re
 import { getSupabase, getSessionUser } from "../lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import Logo from "./Logo";
+import CampoClave from "./CampoClave";
 import SelectorPerfiles from "./SelectorPerfiles";
 import { logEvent } from "../lib/logger";
 import {
@@ -291,10 +292,11 @@ function LoginScreen({ supabase }: { supabase: NonNullable<ReturnType<typeof get
               placeholder="tucorreo@ejemplo.com"
             />
           </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
-            Contraseña
-            <input
-              type="password"
+          <div className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
+            <label htmlFor="clave-cuenta">Contraseña</label>
+            <CampoClave
+              id="clave-cuenta"
+              nombre="contraseña"
               required
               autoComplete="current-password"
               value={password}
@@ -302,7 +304,7 @@ function LoginScreen({ supabase }: { supabase: NonNullable<ReturnType<typeof get
               className="input-field"
               placeholder="••••••••"
             />
-          </label>
+          </div>
           <button
             type="submit"
             disabled={enviando}
