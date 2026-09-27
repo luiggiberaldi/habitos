@@ -3,9 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "./AuthGate";
 import PerfilCard from "./PerfilCard";
+import Onboarding, { type DatosOnboarding } from "./Onboarding";
 import Logo from "./Logo";
 import { logEvent } from "../lib/logger";
 import { AVATARES } from "../lib/avatares";
+import { crearEstadoInicial } from "../lib/store";
+import type { AppState } from "../lib/types";
+import { habitoDesdePlantilla } from "../lib/plantillas";
 import {
   actualizarPerfil,
   claveEstado,
@@ -46,6 +50,8 @@ export default function SelectorPerfiles() {
   const { entrarAPerfil, cambiarModo } = useAuth();
   const [perfiles, setPerfiles] = useState<Perfil[]>(() => leerPerfiles());
   const [modal, setModal] = useState<Modal>(null);
+  /** Asistente de primer uso: se muestra solo cuando aún no hay perfiles. */
+  const [onboarding, setOnboarding] = useState(() => leerPerfiles().length === 0);
 
   const recargar = () => setPerfiles(leerPerfiles());
   const conteos = useMemo(() => contarHabitos(perfiles), [perfiles]);
@@ -69,6 +75,26 @@ export default function SelectorPerfiles() {
     recargar();
   };
 
+  /** Crea el perfil desde el onboarding con los hábitos elegidos (sin demos). */
+  const completarOnboarding = (datos: DatosOnboarding) => {
+    const p = crearPerfil(datos.nombre, datos.color, datos.avatar, null);
+    if (!p) return;
+    const base = crearEstadoInicial();
+    const estado: AppState = {
+      ...base,
+      habits: datos.plantillas.map(habitoDesdePlantilla),
+      completions: [],
+    };
+    try {
+      window.localStorage.setItem(claveEstado(`perfil:${p.id}`), JSON.stringify(estado));
+    } catch {
+      // Si el almacenamiento falla, el perfil entra igual con el estado inicial.
+    }
+    logEvent("PERFIL_CREATED", "perfil", p.id, { nombre: p.nombre, onboarding: "si" }, `perfil:${p.id}`);
+    setOnboarding(false);
+    entrarAPerfil(p.id);
+  };
+
   /** Entrar o eliminar pasando por el PIN cuando el perfil lo tiene. */
   const pedirPinSiAplica = (p: Perfil, accion: "entrar" | "eliminar") => {
     if (p.pin) setModal({ tipo: "pin", perfil: p, accion });
@@ -90,6 +116,18 @@ export default function SelectorPerfiles() {
     setModal(null);
     recargar();
   };
+
+  if (onboarding) {
+    return (
+      <Onboarding
+        onCompletar={completarOnboarding}
+        onOmitir={() => {
+          setOnboarding(false);
+          setModal({ tipo: "crear" });
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-background px-4 py-10">
@@ -115,7 +153,7 @@ export default function SelectorPerfiles() {
         {!lleno && (
           <button
             type="button"
-            onClick={() => setModal({ tipo: "crear" })}
+            onClick={() => setOnboarding(true)}
             aria-label="Crear perfil"
             className="flex aspect-[5/6] w-full flex-col items-center justify-center gap-3 rounded-[2rem] border-2 border-dashed border-border text-muted transition-colors hover:border-accent hover:text-accent"
           >
@@ -178,6 +216,7 @@ function ModalPerfil({
   const [color, setColor] = useState(perfil?.color ?? COLORES_PERFIL[0]);
   const [avatar, setAvatar] = useState<string | null>(perfil?.avatar ?? null);
   const [pinInput, setPinInput] = useState("");
+  const [pinConfirmar, setPinConfirmar] = useState("");
   const [quitarPin, setQuitarPin] = useState(false);
   const [editandoPin, setEditandoPin] = useState(false);
 
@@ -191,8 +230,11 @@ function ModalPerfil({
 
   const tienePin = !!perfil?.pin && !quitarPin;
   const pinLimpio = pinInput.replace(/\D/g, "").slice(0, 4);
+  const pinConfirmarLimpio = pinConfirmar.replace(/\D/g, "").slice(0, 4);
   const pinValido = pinLimpio === "" || /^\d{4}$/.test(pinLimpio);
-  const valido = nombre.trim().length > 0 && pinValido;
+  // Si se escribe un PIN nuevo hay que confirmarlo: debe coincidir.
+  const pinConfirmado = pinLimpio === "" || pinConfirmarLimpio === pinLimpio;
+  const valido = nombre.trim().length > 0 && pinValido && pinConfirmado;
   const inicial = (nombre.trim()[0] ?? "?").toUpperCase();
 
   /** PIN final al guardar: null = quitar/sin PIN, 4 dígitos = nuevo, o el existente. */
@@ -349,6 +391,27 @@ function ModalPerfil({
               <p role="alert" className="mt-1 text-xs font-medium text-red-500">
                 El PIN debe tener 4 dígitos.
               </p>
+            )}
+            {pinLimpio !== "" && (
+              <>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={4}
+                  value={pinConfirmarLimpio}
+                  onChange={(e) => setPinConfirmar(e.target.value)}
+                  placeholder="Confirma los 4 dígitos"
+                  aria-label="Confirmar PIN de 4 dígitos"
+                  aria-invalid={!pinConfirmado}
+                  className="input-field mt-3 text-center text-xl tracking-[0.75em]"
+                />
+                {!pinConfirmado && pinConfirmarLimpio !== "" && (
+                  <p role="alert" className="mt-1 text-xs font-medium text-red-500">
+                    Los PIN no coinciden.
+                  </p>
+                )}
+              </>
             )}
           </>
         )}

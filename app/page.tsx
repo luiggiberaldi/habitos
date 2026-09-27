@@ -38,7 +38,9 @@ import {
   IconReloj,
   IconTrofeo,
   IconRayo,
+  IconX,
 } from "../lib/icons";
+import { sufijoAmbito } from "../lib/perfiles";
 import type { CompletionEvent, Habit, Moment } from "../lib/types";
 
 function etiquetaMoment(moment: Moment): string {
@@ -84,7 +86,7 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
 export default function Inicio() {
   const { state } = useStoreState();
   const { registrar, deshacer, posponerHabit } = useStoreActions();
-  const { perfil } = useAuth();
+  const { perfil, user } = useAuth();
   const [mostrarPospuestos, setMostrarPospuestos] = useState(false);
   const [marcando, setMarcando] = useState<string | null>(null);
   const [subtareasTemp, setSubtareasTemp] = useState<Record<string, string[]>>({});
@@ -93,8 +95,60 @@ export default function Inicio() {
   const [toast, setToast] = useState<string | null>(null);
   const [celebraciones, setCelebraciones] = useState<CelebracionData[]>([]);
   const deepLinkProcesado = useRef(false);
+  const [infoCongelador, setInfoCongelador] = useState(false);
 
   const hoy = todayKey();
+
+  /* --- Congelador: aviso cuando la racha fue protegida --- */
+  const [descartados, setDescartados] = useState<string[]>([]);
+  const sufijo = sufijoAmbito(perfil?.id ?? null, user?.id ?? null);
+
+  /** Días protegidos recientes (últimos 3 días, sin contar hoy). */
+  const protegidosRecientes = useMemo(() => {
+    const protegidos: string[] = state.juego?.diasProtegidos ?? [];
+    const desde = todayKey(addDays(new Date(), -3));
+    return protegidos.filter((d) => d >= desde && d < hoy).sort();
+  }, [state.juego?.diasProtegidos, hoy]);
+
+  /** Días protegidos aún no anunciados (ni en este arranque ni en anteriores). */
+  const pendientesAviso = useMemo(() => {
+    if (typeof window === "undefined" || !sufijo) return [];
+    const clave = `habitos-freezer-aviso-v1:${sufijo}`;
+    let anunciados: string[] = [];
+    try {
+      const raw = window.localStorage.getItem(clave);
+      const arr: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(arr)) anunciados = arr.filter((d): d is string => typeof d === "string");
+    } catch {
+      anunciados = [];
+    }
+    const vistos = new Set([...anunciados, ...descartados]);
+    return protegidosRecientes.filter((d) => !vistos.has(d));
+  }, [sufijo, protegidosRecientes, descartados]);
+
+  const cerrarAvisoCongelador = () => {
+    if (sufijo && pendientesAviso.length > 0) {
+      const clave = `habitos-freezer-aviso-v1:${sufijo}`;
+      try {
+        const raw = window.localStorage.getItem(clave);
+        const arr: unknown = raw ? JSON.parse(raw) : [];
+        const prev = Array.isArray(arr) ? arr.filter((d): d is string => typeof d === "string") : [];
+        window.localStorage.setItem(clave, JSON.stringify([...new Set([...prev, ...pendientesAviso])]));
+      } catch {
+        // Sin almacenamiento, el aviso se descarta solo en memoria.
+      }
+    }
+    setDescartados(pendientesAviso);
+  };
+
+  useEffect(() => {
+    if (!infoCongelador) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setInfoCongelador(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [infoCongelador]);
   const habitosHoy = useMemo(
     () => state.habits.filter((h) => h.estado === "activo" && !esDescanso(h, hoy)),
     [state.habits, hoy],
@@ -319,14 +373,17 @@ export default function Inicio() {
               {puntosDia} puntos hoy
             </span>
             {(state.juego?.congeladores ?? 0) > 0 && (
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold"
-                title="Congeladores: protegen tu racha si un día fallas"
+              <button
+                type="button"
+                onClick={() => setInfoCongelador(true)}
+                aria-label="Qué son los congeladores"
+                title="Qué son los congeladores"
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-bold transition-colors hover:bg-white/30"
               >
                 <IconCopo className="h-3.5 w-3.5" aria-hidden="true" />
                 {state.juego!.congeladores}{" "}
                 {state.juego!.congeladores === 1 ? "congelador" : "congeladores"}
-              </span>
+              </button>
             )}
             <Link
               href="/niveles"
@@ -343,6 +400,31 @@ export default function Inicio() {
       {/* Resumen de la semana pasada, solo los lunes */}
       {new Date().getDay() === 1 && (
         <ResumenSemanal habits={state.habits} completions={state.completions} />
+      )}
+
+      {/* Aviso: un congelador protegió la racha en días recientes */}
+      {pendientesAviso.length > 0 && (
+        <div className="card mb-4 flex items-start gap-3 border-accent/40 bg-accent/10 p-4" role="status">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/20">
+            <IconCopo className="h-5 w-5 text-accent" aria-hidden="true" />
+          </span>
+          <div className="flex-1">
+            <p className="text-sm font-bold">Tu racha sigue viva</p>
+            <p className="mt-0.5 text-sm text-muted">
+              {pendientesAviso.length === 1
+                ? "Ayer no registraste nada y un congelador protegió tu racha."
+                : `${pendientesAviso.length} días sin registrar: tus congeladores protegieron tu racha.`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={cerrarAvisoCongelador}
+            aria-label="Cerrar aviso"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-foreground"
+          >
+            <IconX className="h-4 w-4" />
+          </button>
+        </div>
       )}
 
       {/* Recordatorio in-app */}
@@ -614,6 +696,58 @@ export default function Inicio() {
       )}
       {celebraciones.length > 0 && (
         <Celebracion data={celebraciones[0]} onCerrar={cerrarCelebracion} />
+      )}
+      {infoCongelador && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setInfoCongelador(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Qué son los congeladores"
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl border border-border bg-surface p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Congeladores</h2>
+              <button
+                type="button"
+                onClick={() => setInfoCongelador(false)}
+                aria-label="Cerrar"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-foreground"
+              >
+                <IconX className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mb-4 flex justify-center">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/15">
+                <IconCopo className="h-8 w-8 text-accent" aria-hidden="true" />
+              </span>
+            </div>
+            <ul className="flex list-none flex-col gap-2.5 text-sm text-muted">
+              <li className="flex gap-2">
+                <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                Ganas 1 congelador por cada 7 días de racha (máximo 2).
+              </li>
+              <li className="flex gap-2">
+                <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                Si un día no registras nada, se usa solo: tu racha no se rompe.
+              </li>
+              <li className="flex gap-2">
+                <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                También puedes ganarlos en el cofre del día perfecto.
+              </li>
+            </ul>
+            <button
+              type="button"
+              onClick={() => setInfoCongelador(false)}
+              className="btn-primary mt-6 min-h-11 w-full"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

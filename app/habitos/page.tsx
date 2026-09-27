@@ -30,24 +30,7 @@ const CATEGORIAS: { valor: Categoria; etiqueta: string }[] = [
 ];
 
 
-interface Plantilla {
-  nombre: string;
-  categoria: Categoria;
-  color: string;
-  tipo: TipoHabit;
-  objetivo: number;
-  unidad?: string;
-  momentos: { tipo: "hora" | "ventana"; hora?: string; ventana?: string }[];
-}
-
-/** Plantillas de un tap: crear sin pasar por el formulario completo. */
-const PLANTILLAS: Plantilla[] = [
-  { nombre: "Tomar agua", categoria: "salud", color: "#3b82f6", tipo: "cantidad", objetivo: 8, unidad: "vasos", momentos: [] },
-  { nombre: "Leer", categoria: "crecimiento", color: "#a855f7", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "noche" }] },
-  { nombre: "Caminar", categoria: "salud", color: "#22c55e", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "manana" }] },
-  { nombre: "Meditar", categoria: "bienestar", color: "#6366f1", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "manana" }] },
-  { nombre: "Ejercicio", categoria: "salud", color: "#ef4444", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "tarde" }] },
-];
+import { PLANTILLAS, habitoDesdePlantilla, type Plantilla } from "../../lib/plantillas";
 
 function uid(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -109,16 +92,7 @@ export default function GestionHabitos() {
   }
 
   function crearDesdePlantilla(p: Plantilla) {
-    guardarHabit({
-      ...nuevaPlantilla(),
-      nombre: p.nombre,
-      categoria: p.categoria,
-      color: p.color,
-      tipo: p.tipo,
-      objetivo: p.objetivo,
-      unidad: p.unidad,
-      momentos: p.momentos.map((m) => ({ id: uid(), ...m })),
-    });
+    guardarHabit(habitoDesdePlantilla(p));
     setCreacionRapida(false);
   }
 
