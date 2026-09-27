@@ -161,3 +161,9 @@
 - `lib/notifications.ts`: `revisarRecordatorios` resuelve la hora de aviso de los momentos `tipo === "ventana"`; título "Se acaba la mañana: X" y cuerpo "Te queda 1 hora…".
 - Edge `push-notifications` (v9): tabla espejo `AVISOS_VENTANA`; la rama `ventana` notifica cuando `aviso === hhmm`; títulos/cuerpo alineados con el cliente.
 - Sin cambios en dedupe ni en exclusión de completados (reusan el mismo momentId).
+
+## 2026-09-27 — Roadmap Senda (suite)
+
+**Qué cambió:** se creó `ROADMAP-SENDA.md` con el plan completo de la suite, y se guardaron los logos oficiales en `public/senda/` (logo.png wordmark, icono.png icono app; colores: petróleo #0C3544, menta #4CBF9A).
+
+**Por qué:** luigi cerró el brainstorm: la suite se llamará **Senda**, se construye todo lo propuesto (finanzas + mercado + control + inteligencia cruzada), y pidió el roadmap. Fases: 0 Fundación (núcleo, hogar, tasas, recordatorios genéricos, branding) → 1 Finanzas (libro contable) → 2 Mercado (inventario, factura por WhatsApp) → 3 Control (recordatorios de pago, presupuestos, deudas, metas, cierre de mes) → 4 Inteligencia cruzada. Incluye decisiones tomadas, arquitectura, modelo de datos y preguntas abiertas. Nada está construido todavía: es solo el plan.
