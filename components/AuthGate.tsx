@@ -13,6 +13,7 @@ import {
   leerPerfilActivoId,
   leerPerfiles,
   marcarUsoPerfil,
+  olvidarModoAuth,
   type ModoAuth,
   type Perfil,
 } from "../lib/perfiles";
@@ -26,6 +27,8 @@ interface AuthContextValue {
   cargando: boolean;
   /** En modo cuenta cierra la sesión; en modo perfiles vuelve al selector. */
   cerrarSesion: () => Promise<void>;
+  /** Sale por completo y vuelve al menú "¿Cómo quieres entrar?". */
+  volverAlMenu: () => Promise<void>;
   entrarAPerfil: (id: string) => void;
   cambiarModo: (modo: ModoAuth) => void;
 }
@@ -136,7 +139,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  const valor: AuthContextValue = { user, perfil, modo, cargando, cerrarSesion, entrarAPerfil, cambiarModo };
+  /** Salir al menú de acceso: cierra la sesión y olvida el modo elegido,
+   *  para volver a "¿Cómo quieres entrar?". */
+  const volverAlMenu = async (): Promise<void> => {
+    if (modo === "cuenta") {
+      await supabase?.auth.signOut();
+      setUser(null);
+    }
+    fijarPerfilActivo(null);
+    setPerfil(null);
+    olvidarModoAuth();
+    logEvent("MODO_CAMBIADO", "perfil", null, { modo: "menu" });
+    setModo(null);
+  };
+
+  const valor: AuthContextValue = { user, perfil, modo, cargando, cerrarSesion, volverAlMenu, entrarAPerfil, cambiarModo };
 
   if (!supabase) {
     // Modo local (sin Supabase configurado): sin autenticación.

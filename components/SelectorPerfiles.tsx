@@ -7,7 +7,7 @@ import Onboarding, { type DatosOnboarding } from "./Onboarding";
 import Logo from "./Logo";
 import { logEvent } from "../lib/logger";
 import { AVATARES } from "../lib/avatares";
-import { crearEstadoInicial } from "../lib/store";
+import { crearEstadoInicial, crearHabitoSueno } from "../lib/store";
 import type { AppState } from "../lib/types";
 import { habitoDesdePlantilla } from "../lib/plantillas";
 import {
@@ -80,9 +80,11 @@ export default function SelectorPerfiles() {
     const p = crearPerfil(datos.nombre, datos.color, datos.avatar, null);
     if (!p) return;
     const base = crearEstadoInicial();
+    const sueno = crearHabitoSueno(Math.random().toString(36).slice(2, 10));
     const estado: AppState = {
       ...base,
-      habits: datos.plantillas.map(habitoDesdePlantilla),
+      // El sueño nace con el perfil: siempre activo, no se puede borrar.
+      habits: [...datos.plantillas.map(habitoDesdePlantilla), sueno],
       completions: [],
     };
     try {

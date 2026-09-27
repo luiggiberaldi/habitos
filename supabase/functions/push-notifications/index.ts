@@ -133,7 +133,7 @@ async function calcularDebidos(): Promise<
     if (!data || data.length < 1000) break;
   }
 
-  const debidos: { habitId: string; momentId: string; userId: string; nombre: string }[] = [];
+  const debidos: { habitId: string; momentId: string; userId: string; nombre: string; sueno?: boolean }[] = [];
 
   // 2. Para cada usuario calcular su hora local y evaluar sus hábitos.
   for (const row of habits ?? []) {
@@ -142,6 +142,9 @@ async function calcularDebidos(): Promise<
       nombre: string;
       estado?: string;
       dias?: number[];
+      tipo?: string;
+      horaAcostar?: string;
+      horaLevantar?: string;
       momentos?: { id: string; tipo?: string; hora?: string; ventana?: string }[];
       settings?: { horasDescanso?: { inicio: string; fin: string } };
     };
@@ -152,16 +155,26 @@ async function calcularDebidos(): Promise<
     const { hhmm, dia } = ahoraLocal(tz);
 
     const descanso = habit.settings?.horasDescanso ?? DESCANSOS_DEFAULT;
-    if (dentroDeDescanso(descanso, hhmm)) continue;
+    // Sueño: sus horas (22:00/6:00) suelen caer en descanso → se exime.
+    const esSueno = habit.tipo === "sueno";
+    if (!esSueno && dentroDeDescanso(descanso, hhmm)) continue;
     if (!habit.dias?.includes(dia)) continue;
 
-    for (const moment of habit.momentos ?? []) {
+    // Sueño: dos momentos virtuales con sus horas objetivo.
+    const momentos: { id: string; tipo?: string; hora?: string }[] = esSueno
+      ? [
+          { id: "acostar", tipo: "hora", hora: habit.horaAcostar ?? "22:00" },
+          { id: "levantar", tipo: "hora", hora: habit.horaLevantar ?? "06:00" },
+        ]
+      : (habit.momentos ?? []);
+    for (const moment of momentos) {
       if (moment.tipo !== "hora" || moment.hora !== hhmm) continue;
       debidos.push({
         habitId: habit.id,
         momentId: moment.id,
         userId: row.user_id,
         nombre: habit.nombre,
+        sueno: esSueno || undefined,
       });
     }
   }
@@ -209,7 +222,14 @@ async function calcularDebidos(): Promise<
       habitId: d.habitId,
       momentId: d.momentId,
       nombre: d.nombre,
-      body: `Es momento de "${d.nombre}". ¡A por ello!`,
+      title: d.sueno
+        ? d.momentId === "levantar"
+          ? "Hora de levantarte"
+          : "Hora de acostarte"
+        : "Recordatorio de hábito",
+      body: d.sueno
+        ? "Toca Listo al hacerlo: a tiempo ganas +10 XP."
+        : `Es momento de "${d.nombre}". ¡A por ello!`,
       // Deep link de auto-registro: el botón "Listo" de la notificación abre
       // la app y registra el momento sin más taps (ver notificationclick en sw.js).
       url: `/?complete=${d.habitId}|${d.momentId}`,
@@ -283,7 +303,7 @@ async function run(req: Request): Promise<Response> {
 
     const fecha = d.fecha; // P1.9: ya calculada en la zona del usuario.
     const payload = {
-      title: "Recordatorio de hábito",
+      title: d.title,
       body: d.body,
       actions: [{ action: "hecho", title: "Listo" }],
       data: { habitId: d.habitId, momentId: d.momentId, url: d.url },

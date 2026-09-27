@@ -195,7 +195,9 @@ export async function revisarRecordatorios(state: AppState): Promise<number> {
   if (!state.settings.notificaciones || !("Notification" in window) || Notification.permission !== "granted") return 0;
   const now = new Date();
   const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  if (estaEnDescanso(hhmm, state.settings.horasDescanso.inicio, state.settings.horasDescanso.fin)) return 0;
+  // Los recordatorios de sueño se envían incluso en horario de descanso
+  // (acostarse 22:00 y levantarse 6:00 suelen caer dentro de él).
+  const enDescanso = estaEnDescanso(hhmm, state.settings.horasDescanso.inicio, state.settings.horasDescanso.fin);
   const fecha = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const weekDay = now.getDay();
   const done = new Set(state.completions.filter((item) => item.fecha === fecha).map((item) => `${item.habitId}|${item.momentId}`));
@@ -203,7 +205,16 @@ export async function revisarRecordatorios(state: AppState): Promise<number> {
   const due: { key: string; habit: Habit; momentId: string }[] = [];
   for (const habit of state.habits) {
     if (habit.estado !== "activo" || !habit.dias.includes(weekDay)) continue;
-    for (const moment of habit.momentos) {
+    if (enDescanso && habit.tipo !== "sueno") continue;
+    // Sueño: dos momentos virtuales con sus horas objetivo (no tiene `momentos`).
+    const momentos: { id: string; hora?: string }[] =
+      habit.tipo === "sueno"
+        ? [
+            { id: "acostar", hora: habit.horaAcostar ?? "22:00" },
+            { id: "levantar", hora: habit.horaLevantar ?? "06:00" },
+          ]
+        : habit.momentos;
+    for (const moment of momentos) {
       if (!moment.hora || moment.hora !== hhmm || done.has(`${habit.id}|${moment.id}`)) continue;
       // El identificador por minuto evita reenvíos al reabrir/refrescar la app.
       const stableKey = `${fecha}|${habit.id}|${moment.id}|${Math.floor(now.getTime() / MINUTE) * MINUTE}`;
@@ -213,12 +224,23 @@ export async function revisarRecordatorios(state: AppState): Promise<number> {
   if (due.length === 0) { guardarEnviadas(sent, now.getTime()); return 0; }
   const registration = await navigator.serviceWorker.ready;
   for (const item of due.slice(0, 3)) {
-    await registration.showNotification(`Momento de ${item.habit.nombre}`, {
-      body: "Tu recordatorio de hábito está listo. Tómate un momento para hacerlo.",
+    const esSueno = item.habit.tipo === "sueno";
+    const titulo = esSueno
+      ? item.momentId === "levantar"
+        ? "Hora de levantarte"
+        : "Hora de acostarte"
+      : `Momento de ${item.habit.nombre}`;
+    const cuerpo = esSueno
+      ? item.momentId === "levantar"
+        ? "Márcalo en la app: a tiempo ganas +10 XP."
+        : "Márcalo en la app antes de dormir: a tiempo ganas +10 XP."
+      : "Tu recordatorio de hábito está listo. Tómate un momento para hacerlo.";
+    await registration.showNotification(titulo, {
+      body: cuerpo,
       tag: `habito-${item.habit.id}-${item.momentId}-${fecha}`,
       icon: "/icon.svg",
       badge: "/icon.svg",
-      data: { url: "/" },
+      data: { url: esSueno ? "/?sueno=1" : "/" },
     });
     sent.add(item.key);
   }

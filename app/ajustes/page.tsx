@@ -11,7 +11,7 @@ import { IconAlerta, IconCampana, IconCandado, IconDescanso, IconLuna, IconMovim
 export default function Ajustes() {
   const { state, errorSync } = useStoreState();
   const { guardarSettings, rehidratar } = useStoreActions();
-  const { user, perfil, cambiarModo, cerrarSesion } = useAuth();
+  const { user, perfil, cambiarModo, cerrarSesion, volverAlMenu } = useAuth();
   const settings = state.settings;
   const [notificationMessage, setNotificationMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -246,6 +246,13 @@ export default function Ajustes() {
               Usar cuenta en la nube
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => void volverAlMenu()}
+            className="mt-2 min-h-11 w-full rounded-xl text-sm font-medium text-muted transition-colors hover:text-foreground"
+          >
+            Volver al menú de acceso
+          </button>
         </section>
       )}
 
@@ -270,6 +277,13 @@ export default function Ajustes() {
               <IconPersona className="h-4 w-4" />
               Usar perfiles en este dispositivo
             </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void volverAlMenu()}
+            className="mt-2 min-h-11 w-full rounded-xl text-sm font-medium text-muted transition-colors hover:text-foreground sm:w-auto sm:px-4"
+          >
+            Volver al menú de acceso
           </button>
         </section>
       )}

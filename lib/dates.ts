@@ -83,3 +83,30 @@ export function formatHoraA12(hora: string): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
 }
+
+/** "HH:mm" (24h) en hora local para un Date. */
+export function hhmmDeFecha(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** "HH:mm" en hora local extraída de un timestamp ISO. */
+export function hhmmDeTimestamp(ts: string): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "00:00";
+  return hhmmDeFecha(d);
+}
+
+/**
+ * Construye un timestamp ISO para una fecha (YYYY-MM-DD) + hora ("HH:mm")
+ * interpretadas en la zona horaria local del dispositivo.
+ */
+export function timestampLocal(fecha: string, hora: string): string {
+  const [y, m, d] = fecha.split("-").map(Number);
+  const [hh, mm] = hora.split(":").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0).toISOString();
+}
+
+/** Mueve una fecha YYYY-MM-DD N días (negativo = hacia atrás). */
+export function moverFecha(fechaKey: string, dias: number): string {
+  return todayKey(addDays(new Date(`${fechaKey}T12:00:00`), dias));
+}

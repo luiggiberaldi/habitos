@@ -6,23 +6,27 @@
 // entre dispositivos. Todo sigue siendo puro (sin I/O): el contexto decide
 // cuándo persistir y sincronizar.
 
-import type { AppState, Habit, JuegoState } from "./types";
-import { completadosPara, inicioSemana, todayKey } from "./dates";
+import type { AppState, Habit, JuegoState, MarcaSueno } from "./types";
+import type { NivelActual } from "./gamificacion";
+import { completadosPara, esDescanso, inicioSemana, moverFecha, todayKey } from "./dates";
 import {
   PUNTOS_OBJETIVO_DIARIO,
   PUNTOS_POR_REGISTRO,
   MAX_CONGELADORES,
   XP_DESAFIO,
+  SUENO_FALLO_XP,
   asegurarDesafios,
   congeladorAutomatico,
   diaCompleto,
   diasCumplidosEnSemana,
   logrosNuevos,
   LOGROS,
+  mensajeSueno,
   nivelParaXp,
   objetivoEnFecha,
   rachaActual,
   tirarCofre,
+  xpSuenoDeEvento,
 } from "./gamificacion";
 
 /* ------------------------------ Estado inicial -------------------------- */
@@ -35,6 +39,7 @@ export function juegoInicial(): JuegoState {
     congeladores: 0,
     diasProtegidos: [],
     logros: [],
+    logrosReclamados: [],
     ultimoCofre: null,
     cofres: 0,
     desafios: [],
@@ -43,6 +48,7 @@ export function juegoInicial(): JuegoState {
     madrugadas: 0,
     diasCompletos: 0,
     nombreLiga: "",
+    suenoFallos: [],
     actualizadoEn: new Date(0).toISOString(),
   };
 }
@@ -57,9 +63,13 @@ export function normalizarJuego(value: unknown): JuegoState {
     ...p,
     diasProtegidos: Array.isArray(p.diasProtegidos) ? p.diasProtegidos : [],
     logros: Array.isArray(p.logros) ? p.logros : [],
+    // Migración: los logros desbloqueados antes del reclamo por tap ya
+    // tenían su XP acreditado, así que nacen marcados como reclamados.
+    logrosReclamados: Array.isArray(p.logrosReclamados) ? p.logrosReclamados : Array.isArray(p.logros) ? [...p.logros] : [],
     desafios: Array.isArray(p.desafios) ? p.desafios : [],
     rachaMaxima: p.rachaMaxima && typeof p.rachaMaxima === "object" ? p.rachaMaxima : {},
     rachaPremiada: p.rachaPremiada && typeof p.rachaPremiada === "object" ? p.rachaPremiada : {},
+    suenoFallos: Array.isArray(p.suenoFallos) ? p.suenoFallos.filter((x): x is string => typeof x === "string") : [],
   };
 }
 
@@ -71,7 +81,8 @@ export type TipoEventoJuego =
   | "cofre"
   | "desafio"
   | "congelador-ganado"
-  | "congelador-usado";
+  | "congelador-usado"
+  | "sueno";
 
 export interface EventoJuego {
   tipo: TipoEventoJuego;
@@ -105,6 +116,12 @@ interface RegistroCtx {
   /** Fecha del registro (normalmente hoy). */
   fecha: string;
   timestamp: string;
+  /** XP base personalizado (sueño: por puntualidad, puede ser negativo). */
+  xpBase?: number;
+  /** Minutos de retraso vs la hora objetivo (solo sueño, para el mensaje). */
+  retrasoMin?: number;
+  /** Qué marca de sueño fue ("levantar" | "acostar"). */
+  cualSueno?: MarcaSueno;
 }
 
 /**
@@ -134,12 +151,25 @@ export function aplicarRecompensas(
   }
 
   // 2. XP base del registro (+ bonus si con este tap se cumplió el objetivo).
-  let xpGanado = PUNTOS_POR_REGISTRO;
+  // Sueño: el XP base viene por puntualidad (puede ser negativo) y NO lleva
+  // el bonus de objetivo diario: el acuerdo es solo el XP por puntualidad.
+  let xpGanado = ctx.xpBase ?? PUNTOS_POR_REGISTRO;
   const objetivo = objetivoEnFecha(habit, fecha);
   const compAntes = completadosPara(habit, fecha, antes.completions).size;
   const compDespues = completadosPara(habit, fecha, despues.completions).size;
-  if (compAntes < objetivo && compDespues >= objetivo) {
+  if (habit.tipo !== "sueno" && compAntes < objetivo && compDespues >= objetivo) {
     xpGanado += PUNTOS_OBJETIVO_DIARIO;
+  }
+
+  // 2b. Sueño: evento inmediato con el resultado (va primero en la cola).
+  if (habit.tipo === "sueno" && ctx.xpBase !== undefined && ctx.cualSueno) {
+    const xp = ctx.xpBase;
+    eventos.unshift({
+      tipo: "sueno",
+      titulo: xp >= 0 ? `+${xp} XP` : `${xp} XP`,
+      detalle: mensajeSueno(ctx.cualSueno, xp, ctx.retrasoMin ?? 0),
+      dato: ctx.cualSueno,
+    });
   }
 
   // 3. Madrugador: registrar antes de las 8:00 a. m.
@@ -228,29 +258,29 @@ export function aplicarRecompensas(
     });
   }
 
-  // 8. Aplicar el XP ganado.
-  juego = { ...juego, xpTotal: juego.xpTotal + xpGanado, xpSemanal: juego.xpSemanal + xpGanado };
+  // 8. Aplicar el XP ganado. El sueño puede restar: el total nunca baja de 0.
+  juego = {
+    ...juego,
+    xpTotal: Math.max(0, juego.xpTotal + xpGanado),
+    xpSemanal: Math.max(0, juego.xpSemanal + xpGanado),
+  };
 
-  // 9. Logros recién desbloqueados. Cada logro otorga su XP una sola vez.
-  let xpLogros = 0;
+  // 9. Logros recién desbloqueados. El XP NO se acredita solo: el usuario
+  // lo reclama tocando el logro en su sala de trofeos.
   for (const id of logrosNuevos({ juego, habits: despues.habits, completions: despues.completions, hoy })) {
     juego = { ...juego, logros: [...juego.logros, id] };
     const def = LOGROS.find((l) => l.id === id);
     if (def) {
-      xpLogros += def.xp;
       eventos.push({
         tipo: "logro",
         titulo: `¡Logro: ${def.nombre}!`,
-        detalle: `+${def.xp} XP · ${def.mensaje}`,
+        detalle: `Tócalo en tu sala de trofeos para reclamar +${def.xp} XP · ${def.mensaje}`,
         dato: id,
       });
     }
   }
-  if (xpLogros > 0) {
-    juego = { ...juego, xpTotal: juego.xpTotal + xpLogros, xpSemanal: juego.xpSemanal + xpLogros };
-  }
 
-  // 10. ¿Subió de nivel? (después de sumar el XP de los logros)
+  // 10. ¿Subió de nivel?
   const nivelDespues = nivelParaXp(juego.xpTotal);
   if (nivelDespues.nivel > nivelAntes) {
     eventos.push({
@@ -263,6 +293,42 @@ export function aplicarRecompensas(
 
   juego = { ...juego, actualizadoEn: new Date().toISOString() };
   return { state: { ...despues, juego }, eventos };
+}
+
+/**
+ * Reclama el premio de XP de un logro desbloqueado (tap en la sala de
+ * trofeos). El XP se otorga UNA sola vez: si el logro no está desbloqueado
+ * o ya fue reclamado, no hace nada.
+ */
+export function reclamarLogro(
+  state: AppState,
+  logroId: string,
+): { state: AppState; xpGanado: number; subioNivel: NivelActual | null } {
+  const juego = normalizarJuego(state.juego);
+  const def = LOGROS.find((l) => l.id === logroId);
+  if (!def || !juego.logros.includes(logroId) || juego.logrosReclamados.includes(logroId)) {
+    return { state, xpGanado: 0, subioNivel: null };
+  }
+  const nivelAntes = nivelParaXp(juego.xpTotal).nivel;
+  const juego2: JuegoState = {
+    ...juego,
+    logrosReclamados: [...juego.logrosReclamados, logroId],
+    xpTotal: juego.xpTotal + def.xp,
+    xpSemanal: juego.xpSemanal + def.xp,
+    actualizadoEn: new Date().toISOString(),
+  };
+  const nivelDespues = nivelParaXp(juego2.xpTotal);
+  return {
+    state: { ...state, juego: juego2 },
+    xpGanado: def.xp,
+    subioNivel: nivelDespues.nivel > nivelAntes ? nivelDespues : null,
+  };
+}
+
+/** Cuántos logros desbloqueados tienen su premio pendiente de reclamo. */
+export function premiosPendientes(juego: JuegoState | undefined): number {
+  const j = normalizarJuego(juego);
+  return j.logros.filter((id) => !j.logrosReclamados.includes(id)).length;
 }
 
 /* ------------------------- Reconciliación al cargar ---------------------- */
@@ -295,8 +361,10 @@ export function reconciliarJuego(state: AppState): AppState {
     for (const c of state.completions) {
       const habit = state.habits.find((h) => h.id === c.habitId);
       if (!habit) continue;
-      xp += PUNTOS_POR_REGISTRO;
-      if (c.fecha >= semana) xpSem += PUNTOS_POR_REGISTRO;
+      // Sueño: el XP histórico respeta la puntualidad (puede ser negativo).
+      const pts = habit.tipo === "sueno" ? xpSuenoDeEvento(habit, c) : PUNTOS_POR_REGISTRO;
+      xp += pts;
+      if (c.fecha >= semana) xpSem += pts;
       const key = `${c.habitId}|${c.fecha}`;
       let grupo = porDia.get(key);
       if (!grupo) {
@@ -312,13 +380,46 @@ export function reconciliarJuego(state: AppState): AppState {
         if (fecha >= semana) xpSem += PUNTOS_OBJETIVO_DIARIO;
       }
     }
-    juego = { ...juego, xpTotal: xp, xpSemanal: xpSem, semanaXp: semana };
+    juego = { ...juego, xpTotal: Math.max(0, xp), xpSemanal: Math.max(0, xpSem), semanaXp: semana };
     marcar();
   }
 
   if (juego.semanaXp !== semana) {
     juego = { ...juego, semanaXp: semana, xpSemanal: 0 };
     marcar();
+  }
+
+  // Sueño: −10 XP por marca olvidada (una sola vez por marca+fecha, en
+  // silencio). Solo se revisa lo más reciente —ayer (levantar) y la
+  // ante-noche (acostar)—: sin castigos acumulados por días sin abrir la app,
+  // y nunca antes de que el hábito existiera.
+  for (const h of state.habits) {
+    if (h.tipo !== "sueno" || h.estado !== "activo") continue;
+    const creado = (h.creadoEn ?? "").slice(0, 10);
+    const pendientes: { cual: MarcaSueno; fecha: string }[] = [
+      { cual: "levantar", fecha: moverFecha(hoy, -1) },
+      { cual: "acostar", fecha: moverFecha(hoy, -2) },
+    ];
+    for (const { cual, fecha } of pendientes) {
+      const clave = `${cual}|${fecha}`;
+      if (juego.suenoFallos.includes(clave)) continue;
+      if (creado && fecha < creado) continue;
+      if (esDescanso(h, fecha)) continue;
+      const marcada = state.completions.some(
+        (c) => c.habitId === h.id && c.momentId === cual && c.fecha === fecha,
+      );
+      if (marcada) continue;
+      juego = {
+        ...juego,
+        suenoFallos: [...juego.suenoFallos, clave].sort(),
+        xpTotal: Math.max(0, juego.xpTotal + SUENO_FALLO_XP),
+        xpSemanal:
+          inicioSemana(fecha) === juego.semanaXp
+            ? Math.max(0, juego.xpSemanal + SUENO_FALLO_XP)
+            : juego.xpSemanal,
+      };
+      marcar();
+    }
   }
 
   for (const h of state.habits) {
@@ -348,14 +449,8 @@ export function reconciliarJuego(state: AppState): AppState {
   {
     const nuevos = logrosNuevos({ juego, habits: state.habits, completions: state.completions, hoy });
     if (nuevos.length > 0) {
-      // El XP de logros ya ganados se otorga aunque se desbloqueen en silencio.
-      const xpLogros = nuevos.reduce((s, id) => s + (LOGROS.find((l) => l.id === id)?.xp ?? 0), 0);
-      juego = {
-        ...juego,
-        logros: [...juego.logros, ...nuevos],
-        xpTotal: juego.xpTotal + xpLogros,
-        xpSemanal: juego.xpSemanal + xpLogros,
-      };
+      // Se desbloquean en silencio; su XP queda pendiente de reclamo por tap.
+      juego = { ...juego, logros: [...juego.logros, ...nuevos] };
       marcar();
     }
   }
@@ -409,6 +504,8 @@ export function fusionarJuego(local: JuegoState, remoto: JuegoState | null): Jue
     congeladores: Math.max(a.congeladores, b.congeladores),
     diasProtegidos: union(a.diasProtegidos, b.diasProtegidos),
     logros: union(a.logros, b.logros),
+    logrosReclamados: union(a.logrosReclamados, b.logrosReclamados),
+    suenoFallos: union(a.suenoFallos, b.suenoFallos),
     ultimoCofre: a.ultimoCofre && b.ultimoCofre
       ? (a.ultimoCofre > b.ultimoCofre ? a.ultimoCofre : b.ultimoCofre)
       : (a.ultimoCofre ?? b.ultimoCofre),

@@ -33,8 +33,10 @@ export default function GestionHabitos() {
   const [creacionRapida, setCreacionRapida] = useState(false);
   const [nombreRapido, setNombreRapido] = useState("");
 
+  // Sueño se configura desde su tarjeta en la home: aquí no aparece
+  // (no se puede borrar, archivar ni editar como hábito normal).
   const habitosVisibles = useMemo(
-    () => state.habits.filter((h) => filtro === "todos" || h.estado === filtro),
+    () => state.habits.filter((h) => h.tipo !== "sueno" && (filtro === "todos" || h.estado === filtro)),
     [state.habits, filtro],
   );
 

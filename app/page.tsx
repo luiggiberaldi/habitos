@@ -17,8 +17,9 @@ import {
   resumenSemanal,
 } from "../lib/gamificacion";
 import { suscribirEventosJuego, type EventoJuego } from "../lib/juego";
-import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
+import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, hhmmDeFecha, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
 import Celebracion, { type CelebracionData } from "../components/Celebracion";
+import { TarjetaSueno } from "../components/TarjetaSueno";
 import ResumenSemanal from "../components/ResumenSemanal";
 import CofreFlip, { type PremioCofreUI } from "../components/ui/CofreFlip";
 import CheckAnimado from "../components/ui/CheckAnimado";
@@ -39,6 +40,8 @@ import {
   IconTrofeo,
   IconRayo,
   IconX,
+  IconSol,
+  IconLuna,
 } from "../lib/icons";
 import { sufijoAmbito } from "../lib/perfiles";
 import type { CompletionEvent, Habit, Moment } from "../lib/types";
@@ -67,7 +70,12 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
     case "logro": {
       const def = LOGROS.find((l) => l.id === e.dato);
       const Icono = def ? ICONOS_LOGRO[def.icono] : IconTrofeo;
-      return { icono: <Icono className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+      return {
+        icono: <Icono className="h-8 w-8" />,
+        titulo: e.titulo,
+        detalle: e.detalle,
+        accion: { etiqueta: "Ir a reclamar", href: "/logros" },
+      };
     }
     case "cofre":
       return {
@@ -78,6 +86,10 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
       };
     case "desafio":
       return { icono: <IconObjetivo className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+    case "sueno": {
+      const Icono = e.dato === "levantar" ? IconSol : IconLuna;
+      return { icono: <Icono className="h-8 w-8" />, titulo: e.titulo, detalle: e.detalle };
+    }
     default:
       return null; // congelador-ganado/usado van al toast, no interrumpen
   }
@@ -85,7 +97,7 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
 
 export default function Inicio() {
   const { state } = useStoreState();
-  const { registrar, deshacer, posponerHabit } = useStoreActions();
+  const { registrar, registrarSueno, deshacer, posponerHabit } = useStoreActions();
   const { perfil, user } = useAuth();
   const [mostrarPospuestos, setMostrarPospuestos] = useState(false);
   const [marcando, setMarcando] = useState<string | null>(null);
@@ -150,7 +162,13 @@ export default function Inicio() {
     return () => window.removeEventListener("keydown", onKey);
   }, [infoCongelador]);
   const habitosHoy = useMemo(
-    () => state.habits.filter((h) => h.estado === "activo" && !esDescanso(h, hoy)),
+    () => state.habits.filter((h) => h.estado === "activo" && h.tipo !== "sueno" && !esDescanso(h, hoy)),
+    [state.habits, hoy],
+  );
+
+  // Sueño: tarjeta propia siempre visible (no se oculta al completar una marca).
+  const habitoSueno = useMemo(
+    () => state.habits.find((h) => h.tipo === "sueno" && h.estado === "activo" && !esDescanso(h, hoy)) ?? null,
     [state.habits, hoy],
   );
 
@@ -180,7 +198,11 @@ export default function Inicio() {
     const habit = state.habits.find((h) => h.id === habitId && h.estado === "activo");
     if (!habit) return;
     let mensaje: string | null = null;
-    if (habit.tipo === "cantidad" || !momentId || !habit.momentos.some((m) => m.id === momentId)) {
+    if (habit.tipo === "sueno" && (momentId === "levantar" || momentId === "acostar")) {
+      // Sueño desde la notificación push: se registra con la hora actual.
+      registrarSueno(habit.id, momentId, hhmmDeFecha(new Date()));
+      mensaje = `"Sueño" registrado (${momentId === "levantar" ? "levantada" : "acostada"})`;
+    } else if (habit.tipo === "cantidad" || !momentId || !habit.momentos.some((m) => m.id === momentId)) {
       registrar(habit.id, undefined, hoy);
       mensaje = `"${habit.nombre}" registrado`;
     } else {
@@ -194,7 +216,7 @@ export default function Inicio() {
     }
     // Diferido: react-hooks/set-state-in-effect no permite setState síncrono en el efecto.
     if (mensaje) window.setTimeout(() => setToast(mensaje), 0);
-  }, [state.habits, state.completions, registrar, hoy]);
+  }, [state.habits, state.completions, registrar, registrarSueno, hoy]);
 
   // El toast de confirmación se oculta solo.
   useEffect(() => {
@@ -522,6 +544,8 @@ export default function Inicio() {
       )}
 
 
+
+      {habitoSueno && <TarjetaSueno habit={habitoSueno} />}
 
       {habitosHoy.length === 0 ? (
         <section className="card border-dashed p-10 text-center">

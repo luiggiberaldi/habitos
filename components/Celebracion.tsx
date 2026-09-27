@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { IconX } from "../lib/icons";
 import Sparkles from "./ui/Sparkles";
 
@@ -11,6 +12,8 @@ export interface CelebracionData {
   detalle: string;
   /** Cuerpo personalizado (p. ej. el cofre con flip): reemplaza icono/título/detalle. */
   cuerpo?: ReactNode;
+  /** Acción principal opcional (p. ej. ir a reclamar un premio). */
+  accion?: { etiqueta: string; href: string };
 }
 
 /**
@@ -56,14 +59,29 @@ export default function Celebracion({
               <p className="mt-2 text-sm text-muted">{data.detalle}</p>
             </>
           )}
-          <button
-            type="button"
-            onClick={onCerrar}
-            className="btn-primary mt-6 w-full justify-center"
-            autoFocus
-          >
-            ¡Genial!
-          </button>
+          {data.accion ? (
+            <>
+              <Link href={data.accion.href} onClick={onCerrar} className="btn-primary mt-6 w-full justify-center">
+                {data.accion.etiqueta}
+              </Link>
+              <button
+                type="button"
+                onClick={onCerrar}
+                className="mt-2 w-full rounded-xl px-4 py-2 text-sm font-medium text-muted hover:text-foreground"
+              >
+                Cerrar
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onCerrar}
+              className="btn-primary mt-6 w-full justify-center"
+              autoFocus
+            >
+              ¡Genial!
+            </button>
+          )}
         </div>
         <button
           type="button"

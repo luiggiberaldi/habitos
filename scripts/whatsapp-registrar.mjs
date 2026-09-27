@@ -101,6 +101,7 @@ function mockRpc(fn) {
       { id: "h-agua", data: { id: "h-agua", nombre: "Tomar agua", tipo: "cantidad", objetivo: 3, dias: [0,1,2,3,4,5,6], momentos: [], estado: "activo", categoria: "salud", color: "#3b82f6", icono: "agua", creadoEn: "2026-01-01", actualizadoEn: "2026-01-01" }, updated_at: "2026-01-01" },
       { id: "h-desayuno", data: { id: "h-desayuno", nombre: "Desayunar", tipo: "momento", objetivo: 1, dias: [0,1,2,3,4,5,6], momentos: [{ id: "m1", tipo: "hora", hora: "08:00" }], estado: "activo", categoria: "salud", color: "#3b82f6", icono: "comida", creadoEn: "2026-01-01", actualizadoEn: "2026-01-01" }, updated_at: "2026-01-01" },
       { id: "h-leer", data: { id: "h-leer", nombre: "Leer", tipo: "momento", objetivo: 1, dias: [1,2,3,4,5], momentos: [{ id: "m1", tipo: "hora", hora: "21:00" }], estado: "activo", categoria: "crecimiento", color: "#7964a9", icono: "libro", creadoEn: "2026-01-01", actualizadoEn: "2026-01-01" }, updated_at: "2026-01-01" },
+      { id: "h-sueno", data: { id: "h-sueno", nombre: "Sueño", tipo: "sueno", objetivo: 2, dias: [0,1,2,3,4,5,6], momentos: [], estado: "activo", categoria: "bienestar", color: "#6366f1", icono: "", horaLevantar: "06:00", horaAcostar: "22:00", objetivoHoras: 8, creadoEn: "2026-01-01", actualizadoEn: "2026-01-01" }, updated_at: "2026-01-01" },
     ];
   }
   if (fn === "rpc_habitos_historial") return [];
@@ -187,7 +188,20 @@ const main = async () => {
   if (habits.length === 0) fail("sin-habitos", "el RPC no devolvió hábitos (¿user-id correcto? ¿secreto configurado?)");
 
   let habit;
-  if (args.habit) {
+  // Sueño: "me levanté"/"me acosté" van directo al hábito Sueño sin pasar por
+  // el match difuso (no matchean el nombre "Sueño").
+  let suenoForzado = null;
+  if (!args.habit) {
+    const nq = norm(args.q || "");
+    if (/\bme levante\b/.test(nq) || /\bme desperte\b/.test(nq)) suenoForzado = "levantar";
+    else if (/\bme acoste\b/.test(nq) || /\bme dormi\b/.test(nq)) suenoForzado = "acostar";
+  }
+  if (suenoForzado) {
+    const sueno = habits.find((h) => h.tipo === "sueno" && h.estado === "activo");
+    if (!sueno) fail("sin-habito", "no hay hábito Sueño activo");
+    habit = sueno;
+    args.moment = suenoForzado;
+  } else if (args.habit) {
     habit = habits.find((h) => h.id === args.habit) || habits.find((h) => norm(h.nombre) === norm(args.habit));
     if (!habit) fail("sin-habito", `no existe hábito ${args.habit}`);
   } else {
@@ -203,10 +217,35 @@ const main = async () => {
   }
   if (habit.estado !== "activo") fail("inactivo", `el hábito "${habit.nombre}" no está activo`);
 
+  // Sueño: momentos virtuales ("levantar"/"acostar") + XP por puntualidad.
+  // Se resuelve antes del flujo normal de momentos (Sueño no tiene `momentos`).
+  let registroSueno = null;
+  if (habit.tipo === "sueno") {
+    const ahora = new Date();
+    const hhmmAhora = `${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}`;
+    let cual = args.moment === "levantar" || args.moment === "acostar" ? args.moment : null;
+    let horaReal = hhmmAhora;
+    if (!cual && args.moment) {
+      const mm = String(args.moment).match(/^(\d{1,2}):?(\d{2})$/);
+      if (mm) horaReal = `${mm[1].padStart(2, "0")}:${mm[2]}`;
+    }
+    if (!cual) cual = hhmmAhora < "12:00" ? "levantar" : "acostar";
+    const fechaSueno = args.fecha || g.fechaParaMarcaSueno(cual, horaReal, ahora);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaSueno)) fail("args", "--fecha debe ser YYYY-MM-DD");
+    registroSueno = {
+      cual,
+      fecha: fechaSueno,
+      timestamp: d.timestampLocal(fechaSueno, horaReal),
+      horaReal,
+      eventId: `${habit.id}|${cual}|${fechaSueno}`,
+    };
+  }
+
   // Momento: explícito (id o HH:MM) o el más cercano a la hora actual.
+  // (Sueño ya resolvió sus momentos virtuales arriba.)
   let momentId;
   let momentoHora = null;
-  if (habit.tipo !== "cantidad") {
+  if (habit.tipo !== "cantidad" && !registroSueno) {
     const moms = habit.momentos || [];
     if (args.moment) {
       const byId = moms.find((m) => m.id === args.moment);
@@ -248,9 +287,23 @@ const main = async () => {
     juego, version: 1,
   };
 
-  const timestamp = new Date().toISOString();
-  const eventId = e.construirEventId(habit.id, momentId, fecha);
-  const { state: nuevo, eventos } = s.registrarConJuego(estado, habit.id, momentId, fecha, timestamp, undefined, eventId);
+  let eventId, nuevo, eventos;
+  let fechaFinal = fecha;
+  let momentoIdFinal = momentId;
+  if (registroSueno) {
+    // Sueño: registro con XP por puntualidad (puede ser negativo).
+    eventId = registroSueno.eventId;
+    fechaFinal = registroSueno.fecha;
+    momentoIdFinal = registroSueno.cual;
+    momentoHora = registroSueno.horaReal;
+    ({ state: nuevo, eventos } = s.registrarSuenoConJuego(
+      estado, habit.id, registroSueno.cual, registroSueno.fecha, registroSueno.timestamp, eventId,
+    ));
+  } else {
+    const timestamp = new Date().toISOString();
+    eventId = e.construirEventId(habit.id, momentId, fecha);
+    ({ state: nuevo, eventos } = s.registrarConJuego(estado, habit.id, momentId, fecha, timestamp, undefined, eventId));
+  }
   if (nuevo.completions.length === estado.completions.length) {
     out({ ok: false, codigo: "ya-registrado", detalle: `"${habit.nombre}" ya estaba registrado`, habito: habit.nombre });
     return;
@@ -259,14 +312,14 @@ const main = async () => {
   if (!args["dry-run"]) {
     const okComplete = await rpc("rpc_habitos_complete", {
       p_user_id: USER_ID, p_event_id: eventId, p_habit_id: habit.id,
-      p_moment_id: momentId || null, p_fecha: fecha,
+      p_moment_id: momentoIdFinal || null, p_fecha: fechaFinal,
     });
     if (!okComplete) fail("rpc", "rpc_habitos_complete devolvió false (¿duplicado?)");
     await rpc("rpc_game_upsert", { p_user_id: USER_ID, p_data: nuevo.juego });
   }
 
-  const hechos = d.completadosPara(habit, fecha, nuevo.completions).size;
-  const objetivo = g.objetivoEnFecha(habit, fecha);
+  const hechos = d.completadosPara(habit, fechaFinal, nuevo.completions).size;
+  const objetivo = g.objetivoEnFecha(habit, fechaFinal);
   const xpGanado = nuevo.juego.xpTotal - juego.xpTotal;
   const nivel = g.nivelParaXp(nuevo.juego.xpTotal);
   out({
@@ -274,7 +327,7 @@ const main = async () => {
     habito: habit.nombre,
     tipo: habit.tipo,
     momentoHora,
-    fecha,
+    fecha: fechaFinal,
     eventId,
     xpGanado,
     xpTotal: nuevo.juego.xpTotal,

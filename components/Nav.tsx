@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import Logo from "./Logo";
 import { useAuth } from "./AuthGate";
 import AvatarPerfil from "./AvatarPerfil";
-import { useStoreActions } from "../lib/store-context";
+import { useStoreActions, useStoreState } from "../lib/store-context";
+import { premiosPendientes } from "../lib/juego";
 import { IconAjustes, IconEstadisticas, IconInicio, IconLista, IconCerrarSesion, IconTrofeo } from "../lib/icons";
 // import { IconUsuarios } from "../lib/icons"; // Liga oculta por ahora
 
@@ -20,8 +21,11 @@ const items = [
 
 export default function Nav() {
   const pathname = usePathname();
-  const { user, perfil, cerrarSesion } = useAuth();
+  const { user, perfil, modo, cerrarSesion, volverAlMenu } = useAuth();
   const { sincronizarAhora } = useStoreActions();
+  const { state } = useStoreState();
+  // Premios de logros desbloqueados sin reclamar (tap en la sala de trofeos).
+  const pendientes = premiosPendientes(state.juego);
 
   // E3: reenviar la cola pendiente antes de salir — si no, quedaba huérfana
   // bajo la clave del usuario anterior.
@@ -29,7 +33,10 @@ export default function Nav() {
     try {
       await sincronizarAhora();
     } finally {
-      await cerrarSesion();
+      // En modo nube vuelve al menú "¿Cómo quieres entrar?"; en modo
+      // perfiles, al selector de perfiles (el menú de usuarios de ese modo).
+      if (modo === "cuenta") await volverAlMenu();
+      else await cerrarSesion();
     }
   };
 
@@ -51,11 +58,13 @@ export default function Nav() {
           {items.map((item) => {
             const activo = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             const Icon = item.icon;
+            const conPremios = item.href === "/logros" && pendientes > 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={activo ? "page" : undefined}
+                aria-label={conPremios ? `Logros, ${pendientes} premios por reclamar` : undefined}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                   activo
                     ? "bg-accent-soft text-accent"
@@ -64,6 +73,14 @@ export default function Nav() {
               >
                 <Icon className="h-5 w-5" />
                 {item.label}
+                {conPremios && (
+                  <span
+                    aria-hidden="true"
+                    className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-accent-foreground animate-pulse"
+                  >
+                    {pendientes}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -74,7 +91,7 @@ export default function Nav() {
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-all hover:bg-surface-2 hover:text-foreground"
           >
             <IconCerrarSesion className="h-5 w-5" />
-            {perfil ? "Cambiar de perfil" : "Cerrar sesión"}
+            {perfil ? "Cambiar de perfil" : "Salir al menú"}
           </button>
           {perfil ? (
             <div className="mt-1 flex items-center gap-2 px-3">
@@ -93,23 +110,37 @@ export default function Nav() {
           {items.map((item) => {
             const activo = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             const Icon = item.icon;
+            const conPremios = item.href === "/logros" && pendientes > 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={activo ? "page" : undefined}
+                aria-label={conPremios ? `Logros, ${pendientes} premios por reclamar` : undefined}
                 className={`flex flex-1 flex-col items-center gap-0.5 px-2 py-3 text-[11px] font-medium transition-colors min-h-[44px] justify-center ${
                   activo ? "text-accent" : "text-muted hover:text-foreground"
                 }`}
               >
-                <Icon className={`h-5 w-5 ${activo ? "stroke-[2.2]" : ""}`} />
+                <span className="relative">
+                  <Icon className={`h-5 w-5 ${activo ? "stroke-[2.2]" : ""}`} />
+                  {conPremios && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-full bg-accent ring-2 ring-surface animate-pulse"
+                    />
+                  )}
+                </span>
                 <span className="truncate max-w-full">{item.label}</span>
               </Link>
             );
           })}
           <button
             onClick={salir}
-            aria-label={perfil ? `Cambiar de perfil (activo: ${perfil.nombre})` : "Cerrar sesión"}
+            aria-label={
+              perfil
+                ? `Cambiar de perfil (activo: ${perfil.nombre})`
+                : "Salir al menú de acceso"
+            }
             className="flex flex-1 flex-col items-center justify-center gap-0.5 px-2 py-3 text-[11px] font-medium text-muted transition-colors hover:text-foreground min-h-[44px]"
           >
             <IconCerrarSesion className="h-5 w-5" />

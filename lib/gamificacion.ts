@@ -1,5 +1,5 @@
-import type { CompletionEvent, DesafioSemanal, Habit, JuegoState } from "./types";
-import { addDays, completadosPara, esDescanso, inicioSemana, todayKey } from "./dates";
+import type { CompletionEvent, DesafioSemanal, Habit, JuegoState, MarcaSueno } from "./types";
+import { addDays, completadosPara, esDescanso, hhmmDeFecha, hhmmDeTimestamp, inicioSemana, moverFecha, todayKey } from "./dates";
 
 export const PUNTOS_POR_REGISTRO = 10;
 export const PUNTOS_OBJETIVO_DIARIO = 5;
@@ -25,6 +25,16 @@ export function objetivoEnFecha(habit: Habit, fecha: string): number {
 export function puntosParaFecha(habit: Habit, fecha: string, completions: CompletionEvent[]): number {
   if (esDescanso(habit, fecha)) return 0;
   const eventos = completions.filter((c) => c.habitId === habit.id && c.fecha === fecha);
+  // Sueño: el puntaje es por puntualidad (puede ser negativo), no +10 fijos.
+  // Sin bonus de objetivo diario: el acuerdo es solo el XP por puntualidad.
+  if (habit.tipo === "sueno") {
+    let pts = 0;
+    for (const c of eventos) {
+      const objetivo = c.momentId === "levantar" ? (habit.horaLevantar ?? "06:00") : (habit.horaAcostar ?? "22:00");
+      pts += xpPorPuntualidad(minutosDeRetraso(objetivo, hhmmDeTimestamp(c.timestamp)));
+    }
+    return pts;
+  }
   // Para cantidad cada registro cuenta individualmente; para momentos se cuentan momentos únicos.
   const ids = new Set(habit.tipo === "cantidad" ? eventos.map((c) => c.eventId) : eventos.map((c) => c.momentId));
   const objetivo = objetivoEnFecha(habit, fecha);
@@ -490,6 +500,129 @@ export function tirarCofre(congeladores: number): PremioCofre {
   const r = Math.random();
   const xp = r < 0.5 ? 30 : r < 0.8 ? 60 : r < 0.95 ? 120 : 250;
   return { xp, congelador: false };
+}
+
+/* ------------------------------- Sueño ---------------------------------- */
+
+/**
+ * Hábito especial "Sueño": siempre activo, dos marcas diarias ("Me levanté" /
+ * "Me acosté") con hora objetivo configurable. El puntaje premia la
+ * puntualidad y castiga el retraso o el olvido:
+ * - A tiempo (o temprano): +10 XP.
+ * - Cada 5 min de retraso: −1 XP (lineal hasta −10).
+ * - Más de 50 min tarde o sin marca: −10 XP.
+ * El XP total nunca baja de 0 (el piso se aplica en la capa de juego).
+ */
+
+export const SUENO_FALLO_XP = -10;
+
+/** Minutos de retraso de horaReal vs horaObjetivo ("HH:mm"). Temprano = 0. */
+export function minutosDeRetraso(horaObjetivo: string, horaReal: string): number {
+  const aMin = (h: string): number => {
+    const [hh, mm] = h.split(":").map(Number);
+    return (hh || 0) * 60 + (mm || 0);
+  };
+  let diff = aMin(horaReal) - aMin(horaObjetivo);
+  // Cruce de medianoche: acostarse a las 00:30 con objetivo 22:00 son 150 min
+  // tarde, no 1290 min temprano.
+  if (diff < -720) diff += 1440;
+  return Math.max(0, diff);
+}
+
+/** XP por puntualidad dado el retraso en minutos. Rango [−10, +10]. */
+export function xpPorPuntualidad(retrasoMin: number): number {
+  // Más de 50 minutos tarde: −10 directo (no la curva gradual).
+  if (retrasoMin > 50) return -10;
+  return Math.max(-10, Math.min(10, Math.round(10 - retrasoMin / 5)));
+}
+
+/**
+ * ¿A qué fecha se atribuye una marca de sueño? "Me levanté" siempre es hoy;
+ * "Me acosté" con hora antes del mediodía pertenece a la noche anterior
+ * (te acostaste de madrugada y lo marcas en la mañana).
+ */
+export function fechaParaMarcaSueno(cual: MarcaSueno, horaReal: string, ahora: Date): string {
+  const hoy = todayKey(ahora);
+  if (cual === "levantar") return hoy;
+  return horaReal < "12:00" ? moverFecha(hoy, -1) : hoy;
+}
+
+/**
+ * Hora sugerida en el modal: si marcas "Me acosté" en la mañana (olvido de
+ * anoche), se propone la hora objetivo en vez de la hora actual.
+ */
+export function horaSugeridaSueno(cual: MarcaSueno, horaAcostar: string, ahora: Date): string {
+  const h = hhmmDeFecha(ahora);
+  if (cual === "acostar" && h < "12:00") return horaAcostar;
+  return h;
+}
+
+/** XP que otorgó (o quitó) un evento de sueño: espejo para deshacer/backfill. */
+export function xpSuenoDeEvento(habit: Habit, evento: CompletionEvent): number {
+  const objetivo =
+    evento.momentId === "levantar" ? (habit.horaLevantar ?? "06:00") : (habit.horaAcostar ?? "22:00");
+  return xpPorPuntualidad(minutosDeRetraso(objetivo, hhmmDeTimestamp(evento.timestamp)));
+}
+
+export interface NocheSueno {
+  /** Fecha de la noche (el día en que te acostaste). */
+  noche: string;
+  acostadoEn: string; // ISO real
+  levantadoEn: string; // ISO real
+  /** Horas dormidas con un decimal. */
+  horas: number;
+}
+
+/** ¿La noche `noche` ya tiene sus dos marcas (acostar noche + levantar día siguiente)? */
+export function nocheEstaCompleta(habit: Habit, completions: CompletionEvent[], noche: string): boolean {
+  const diaSiguiente = moverFecha(noche, 1);
+  let acostado = false;
+  let levantado = false;
+  for (const c of completions) {
+    if (c.habitId !== habit.id) continue;
+    if (c.momentId === "acostar" && c.fecha === noche) acostado = true;
+    if (c.momentId === "levantar" && c.fecha === diaSiguiente) levantado = true;
+    if (acostado && levantado) return true;
+  }
+  return false;
+}
+
+/** Noches completas (para el log invisible de horas dormidas y la tarjeta). */
+export function nochesSueno(habit: Habit, completions: CompletionEvent[]): NocheSueno[] {
+  const acostar = new Map<string, CompletionEvent>();
+  const levantar = new Map<string, CompletionEvent>();
+  for (const c of completions) {
+    if (c.habitId !== habit.id) continue;
+    if (c.momentId === "acostar") acostar.set(c.fecha, c);
+    else if (c.momentId === "levantar") levantar.set(c.fecha, c);
+  }
+  const noches: NocheSueno[] = [];
+  for (const [noche, a] of acostar) {
+    const l = levantar.get(moverFecha(noche, 1));
+    if (!l) continue;
+    const ms = new Date(l.timestamp).getTime() - new Date(a.timestamp).getTime();
+    if (!Number.isFinite(ms) || ms < 0) continue;
+    noches.push({
+      noche,
+      acostadoEn: a.timestamp,
+      levantadoEn: l.timestamp,
+      horas: Math.round((ms / 3600000) * 10) / 10,
+    });
+  }
+  return noches.sort((x, y) => (x.noche < y.noche ? -1 : 1));
+}
+
+/** Mensaje corto de ánimo para el resultado de una marca de sueño. */
+export function mensajeSueno(cual: MarcaSueno, xp: number, retrasoMin: number): string {
+  const tarde = retrasoMin > 0 ? ` · ${retrasoMin} min tarde` : "";
+  if (xp >= 10) {
+    return cual === "levantar"
+      ? "¡Puntual al levantarte! El día es tuyo."
+      : "¡A dormir a tu hora! Mañana rindes el doble.";
+  }
+  if (xp > 0) return `+${xp} XP${tarde}. Cada minuto cuenta.`;
+  if (xp === 0) return `Sin XP esta vez${tarde}. Mañana lo clavas.`;
+  return `${xp} XP${tarde}. Dormir a deshoras pasa factura.`;
 }
 
 /* --------------------------- Desafíos semanales -------------------------- */

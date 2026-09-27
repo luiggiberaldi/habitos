@@ -4,27 +4,31 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   crearEstadoInicial,
   cambiarEstadoTodos,
+  corregirSuenoConJuego,
   deshacerConJuego,
   guardarHabit,
   normalizarEstado,
   eliminarHabit,
   actualizarSettings,
   registrarConJuego,
+  registrarSuenoConJuego,
   STORAGE_KEY,
 } from "./store";
 import {
   emitirEventosJuego,
   fusionarJuego,
   juegoInicial,
+  reclamarLogro,
   reconciliarJuego,
   type TipoEventoJuego,
 } from "./juego";
 import { publicarXpLiga } from "./liga";
-import type { AppState, Habit, CompletionEvent, JuegoState, Settings } from "./types";
+import type { AppState, Habit, CompletionEvent, JuegoState, MarcaSueno, Settings } from "./types";
 import { construirEventId } from "./event-id";
 import { fusionarHidratacion, type RemoteCompletionRow, type RemoteHabitRow } from "./sync-merge";
 import { getSupabase } from "./supabase";
-import { todayKey, addDays } from "./dates";
+import { todayKey, addDays, moverFecha, timestampLocal } from "./dates";
+import { fechaParaMarcaSueno, nocheEstaCompleta, nochesSueno } from "./gamificacion";
 import { useAuth } from "../components/AuthGate";
 import { logEvent, flushLog, type LogAction } from "./logger";
 import { fijarSufijoNotificaciones } from "./notifications";
@@ -36,14 +40,30 @@ import {
 } from "./perfiles";
 
 /** Auditoría: cada evento de juego del dominio se refleja en el activity_log. */
-const ACCION_POR_TIPO_EVENTO: Record<TipoEventoJuego, LogAction> = {
+const ACCION_POR_TIPO_EVENTO: Record<TipoEventoJuego, LogAction | null> = {
   "subida-nivel": "LEVEL_UP",
   logro: "ACHIEVEMENT_UNLOCKED",
   cofre: "CHEST_OPENED",
   desafio: "CHALLENGE_COMPLETED",
   "congelador-ganado": "FREEZER_EARNED",
   "congelador-usado": "FREEZER_USED",
+  // Sueño: el tap ya queda auditado con SUENO_REGISTRADO (+ XP_GAINED/LOST).
+  sueno: null,
 };
+
+/**
+ * Auditoría de omisiones de sueño: reconciliarJuego es puro y descuenta en
+ * silencio; aquí se emite SUENO_FALLO por cada marca recién penalizada.
+ */
+function auditarFallosSueno(previo: AppState, nuevo: AppState) {
+  const antes = new Set(previo.juego?.suenoFallos ?? []);
+  const sueno = nuevo.habits.find((h) => h.tipo === "sueno");
+  for (const clave of nuevo.juego?.suenoFallos ?? []) {
+    if (antes.has(clave)) continue;
+    const [cual, fecha] = clave.split("|");
+    logEvent("SUENO_FALLO", "juego", sueno?.id ?? null, { cual, fecha, xp: 10 });
+  }
+}
 
 /** APP_OPENED se registra una sola vez por carga de página. */
 let appOpenedLogged = false;
@@ -62,11 +82,23 @@ interface StoreContextValue {
   eliminarHabit: (id: string) => void;
   guardarSettings: (settings: Settings) => void;
   registrar: (habitId: string, momentId: string | undefined, fecha: string, subtareasCompletadas?: string[]) => void;
+  /**
+   * Marca de sueño ("levantar" | "acostar") con su hora real.
+   * Sin fechaForzada, atribuye la fecha según la regla de medianoche.
+   * Si la marca ya existía para esa fecha, corrige la hora (revierte el XP
+   * anterior y recalcula). Otorga XP por puntualidad (puede ser negativo).
+   */
+  registrarSueno: (habitId: string, cual: MarcaSueno, horaReal: string, fechaForzada?: string) => void;
   deshacer: (event: CompletionEvent) => void;
   /** Modo vacaciones: pausa o reanuda todos los hábitos no archivados de una vez. */
   cambiarEstadoTodos: (estado: "activo" | "pausado") => void;
   /** Aplaza un hábito para mañana (toggle: si ya está aplazado, lo devuelve a hoy). */
   posponerHabit: (id: string) => void;
+  /**
+   * Reclama el premio de XP de un logro desbloqueado (tap en la sala de
+   * trofeos). Devuelve el XP ganado y el nivel alcanzado si subió.
+   */
+  reclamarLogro: (logroId: string) => { xpGanado: number; nivel: { nivel: number; nombre: string } | null };
   /** Actualiza campos del estado de juego (p. ej. nombre visible en la liga). */
   actualizarJuego: (parcial: Partial<JuegoState>) => void;
   rehidratar: () => Promise<void>;
@@ -165,7 +197,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const raf = requestAnimationFrame(() => {
       if (!activo) return;
       // Juego: backfill idempotente de XP/logros/desafíos sobre datos existentes.
-      setState(reconciliarJuego(cargarEstadoGuardado(storageKey)));
+      const inicial = cargarEstadoGuardado(storageKey);
+      const reconciliado = reconciliarJuego(inicial);
+      auditarFallosSueno(inicial, reconciliado);
+      setState(reconciliado);
       pendientesRef.current = leerPendientes(clavePendientes(sufijo)); // P1.5
       setEstadoCargado(true);
       // Auditoría: apertura de la app + subir eventos que quedaron en cola.
@@ -417,7 +452,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
 
       // 7. Reconciliar juego tras el merge (rachas máximas, desafíos, logros).
-      setState((prev) => reconciliarJuego(prev));
+      // Las omisiones de sueño recién penalizadas se auditan (SUENO_FALLO).
+      const previoMerge = stateRef.current;
+      const trasReconciliar = reconciliarJuego(previoMerge);
+      auditarFallosSueno(previoMerge, trasReconciliar);
+      setState(trasReconciliar);
 
       // Auditoría: la sincronización completó (aunque algún paso no crítico fallara).
       logEvent("SYNC_COMPLETED", "sync", null, { habits: habitsRows.length, completions: compRows.length });
@@ -595,6 +634,119 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         logEvent("COMPLETION_REGISTERED", "completion", eventId, { habitId, momentId, fecha, subtareasCompletadas });
       },
+      registrarSueno: (habitId, cual, horaReal, fechaForzada) => {
+        const previo = stateRef.current;
+        const habit = previo.habits.find((h) => h.id === habitId);
+        if (!habit || habit.tipo !== "sueno" || habit.estado !== "activo") return;
+        if (!/^\d{2}:\d{2}$/.test(horaReal)) return;
+        // Fecha según la regla de medianoche (acostarse de madrugada = noche anterior).
+        const fecha = fechaForzada ?? fechaParaMarcaSueno(cual, horaReal, new Date());
+        const timestamp = timestampLocal(fecha, horaReal);
+        // Mismo esquema de eventId que el registro normal: idempotente por marca+fecha.
+        const eventId = `${habitId}|${cual}|${fecha}`;
+        const existe = previo.completions.some((c) => c.eventId === eventId);
+        const xpAntes = previo.juego?.xpTotal ?? 0;
+        // Si la marca ya existía, se corrige: revierte el XP anterior y recalcula.
+        const { state: nuevo, eventos } = existe
+          ? corregirSuenoConJuego(previo, habitId, cual, fecha, timestamp)
+          : registrarSuenoConJuego(previo, habitId, cual, fecha, timestamp, eventId);
+        setState(nuevo);
+        if (eventos.length > 0) emitirEventosJuego(eventos);
+        // Auditoría: el XP por puntualidad puede ser negativo.
+        const xpDelta = (nuevo.juego?.xpTotal ?? 0) - xpAntes;
+        if (xpDelta !== 0) {
+          logEvent(xpDelta > 0 ? "XP_GAINED" : "XP_LOST", "juego", null, {
+            xp: Math.abs(xpDelta),
+            habitId,
+            fecha,
+            sueno: cual,
+          });
+        }
+        logEvent("SUENO_REGISTRADO", "juego", habitId, {
+          cual,
+          fecha,
+          horaReal,
+          correccion: existe,
+          xpDelta,
+        });
+        for (const e of eventos) {
+          const accion = ACCION_POR_TIPO_EVENTO[e.tipo];
+          if (accion) logEvent(accion, "juego", e.dato ?? null, { titulo: e.titulo, detalle: e.detalle });
+        }
+        // Noche completa → log invisible de horas dormidas (solo marcas nuevas).
+        if (!existe) {
+          const noche = cual === "levantar" ? moverFecha(fecha, -1) : fecha;
+          if (
+            !nocheEstaCompleta(habit, previo.completions, noche) &&
+            nocheEstaCompleta(habit, nuevo.completions, noche)
+          ) {
+            const info = nochesSueno(habit, nuevo.completions).find((n) => n.noche === noche);
+            if (info) {
+              logEvent("SUENO_NOCHE_COMPLETA", "juego", habitId, {
+                noche,
+                horas: info.horas,
+                acostadoEn: info.acostadoEn,
+                levantadoEn: info.levantadoEn,
+                objetivoHoras: habit.objetivoHoras ?? 8,
+              });
+            }
+          }
+        }
+        const supabase = getSupabase();
+        if (supabase && userId) {
+          const payload = {
+            event_id: eventId,
+            user_id: userId,
+            habit_id: habitId,
+            moment_id: cual,
+            fecha,
+            // La hora REAL de la marca (puede corregirse después): sin esto,
+            // la hidratación usaría la hora del tap y el puntaje/log nocturno
+            // divergirían entre dispositivos.
+            created_at: timestamp,
+            subtareas_completadas: [],
+          };
+          void sincronizar(
+            { kind: "upsert_completion", payload },
+            () => supabase.from("completions").upsert(payload).then((r) => ({ error: r.error })),
+            "registrar sueño",
+          );
+          const juegoPayload = { user_id: userId, data: nuevo.juego, updated_at: nuevo.juego.actualizadoEn };
+          void sincronizar(
+            { kind: "upsert_game", payload: juegoPayload },
+            () => supabase.from("game_state").upsert(juegoPayload).then((r) => ({ error: r.error })),
+            "guardar progreso de juego",
+          );
+          void publicarXpLiga(supabase, userId, nuevo.juego);
+        }
+      },
+      reclamarLogro: (logroId) => {
+        const res = reclamarLogro(stateRef.current, logroId);
+        if (res.xpGanado > 0) {
+          setState(res.state);
+          logEvent("XP_GAINED", "juego", logroId, { xp: res.xpGanado, logro: logroId });
+          logEvent("ACHIEVEMENT_CLAIMED", "juego", logroId, { xp: res.xpGanado });
+          if (res.subioNivel) {
+            logEvent("LEVEL_UP", "juego", String(res.subioNivel.nivel), { nombre: res.subioNivel.nombre });
+          }
+          const supabase = getSupabase();
+          if (supabase && userId) {
+            const juego = res.state.juego!;
+            const juegoPayload = { user_id: userId, data: juego, updated_at: juego.actualizadoEn };
+            void sincronizar(
+              { kind: "upsert_game", payload: juegoPayload },
+              () => supabase.from("game_state").upsert(juegoPayload).then((r) => ({ error: r.error })),
+              "reclamar premio de logro",
+            );
+            // Liga: publicar el XP semanal (no crítico, sin errorSync).
+            void publicarXpLiga(supabase, userId, juego);
+          }
+        }
+        return {
+          xpGanado: res.xpGanado,
+          nivel: res.subioNivel ? { nivel: res.subioNivel.nivel, nombre: res.subioNivel.nombre } : null,
+        };
+      },
       deshacer: (event) => {
         const xpAntes = stateRef.current.juego?.xpTotal ?? 0;
         const nuevo = deshacerConJuego(stateRef.current, event.eventId);
@@ -669,7 +821,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         pendientesRef.current = [];
         // 3. Estado vacío real, sin demos: empezar desde 0.
-        const vacio: AppState = { ...crearEstadoInicial(), habits: [], completions: [], juego: juegoInicial() };
+        //    El sueño es permanente: sobrevive al reinicio (nace de nuevo).
+        const base = crearEstadoInicial();
+        const sueno = base.habits.find((h) => h.tipo === "sueno");
+        const vacio: AppState = { ...base, habits: sueno ? [sueno] : [], completions: [], juego: juegoInicial() };
         setState(vacio);
         try {
           window.localStorage.setItem(storageKey, JSON.stringify(vacio));

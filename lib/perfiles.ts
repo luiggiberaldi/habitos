@@ -108,6 +108,15 @@ export function fijarModoAuth(modo: ModoAuth): void {
   }
 }
 
+/** Olvida el modo elegido para volver a mostrar el menú "¿Cómo quieres entrar?". */
+export function olvidarModoAuth(): void {
+  try {
+    window.localStorage.removeItem(MODO_AUTH_KEY);
+  } catch {
+    /* noop */
+  }
+}
+
 /* --------------------------------- CRUD --------------------------------- */
 
 function nuevoId(): string {

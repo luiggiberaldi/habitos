@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { LOGROS, type CategoriaLogro, type LogroDef } from "../../lib/gamificacion";
-import { useStoreState } from "../../lib/store-context";
+import { useStore } from "../../lib/store-context";
 import { ICONOS_LOGRO } from "../../components/iconos-logro";
 import Celebracion, { type CelebracionData } from "../../components/Celebracion";
-import { IconCandado, IconEstrella, IconTrofeo } from "../../lib/icons";
+import { IconCandado, IconEstrella, IconRegalo, IconTrofeo } from "../../lib/icons";
 
 const CATEGORIAS: CategoriaLogro[] = [
   "Rachas",
@@ -20,13 +20,16 @@ const CATEGORIAS: CategoriaLogro[] = [
 function TarjetaLogro({
   logro,
   desbloqueado,
+  reclamado,
   onCelebrar,
 }: {
   logro: LogroDef;
   desbloqueado: boolean;
+  reclamado: boolean;
   onCelebrar: (logro: LogroDef) => void;
 }) {
   const Icono = ICONOS_LOGRO[logro.icono];
+  const pendiente = desbloqueado && !reclamado;
   const contenido = (
     <>
       <span
@@ -40,21 +43,38 @@ function TarjetaLogro({
       <p className="text-[10px] leading-tight text-muted">{logro.descripcion}</p>
       <span
         className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-          desbloqueado ? "bg-accent text-accent-foreground" : "bg-surface-2 text-muted"
+          pendiente
+            ? "bg-accent text-accent-foreground animate-pulse"
+            : desbloqueado
+              ? "bg-accent-soft text-accent"
+              : "bg-surface-2 text-muted"
         }`}
       >
-        <IconEstrella className="h-3 w-3" />+{logro.xp} XP
+        <IconEstrella className="h-3 w-3" />
+        {pendiente ? `¡Reclamar +${logro.xp} XP!` : `+${logro.xp} XP`}
       </span>
     </>
   );
   const clases = `flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-transform ${
-    desbloqueado
-      ? "border-accent/30 bg-accent-soft/40 cursor-pointer hover:scale-[1.03] active:scale-95"
-      : "border-border bg-surface-2/40 opacity-60"
+    pendiente
+      ? "border-accent/60 bg-accent-soft/60 cursor-pointer hover:scale-[1.03] active:scale-95 shadow-[0_0_0_3px_var(--accent-soft)]"
+      : desbloqueado
+        ? "border-accent/30 bg-accent-soft/40 cursor-pointer hover:scale-[1.03] active:scale-95"
+        : "border-border bg-surface-2/40 opacity-60"
   }`;
   return desbloqueado ? (
-    <li>
-      <button type="button" onClick={() => onCelebrar(logro)} className={`${clases} w-full`} aria-label={`Celebrar logro ${logro.nombre}`}>
+    <li className="relative pt-2">
+      {pendiente && (
+        <span className="absolute left-1/2 top-0 z-10 -translate-x-1/2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-foreground shadow">
+          Sin abrir
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => onCelebrar(logro)}
+        className={`${clases} w-full`}
+        aria-label={pendiente ? `Reclamar premio del logro ${logro.nombre}` : `Celebrar logro ${logro.nombre}`}
+      >
         {contenido}
       </button>
     </li>
@@ -64,21 +84,38 @@ function TarjetaLogro({
 }
 
 /**
- * Sala de trofeos: pestaña propia de logros. Pulsar uno desbloqueado
- * revive la celebración con su XP y su mensaje de ánimo.
+ * Sala de trofeos: el premio de XP de un logro se libera al tocarlo
+ * (animación + XP en ese momento). Tocar uno ya reclamado solo revive
+ * la animación, sin otorgar XP de nuevo.
  */
 export default function Logros() {
-  const { state } = useStoreState();
+  const { state, reclamarLogro } = useStore();
   const [revivir, setRevivir] = useState<CelebracionData | null>(null);
   const desbloqueados = new Set(state.juego?.logros ?? []);
-  const xpLogros = LOGROS.filter((l) => desbloqueados.has(l.id)).reduce((s, l) => s + l.xp, 0);
+  const reclamados = new Set(state.juego?.logrosReclamados ?? []);
+  const xpReclamado = LOGROS.filter((l) => reclamados.has(l.id)).reduce((s, l) => s + l.xp, 0);
+  const pendientes = LOGROS.filter((l) => desbloqueados.has(l.id) && !reclamados.has(l.id));
 
   const celebrar = (logro: LogroDef): void => {
     const Icono = ICONOS_LOGRO[logro.icono];
+    if (!reclamados.has(logro.id)) {
+      const res = reclamarLogro(logro.id);
+      if (res.xpGanado > 0) {
+        setRevivir({
+          icono: <Icono className="h-10 w-10" />,
+          titulo: `+${res.xpGanado} XP`,
+          detalle: res.nivel
+            ? `${logro.nombre} · ${logro.mensaje} · ¡Subiste al nivel ${res.nivel.nivel}: ${res.nivel.nombre}!`
+            : `${logro.nombre} · ${logro.mensaje}`,
+        });
+        return;
+      }
+    }
+    // Ya reclamado: revive la animación sin otorgar XP de nuevo.
     setRevivir({
       icono: <Icono className="h-10 w-10" />,
       titulo: `¡${logro.nombre}!`,
-      detalle: `+${logro.xp} XP · ${logro.mensaje}`,
+      detalle: `Ya reclamaste sus +${logro.xp} XP · ${logro.mensaje}`,
     });
   };
 
@@ -91,7 +128,7 @@ export default function Logros() {
           </span>
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Logros</h1>
-            <p className="mt-1 text-sm text-muted">Tu sala de trofeos. Toca uno ganado para revivirlo.</p>
+            <p className="mt-1 text-sm text-muted">Tu sala de trofeos. Toca un logro ganado para reclamar su premio.</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -99,10 +136,28 @@ export default function Logros() {
             {desbloqueados.size}/{LOGROS.length}
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-xs font-bold text-accent-foreground">
-            <IconEstrella className="h-3 w-3" />+{xpLogros} XP
+            <IconEstrella className="h-3 w-3" />+{xpReclamado} XP
           </span>
         </div>
       </header>
+
+      {pendientes.length > 0 && (
+        <div
+          className="card flex items-center gap-3 border-accent/40 bg-accent-soft/60 p-4"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground animate-pulse">
+            <IconRegalo className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-semibold">
+              Tienes {pendientes.length} {pendientes.length === 1 ? "premio" : "premios"} sin abrir
+            </p>
+            <p className="text-sm text-muted">Toca cada logro brillante para liberar sus XP.</p>
+          </div>
+        </div>
+      )}
 
       {CATEGORIAS.map((categoria) => {
         const deCategoria = LOGROS.filter((l) => l.categoria === categoria);
@@ -122,6 +177,7 @@ export default function Logros() {
                   key={logro.id}
                   logro={logro}
                   desbloqueado={desbloqueados.has(logro.id)}
+                  reclamado={reclamados.has(logro.id)}
                   onCelebrar={celebrar}
                 />
               ))}

@@ -1,7 +1,7 @@
-import type { AppState, CompletionEvent, Habit, Moment, Settings } from "./types";
-import { addDays, completadosPara, inicioSemana, todayKey } from "./dates";
+import type { AppState, CompletionEvent, Habit, MarcaSueno, Moment, Settings } from "./types";
+import { addDays, completadosPara, hhmmDeTimestamp, inicioSemana, todayKey } from "./dates";
 import { eventIdCantidad } from "./event-id";
-import { objetivoEnFecha, PUNTOS_OBJETIVO_DIARIO, PUNTOS_POR_REGISTRO } from "./gamificacion";
+import { objetivoEnFecha, PUNTOS_OBJETIVO_DIARIO, PUNTOS_POR_REGISTRO, minutosDeRetraso, xpPorPuntualidad, xpSuenoDeEvento } from "./gamificacion";
 import { juegoInicial, normalizarJuego, aplicarRecompensas, type EventoJuego } from "./juego";
 
 export const STORAGE_KEY = "habitos-app-v1";
@@ -18,6 +18,31 @@ function makeHabit(habit: Omit<Habit, "historialObjetivos" | "actualizadoEn">): 
   };
 }
 
+/**
+ * Hábito especial "Sueño": siempre activo, no se puede borrar ni archivar.
+ * Nace con la app (22:00–6:00, 8h de referencia); solo se configuran las horas.
+ * Dos marcas diarias por momentId: "levantar" y "acostar" (objetivo = 2).
+ */
+export function crearHabitoSueno(sufijo: string, creadoEn = new Date().toISOString()): Habit {
+  return makeHabit({
+    id: `sueno-${sufijo}`,
+    nombre: "Sueño",
+    descripcion: "Acuéstate y levántate a tu hora. La puntualidad suma XP.",
+    icono: "",
+    color: "#6366f1",
+    categoria: "bienestar",
+    dias: [0, 1, 2, 3, 4, 5, 6],
+    objetivo: 2,
+    momentos: [],
+    estado: "activo",
+    creadoEn,
+    tipo: "sueno",
+    horaLevantar: "06:00",
+    horaAcostar: "22:00",
+    objetivoHoras: 8,
+  });
+}
+
 export function crearEstadoInicial(): AppState {
   const creadoEn = new Date().toISOString();
   // D1: los ids demo eran fijos ("demo-agua") y habits.id es PK GLOBAL — dos
@@ -25,6 +50,7 @@ export function crearEstadoInicial(): AppState {
   // Ahora cada instalación genera su propio sufijo; instalaciones existentes
   // conservan sus ids (no se migran).
   const sufijo = Math.random().toString(36).slice(2, 10);
+  const sueno = crearHabitoSueno(sufijo, creadoEn);
   const agua: Habit = makeHabit({
     id: `demo-agua-${sufijo}`, nombre: "Tomar agua", descripcion: "Un vaso y una pausa para hidratarte.", icono: "💧", color: "#F88808", categoria: "salud", dias: [0, 1, 2, 3, 4, 5, 6], objetivo: 3,
     momentos: [{ id: "agua-manana", tipo: "hora", hora: "09:00" }, { id: "agua-mediodia", tipo: "hora", hora: "13:00" }, { id: "agua-tarde", tipo: "hora", hora: "18:00" }], estado: "activo", creadoEn,
@@ -45,7 +71,7 @@ export function crearEstadoInicial(): AppState {
       completions.push({ id: eventId, eventId, habitId: habit.id, momentId, fecha, timestamp: `${fecha}T18:00:00.000Z` });
     }
   }
-  return { habits: [agua, lectura, caminar], completions, juego: juegoInicial(), settings: { notificaciones: false, horasDescanso: { inicio: "22:00", fin: "08:00" }, tema: "sistema", reducirMovimiento: false }, version: 1 };
+  return { habits: [sueno, agua, lectura, caminar], completions, juego: juegoInicial(), settings: { notificaciones: false, horasDescanso: { inicio: "22:00", fin: "08:00" }, tema: "sistema", reducirMovimiento: false }, version: 1 };
 }
 
 export function registrarCumplimiento(
@@ -61,6 +87,24 @@ export function registrarCumplimiento(
 ): AppState {
   const habit = state.habits.find((item) => item.id === habitId);
   if (!habit || habit.estado !== "activo") return state;
+
+  // Sueño: dos marcas diarias ("levantar" | "acostar"), idempotentes por
+  // marca+fecha. El timestamp lleva la hora REAL (puede corregirse después).
+  if (habit.tipo === "sueno") {
+    if (momentId !== "levantar" && momentId !== "acostar") return state;
+    const eid = eventId ?? `${habitId}|${momentId}|${fecha}`;
+    if (state.completions.some((event) => event.eventId === eid)) return state;
+    const event: CompletionEvent = {
+      id: eid,
+      eventId: eid,
+      habitId,
+      momentId,
+      fecha,
+      timestamp,
+      subtareasCompletadas: [],
+    };
+    return { ...state, completions: [...state.completions, event] };
+  }
 
   // Hábito de cantidad: cada marca es un registro único con timestamp exacto.
   if (habit.tipo === "cantidad") {
@@ -102,8 +146,10 @@ export function deshacerConJuego(state: AppState, eventId: string): AppState {
   if (!evento) return state;
   const habit = state.habits.find((h) => h.id === evento.habitId);
 
-  let xp = PUNTOS_POR_REGISTRO;
-  if (habit) {
+  // Sueño: se revierte el XP por puntualidad que otorgó (o se devuelve el que
+  // quitó). Espejo determinista de registrarSuenoConJuego (sin bonus diario).
+  let xp = habit?.tipo === "sueno" && habit ? xpSuenoDeEvento(habit, evento) : PUNTOS_POR_REGISTRO;
+  if (habit && habit.tipo !== "sueno") {
     const objetivo = objetivoEnFecha(habit, evento.fecha);
     const conEvento = completadosPara(habit, evento.fecha, state.completions).size;
     const sinEvento = completadosPara(
@@ -175,7 +221,11 @@ export function cambiarEstadoTodos(state: AppState, estado: "activo" | "pausado"
   return s;
 }
 
-export function eliminarHabit(state: AppState, habitId: string): AppState {  return {
+export function eliminarHabit(state: AppState, habitId: string): AppState {
+  // El hábito Sueño es permanente: no se puede borrar (solo pausar con vacaciones).
+  const habit = state.habits.find((item) => item.id === habitId);
+  if (habit?.tipo === "sueno") return state;
+  return {
     ...state,
     habits: state.habits.filter((item) => item.id !== habitId),
     completions: state.completions.filter((event) => event.habitId !== habitId),
@@ -250,7 +300,41 @@ export function normalizarEstado(value: unknown): AppState {
     }
     return typeof event.habitId === "string" && typeof event.momentId === "string" && /^\d{4}-\d{2}-\d{2}$/.test(event.fecha) && (event as CompletionEvent).momentId ? true : false;
   });
-  return { habits: conHistorial, completions, juego: normalizarJuego(partial.juego), settings: normalizarSettings(partial.settings, fallback.settings), version: 1 };
+
+  // Sueño siempre activo: si falta (usuarios existentes), se siembra; si hay
+  // duplicados (dos dispositivos sembraron el suyo), se conserva el de más
+  // historial y se reasignan sus marcas al conservado.
+  let habitsFinal = conHistorial;
+  let completionsFinal = completions;
+  const suenos = conHistorial.filter((h) => h.tipo === "sueno");
+  if (suenos.length === 0) {
+    const sueno = crearHabitoSueno(Math.random().toString(36).slice(2, 10));
+    const conHistorialSueno = {
+      ...sueno,
+      historialObjetivos: [{ desde: sueno.creadoEn.slice(0, 10), objetivo: sueno.objetivo }],
+    };
+    habitsFinal = [...conHistorial, conHistorialSueno];
+  } else if (suenos.length > 1) {
+    const porId = new Map(suenos.map((h) => [h.id, completions.filter((c) => c.habitId === h.id).length]));
+    const conservado = [...suenos].sort(
+      (a, b) => (porId.get(b.id) ?? 0) - (porId.get(a.id) ?? 0) || a.creadoEn.localeCompare(b.creadoEn),
+    )[0];
+    const descartados = new Set(suenos.map((h) => h.id).filter((id) => id !== conservado.id));
+    const vistos = new Set<string>();
+    completionsFinal = completions
+      .map((c) => {
+        if (!descartados.has(c.habitId)) return c;
+        const eventId = `${conservado.id}|${c.momentId}|${c.fecha}`;
+        return { ...c, id: eventId, eventId, habitId: conservado.id };
+      })
+      .filter((c) => {
+        if (vistos.has(c.eventId)) return false;
+        vistos.add(c.eventId);
+        return true;
+      });
+    habitsFinal = conHistorial.filter((h) => h.tipo !== "sueno" || h.id === conservado.id);
+  }
+  return { habits: habitsFinal, completions: completionsFinal, juego: normalizarJuego(partial.juego), settings: normalizarSettings(partial.settings, fallback.settings), version: 1 };
 }
 
 /**
@@ -272,4 +356,45 @@ export function registrarConJuego(
     return { state: despues, eventos: [] };
   }
   return aplicarRecompensas(state, despues, { habitId, fecha, timestamp });
+}
+
+/**
+ * Registra una marca de sueño ("levantar" | "acostar") con su hora real y
+ * aplica la capa de juego con XP por puntualidad (puede ser negativo).
+ * Idempotente: si la marca ya existía para esa fecha, no otorga nada.
+ */
+export function registrarSuenoConJuego(
+  state: AppState,
+  habitId: string,
+  cual: MarcaSueno,
+  fecha: string,
+  timestamp: string,
+  eventId?: string,
+): { state: AppState; eventos: EventoJuego[] } {
+  const habit = state.habits.find((h) => h.id === habitId);
+  if (!habit || habit.tipo !== "sueno") return { state, eventos: [] };
+  const objetivo = cual === "levantar" ? (habit.horaLevantar ?? "06:00") : (habit.horaAcostar ?? "22:00");
+  const retrasoMin = minutosDeRetraso(objetivo, hhmmDeTimestamp(timestamp));
+  const xpBase = xpPorPuntualidad(retrasoMin);
+  const despues = registrarCumplimiento(state, habitId, cual, fecha, timestamp, undefined, eventId);
+  if (despues.completions.length === state.completions.length) {
+    return { state: despues, eventos: [] };
+  }
+  return aplicarRecompensas(state, despues, { habitId, fecha, timestamp, xpBase, retrasoMin, cualSueno: cual });
+}
+
+/**
+ * Corrige la hora real de una marca de sueño ya registrada: revierte el XP
+ * anterior (espejo exacto) y vuelve a registrar con el nuevo timestamp.
+ */
+export function corregirSuenoConJuego(
+  state: AppState,
+  habitId: string,
+  cual: MarcaSueno,
+  fecha: string,
+  nuevoTimestamp: string,
+): { state: AppState; eventos: EventoJuego[] } {
+  const eventId = `${habitId}|${cual}|${fecha}`;
+  const sinEvento = deshacerConJuego(state, eventId);
+  return registrarSuenoConJuego(sinEvento, habitId, cual, fecha, nuevoTimestamp, eventId);
 }

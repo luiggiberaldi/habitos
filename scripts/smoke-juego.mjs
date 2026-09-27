@@ -245,24 +245,62 @@ const sinLogrosNuevos = { logros: TODOS_LOS_LOGROS };
   check("catálogo ampliado (29 logros)", g.LOGROS.length === 29);
 }
 
-// ── Logros otorgan XP ───────────────────────────────────────────────────────
+// ── Logros: desbloqueo sin XP automático ────────────────────────────────────
 {
   // Al registrar con el catálogo bloqueado, el primer hábito desbloquea
-  // "primer-habito" (+10 XP) además del XP base, y emite el evento con el XP.
+  // "primer-habito" (+10 XP) pero el XP NO se acredita solo: queda pendiente
+  // de reclamo con un tap en la sala de trofeos.
   const st = mkState([mkHabit()], []);
   const r = s.registrarConJuego(st, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
   const evLogro = r.eventos.find((e) => e.tipo === "logro" && e.dato === "primer-habito");
-  check("desbloquear un logro suma su XP al total", r.state.juego.xpTotal >= 20); // 10 base + 10 del logro (+bonus/cofre)
-  check("el XP semanal también incluye el del logro", r.state.juego.xpSemanal === r.state.juego.xpTotal);
-  check("el evento de logro anuncia el XP y el mensaje", !!evLogro && evLogro.detalle.includes("+10 XP"));
-  check("el logro queda guardado", r.state.juego.logros.includes("primer-habito"));
+  // El cofre del día completo es aleatorio: se lee su XP del evento para un assert exacto.
+  const evCofre = r.eventos.find((e) => e.tipo === "cofre");
+  const xpCofre = evCofre && evCofre.dato !== "congelador" ? Number(String(evCofre.dato).split(":")[1] || 0) : 0;
+  check("desbloquear un logro NO suma XP al total (queda por reclamar)", r.state.juego.xpTotal === 15 + xpCofre); // 10 base + 5 bonus objetivo (+cofre)
+  check("el logro queda guardado pero sin reclamar", r.state.juego.logros.includes("primer-habito") && !r.state.juego.logrosReclamados.includes("primer-habito"));
+  check("hay 3 premios pendientes", j.premiosPendientes(r.state.juego) === 3); // dia-perfecto + primer-habito + cofre-1
+  check("el evento de logro invita a reclamar en la sala", !!evLogro && evLogro.detalle.includes("sala de trofeos") && evLogro.detalle.includes("+10 XP"));
   // Deshacer no revoca el hito: los logros son para siempre por diseño.
   const st2 = s.deshacerConJuego(r.state, `h1|m1|${hoy}`);
   check("deshacer no revoca el logro desbloqueado", st2.juego.logros.includes("primer-habito"));
-  check("deshacer devuelve base+bonus pero no el XP del logro", st2.juego.xpTotal === r.state.juego.xpTotal - 15);
-  // El backfill silencioso también otorga el XP de logros ya ganados.
+  check("deshacer devuelve base+bonus", st2.juego.xpTotal === r.state.juego.xpTotal - 15);
+  // El backfill silencioso desbloquea sin otorgar XP (queda por reclamar).
   const rb = j.reconciliarJuego(mkState([mkHabit()], []));
-  check("reconciliar otorga el XP del logro en silencio", rb.juego.xpTotal === 10 && rb.juego.logros.includes("primer-habito"));
+  check("reconciliar desbloquea en silencio sin XP", rb.juego.xpTotal === 0 && rb.juego.logros.includes("primer-habito") && j.premiosPendientes(rb.juego) === 1);
+}
+
+// ── Reclamo de premios por tap ──────────────────────────────────────────────
+{
+  const st = mkState([mkHabit()], []);
+  const r = s.registrarConJuego(st, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
+  const antes = r.state.juego.xpTotal;
+  // Reclamar otorga el XP una sola vez.
+  const c1 = j.reclamarLogro(r.state, "primer-habito");
+  check("reclamar otorga el XP del logro", c1.xpGanado === 10 && c1.state.juego.xpTotal === antes + 10);
+  check("reclamar marca el logro como reclamado", c1.state.juego.logrosReclamados.includes("primer-habito"));
+  check("reclamar también suma al XP semanal", c1.state.juego.xpSemanal === c1.state.juego.xpTotal);
+  check("quedan 2 premios pendientes", j.premiosPendientes(c1.state.juego) === 2);
+  // Reclamar los demás deja la sala en cero.
+  const c1b = j.reclamarLogro(c1.state, "dia-perfecto");
+  const c1c = j.reclamarLogro(c1b.state, "cofre-1");
+  check("reclamar todo deja 0 pendientes", j.premiosPendientes(c1c.state.juego) === 0);
+  // Segundo tap: idempotente, no duplica XP.
+  const c2 = j.reclamarLogro(c1.state, "primer-habito");
+  check("reclamar dos veces no duplica el XP", c2.xpGanado === 0 && c2.state.juego.xpTotal === antes + 10);
+  // Logro no desbloqueado: no hace nada.
+  const c3 = j.reclamarLogro(r.state, "racha-7");
+  check("reclamar un logro bloqueado no otorga nada", c3.xpGanado === 0 && c3.state === r.state);
+  // Reclamar puede subir de nivel (objetivo 2 evita el cofre aleatorio).
+  const stN = mkState([mkHabit({ objetivo: 2 })], [], { xpTotal: 135, xpSemanal: 0 });
+  const rN = s.registrarConJuego(stN, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`); // +10 → 145 (nivel 1)
+  check("sin cofre el XP tras registrar es exacto", rN.state.juego.xpTotal === 145);
+  const cN = j.reclamarLogro(rN.state, "primer-habito"); // +10 → 155 (nivel 2)
+  check("reclamar detecta subida de nivel", cN.subioNivel !== null && cN.subioNivel.nivel === 2);
+  // Migración: logros desbloqueados antes del reclamo por tap ya tenían su
+  // XP acreditado, así que nacen marcados como reclamados.
+  const viejo = j.normalizarJuego({ logros: ["primer-habito"] });
+  check("migración marca como reclamados los logros viejos", viejo.logrosReclamados.includes("primer-habito"));
+  check("migración no deja premios pendientes fantasma", j.premiosPendientes(viejo) === 0);
 }
 
 // ── Fusión entre dispositivos ──────────────────────────────────────────────

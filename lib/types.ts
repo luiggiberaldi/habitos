@@ -15,7 +15,10 @@ export interface Moment {
 
 export type EstadoHabit = "activo" | "pausado" | "archivado";
 
-export type TipoHabit = "momento" | "cantidad";
+export type TipoHabit = "momento" | "cantidad" | "sueno";
+
+/** Marca de sueño: qué botón se tocó en la tarjeta Sueño. */
+export type MarcaSueno = "levantar" | "acostar";
 
 export interface Habit {
   id: string;
@@ -37,6 +40,15 @@ export interface Habit {
   tipo?: TipoHabit;
   /** Unidad de medida para hábitos de cantidad (ej. 'vasos', 'litros'). */
   unidad?: string;
+  /**
+   * Sueño (tipo 'sueno'): hora objetivo para levantarse ("HH:mm", 24h).
+   * Siempre activo: no se puede borrar ni archivar, solo se configuran horas.
+   */
+  horaLevantar?: string;
+  /** Sueño (tipo 'sueno'): hora objetivo para acostarse ("HH:mm", 24h). */
+  horaAcostar?: string;
+  /** Sueño (tipo 'sueno'): horas de sueño deseadas por noche (referencia visual). */
+  objetivoHoras?: number;
   /**
    * Aplazamiento puntual (YYYY-MM-DD): el hábito no aplica antes de esa fecha
    * y sí aplica ese día aunque no esté en `dias`. "Posponer para mañana".
@@ -96,6 +108,11 @@ export interface JuegoState {
   diasProtegidos: string[];
   /** Ids de LOGROS desbloqueados. */
   logros: string[];
+  /**
+   * Ids de LOGROS cuyo premio de XP ya fue reclamado (tap en la sala de
+   * trofeos). El XP no se otorga al desbloquear, solo al reclamar.
+   */
+  logrosReclamados: string[];
   /** Última fecha en la que se reclamó el cofre del día completo. */
   ultimoCofre: string | null;
   /** Cofres abiertos en total. */
@@ -106,6 +123,9 @@ export interface JuegoState {
   rachaMaxima: Record<string, number>;
   /** Mayor múltiplo de 7 de racha ya premiado con congelador, por hábito. */
   rachaPremiada: Record<string, number>;
+  /** Sueño: claves `cual|fecha` (p. ej. "levantar|2026-09-26") ya penalizadas
+   *  con −10 XP por falta de marca. Evita castigar dos veces el mismo fallo. */
+  suenoFallos: string[];
   /** Registros hechos antes de las 8:00 a. m. (logro Madrugador). */
   madrugadas: number;
   /** Días completos acumulados (todos los hábitos del día). */

@@ -22,6 +22,8 @@ export const PLANTILLAS: Plantilla[] = [
   { nombre: "Caminar", categoria: "salud", color: "#22c55e", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "manana" }] },
   { nombre: "Meditar", categoria: "bienestar", color: "#6366f1", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "manana" }] },
   { nombre: "Ejercicio", categoria: "salud", color: "#ef4444", tipo: "momento", objetivo: 1, momentos: [{ tipo: "ventana", ventana: "tarde" }] },
+  // Nota: "Levantarse/Acostarse temprano" no van aquí: el hábito especial
+  // Sueño (siempre activo) ya cubre ese registro con puntaje por puntualidad.
 ];
 
 function uid(): string {
