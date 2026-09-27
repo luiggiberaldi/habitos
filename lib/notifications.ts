@@ -1,5 +1,6 @@
 import type { AppState, Habit } from "./types";
 import { getSupabase } from "./supabase";
+import { logEvent } from "./logger";
 
 const LAST_SENT_KEY = "habitos-notificaciones-enviadas-v1";
 const MINUTE = 60_000;
@@ -35,6 +36,7 @@ export async function suscribirPush(): Promise<PushSubscription> {
     applicationServerKey: urlBase64ToUint8Array(publicKey),
   });
   await guardarSuscripcion(subscription);
+  logEvent("PUSH_SUBSCRIBED", "push", null, null);
   return subscription;
 }
 
@@ -87,6 +89,7 @@ export async function desuscribirPush(): Promise<void> {
       /* no crítico */
     }
     await subscription.unsubscribe();
+    logEvent("PUSH_UNSUBSCRIBED", "push", null, null);
   } catch {
     /* no crítico */
   }

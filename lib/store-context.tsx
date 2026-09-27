@@ -17,6 +17,7 @@ import {
   fusionarJuego,
   juegoInicial,
   reconciliarJuego,
+  type TipoEventoJuego,
 } from "./juego";
 import { publicarXpLiga } from "./liga";
 import type { AppState, Habit, CompletionEvent, JuegoState, Settings } from "./types";
@@ -25,7 +26,20 @@ import { fusionarHidratacion, type RemoteCompletionRow, type RemoteHabitRow } fr
 import { getSupabase } from "./supabase";
 import { todayKey, addDays } from "./dates";
 import { useAuth } from "../components/AuthGate";
-import { logEvent } from "./logger";
+import { logEvent, flushLog, type LogAction } from "./logger";
+
+/** Auditoría: cada evento de juego del dominio se refleja en el activity_log. */
+const ACCION_POR_TIPO_EVENTO: Record<TipoEventoJuego, LogAction> = {
+  "subida-nivel": "LEVEL_UP",
+  logro: "ACHIEVEMENT_UNLOCKED",
+  cofre: "CHEST_OPENED",
+  desafio: "CHALLENGE_COMPLETED",
+  "congelador-ganado": "FREEZER_EARNED",
+  "congelador-usado": "FREEZER_USED",
+};
+
+/** APP_OPENED se registra una sola vez por carga de página. */
+let appOpenedLogged = false;
 
 const PENDING_KEY_BASE = "habitos-pending-sync-v1";
 
@@ -139,6 +153,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setState(reconciliarJuego(cargarEstadoGuardado(storageKey)));
       pendientesRef.current = leerPendientes(clavePendientes(userId)); // P1.5
       setEstadoCargado(true);
+      // Auditoría: apertura de la app + subir eventos que quedaron en cola.
+      if (!appOpenedLogged) {
+        appOpenedLogged = true;
+        logEvent("APP_OPENED", "app", null, { ruta: window.location.pathname });
+      }
+      void flushLog();
     });
     return () => {
       activo = false;
@@ -257,6 +277,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const { data: tombRows, error: tError } = await supabase.from("deleted_habits").select("habit_id");
         if (tError) {
           if (!esErrorRed(tError)) console.error("Error descargando borrados:", tError.message);
+          logEvent("SYNC_ERROR", "sync", null, { fase: "tombstones", error: tError.message });
           return;
         }
         for (const t of tombRows ?? []) borrados.add((t as { habit_id: string }).habit_id);
@@ -272,6 +293,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           .range(from, from + PAGE - 1);
         if (error) {
           if (!esErrorRed(error)) console.error("Error descargando habits:", error.message);
+          logEvent("SYNC_ERROR", "sync", null, { fase: "habits", error: error.message });
           return;
         }
         habitsRows.push(...((data ?? []) as RemoteHabitRow[]));
@@ -324,6 +346,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             } else {
               console.error("Error subiendo hábito local:", error.message);
               setErrorSync("subir cambios locales");
+              logEvent("SYNC_ERROR", "sync", null, { fase: "subir-diff", error: error.message });
             }
           }
         }
@@ -338,6 +361,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           .range(from, from + PAGE - 1);
         if (error) {
           if (!esErrorRed(error)) console.error("Error descargando completions:", error.message);
+          logEvent("SYNC_ERROR", "sync", null, { fase: "completions", error: error.message });
           return;
         }
         compRows.push(...((data ?? []) as RemoteCompletionRow[]));
@@ -379,9 +403,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       // 7. Reconciliar juego tras el merge (rachas máximas, desafíos, logros).
       setState((prev) => reconciliarJuego(prev));
+
+      // Auditoría: la sincronización completó (aunque algún paso no crítico fallara).
+      logEvent("SYNC_COMPLETED", "sync", null, { habits: habitsRows.length, completions: compRows.length });
     } catch (e) {
       if (esErrorRed(e)) return; // sin conexión: no romper
       console.error("Error durante la hidratación:", e);
+      logEvent("SYNC_ERROR", "sync", null, { fase: "rehidratar", error: (e as { message?: string })?.message ?? String(e) });
     }
   }, [userId, reenviarPendientes, encolar]);
 
@@ -398,11 +426,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const supabase = getSupabase();
       if (!supabase || !userId) return;
       const manejarFallo = (e: unknown): void => {
+        const mensaje = (e as { message?: string })?.message ?? String(e);
         if (esErrorRed(e)) {
           encolar(op);
+          logEvent("SYNC_ERROR", "sync", null, { descripcion, tipo: "red", error: mensaje });
         } else {
           console.error(`Error sincronizando (${descripcion}):`, e);
           setErrorSync(descripcion);
+          logEvent("SYNC_ERROR", "sync", null, { descripcion, tipo: "servidor", error: mensaje });
         }
       };
       try {
@@ -507,11 +538,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const eventId = construirEventId(habitId, momentId, fecha);
         // Juego: registra el cumplimiento y aplica XP/niveles/logros/etc.
         // Si el evento ya existía (tap duplicado), no hay recompensa.
+        const xpAntes = stateRef.current.juego?.xpTotal ?? 0;
         const { state: nuevo, eventos } = registrarConJuego(
           stateRef.current, habitId, momentId, fecha, timestamp, subtareasCompletadas, eventId,
         );
         setState(nuevo);
         if (eventos.length > 0) emitirEventosJuego(eventos);
+        // Auditoría milimétrica del juego: XP ganado + cada evento de dominio.
+        const xpGanado = (nuevo.juego?.xpTotal ?? 0) - xpAntes;
+        if (xpGanado > 0) {
+          logEvent("XP_GAINED", "juego", null, { xp: xpGanado, habitId, fecha });
+        }
+        for (const e of eventos) {
+          const accion = ACCION_POR_TIPO_EVENTO[e.tipo];
+          if (accion) logEvent(accion, "juego", e.dato ?? null, { titulo: e.titulo, detalle: e.detalle });
+        }
         const supabase = getSupabase();
         if (supabase && userId) {
           const payload = {
@@ -555,6 +596,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const afectados = stateRef.current.habits.filter((h) => h.estado !== "archivado" && h.estado !== estado);
         if (afectados.length === 0) return;
         setState((s) => cambiarEstadoTodos(s, estado));
+        logEvent(estado === "pausado" ? "HABITS_PAUSED" : "HABITS_RESUMED", "habit", null, { cantidad: afectados.length });
         const supabase = getSupabase();
         if (supabase && userId) {
           for (const h of afectados) {
@@ -607,6 +649,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Toggle: si ya está aplazado para mañana, se devuelve a hoy.
         const pospuestoHasta = h.pospuestoHasta === manana ? undefined : manana;
         guardar({ ...h, pospuestoHasta });
+        logEvent(pospuestoHasta ? "HABIT_SNOOZED" : "HABIT_UNSNOOZED", "habit", id, { pospuestoHasta: pospuestoHasta ?? null });
       },
     }
     },
@@ -621,12 +664,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t);
   }, [userId, estadoCargado, rehidratar]);
 
-  // Reenviar cola pendiente cuando vuelve la conexión.
+  // Reenviar cola pendiente cuando vuelve la conexión (y auditar el cambio de red).
   useEffect(() => {
     if (!userId) return;
-    const onOnline = () => void reenviarPendientes();
+    const onOnline = () => {
+      logEvent("ONLINE", "app", null, null);
+      void flushLog();
+      void reenviarPendientes();
+    };
+    const onOffline = () => logEvent("OFFLINE", "app", null, null);
     window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
   }, [userId, reenviarPendientes]);
 
   const stateValue = useMemo(() => ({ state, errorSync }), [state, errorSync]);

@@ -422,64 +422,7 @@ export default function Inicio() {
         </section>
       )}
 
-      {/* Resumen semanal */}
-      <section className="card p-5">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <h2 className="font-semibold">Resumen semanal</h2>
-            <p className="mt-1 text-xs text-muted">Registros realizados frente a los objetivos previstos</p>
-          </div>
-          <span className="rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-muted">{rangoLabel}</span>
-        </div>
 
-        <div className="mt-4 rounded-xl border border-border bg-surface-2/50 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold leading-none">{completadosSemana}</span>
-              <span className="text-sm text-muted">/ {previstosSemana} registros previstos</span>
-            </div>
-            <div className="h-2 w-32 overflow-hidden rounded-full bg-border">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-accent to-accent-strong"
-                style={{ width: `${previstosSemana ? Math.min(100, (completadosSemana / previstosSemana) * 100) : 0}%` }}
-              />
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-muted">Objetivo semanal: {previstosSemana} registros en {resumen.length} hábito{resumen.length !== 1 ? "s" : ""}.</p>
-        </div>
-
-        <ul className="mt-4 flex flex-col gap-3">
-          {resumen.length === 0 && (
-            <li className="text-sm text-muted">Aún no hay hábitos activos para esta semana.</li>
-          )}
-          {resumen.map(({ habit, previstos, completados }) => {
-            const ratio = previstos ? completados / previstos : 0;
-            const cumplida = previstos > 0 && completados >= previstos;
-            return (
-              <li key={habit.id} className="flex items-center gap-3">
-                <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: habit.color }} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="truncate text-sm font-medium">{habit.nombre}</p>
-                    <p className={`text-xs font-semibold ${cumplida ? "text-accent" : "text-muted"}`}>
-                      {completados}/{previstos}
-                    </p>
-                  </div>
-                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-border">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{ width: `${Math.min(100, ratio * 100)}%`, backgroundColor: habit.color }}
-                    />
-                  </div>
-                </div>
-                <span className={`shrink-0 text-xs font-semibold ${cumplida ? "text-accent" : "text-danger"}`}>
-                  {cumplida ? "✓ Meta" : `${Math.round(ratio * 100)}%`}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
 
       {habitosHoy.length === 0 ? (
         <section className="card border-dashed p-10 text-center">
@@ -588,6 +531,64 @@ export default function Inicio() {
           )}
         </>
       )}
+      {/* Resumen semanal */}
+      <section className="card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">Resumen semanal</h2>
+            <p className="mt-1 text-xs text-muted">Registros realizados frente a los objetivos previstos</p>
+          </div>
+          <span className="rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-muted">{rangoLabel}</span>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-border bg-surface-2/50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold leading-none">{completadosSemana}</span>
+              <span className="text-sm text-muted">/ {previstosSemana} registros previstos</span>
+            </div>
+            <div className="h-2 w-32 overflow-hidden rounded-full bg-border">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-accent to-accent-strong"
+                style={{ width: `${previstosSemana ? Math.min(100, (completadosSemana / previstosSemana) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-muted">Objetivo semanal: {previstosSemana} registros en {resumen.length} hábito{resumen.length !== 1 ? "s" : ""}.</p>
+        </div>
+
+        <ul className="mt-4 flex flex-col gap-3">
+          {resumen.length === 0 && (
+            <li className="text-sm text-muted">Aún no hay hábitos activos para esta semana.</li>
+          )}
+          {resumen.map(({ habit, previstos, completados }) => {
+            const ratio = previstos ? completados / previstos : 0;
+            const cumplida = previstos > 0 && completados >= previstos;
+            return (
+              <li key={habit.id} className="flex items-center gap-3">
+                <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: habit.color }} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="truncate text-sm font-medium">{habit.nombre}</p>
+                    <p className={`text-xs font-semibold ${cumplida ? "text-accent" : "text-muted"}`}>
+                      {completados}/{previstos}
+                    </p>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${Math.min(100, ratio * 100)}%`, backgroundColor: habit.color }}
+                    />
+                  </div>
+                </div>
+                <span className={`shrink-0 text-xs font-semibold ${cumplida ? "text-accent" : "text-danger"}`}>
+                  {cumplida ? "✓ Meta" : `${Math.round(ratio * 100)}%`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
       {toast && (
         <div role="status" className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-foreground px-4 py-2.5 text-sm font-medium text-background shadow-lg">
           <IconCheck className="h-4 w-4 shrink-0" />

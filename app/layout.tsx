@@ -6,6 +6,7 @@ import { AuthGate } from "../components/AuthGate";
 import Nav from "../components/Nav";
 import ThemeApplier from "../components/ThemeApplier";
 import NotificationManager from "../components/NotificationManager";
+import RouteLogger from "../components/RouteLogger";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <StoreProvider>
             <ThemeApplier />
             <NotificationManager />
+            <RouteLogger />
             <div className="flex min-h-screen">
             <Nav />
             <main id="contenido" className="flex-1 min-w-0 md:ml-60 pb-24 md:pb-0">

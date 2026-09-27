@@ -22,6 +22,7 @@ import {
 } from "../../lib/icons";
 import StatefulButton from "../../components/ui/StatefulButton";
 import { SkeletonLiga } from "../../components/ui/Skeleton";
+import { logEvent } from "../../lib/logger";
 
 export default function Liga() {
   const { user } = useAuth();
@@ -113,6 +114,7 @@ export default function Liga() {
       setNombreNueva("");
       setLigas((prev) => [...prev, vista]);
       setOk(`Liga "${vista.nombre}" creada. Comparte el código ${vista.codigo}.`);
+      logEvent("LEAGUE_CREATED", "liga", vista.id, { nombre: vista.nombre, codigo: vista.codigo });
     });
 
   const unirse = (): Promise<void> =>
@@ -124,6 +126,7 @@ export default function Liga() {
       setCodigoUnirse("");
       setLigas((prev) => (prev.some((l) => l.id === vista.id) ? prev : [...prev, vista]));
       setOk(`Te uniste a "${vista.nombre}".`);
+      logEvent("LEAGUE_JOINED", "liga", vista.id, { nombre: vista.nombre });
     });
 
   const salir = (ligaId: string): Promise<void> =>
@@ -134,6 +137,7 @@ export default function Liga() {
       setConfirmarSalida(null);
       setLigas((prev) => prev.filter((l) => l.id !== ligaId));
       setOk("Saliste de la liga.");
+      logEvent("LEAGUE_LEFT", "liga", ligaId, null);
     });
 
   const copiarCodigo = async (codigo: string): Promise<void> => {
