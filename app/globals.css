@@ -216,7 +216,13 @@ body {
   transition: border-color 150ms ease;
   color: var(--foreground);
 }
-.input-field:focus { border-color: var(--accent); }
+.input-field:focus {
+  border-color: var(--accent);
+  /* Anillo pegado al borde: una sola línea ancha en vez de borde + outline. */
+  box-shadow: 0 0 0 2px var(--accent);
+}
+/* El anillo propio ya indica el foco; el outline global queda desactivado aquí. */
+.input-field:focus-visible { outline: none; }
 
 /* Foco visible por teclado en toda la app (P2.10). Se declara después de
    .input-field para prevalecer sobre su `outline: none`. */
