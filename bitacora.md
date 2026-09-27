@@ -12,6 +12,13 @@
 - Validación: tsc limpio, eslint 0 errores, smokes 110/110 + 59/59 + 5/5 + 16/16, `next build` OK, ciclo hash/verificación probado en Node.
 - Fix del gate pre-commit (bloqueaba el commit): el lint corría sobre `.vercel/output` (artefactos de build, 56 errores ajenos) → añadido `.vercel/**` a los ignores de `eslint.config.mjs`; además `@ts-ignore` → `@ts-expect-error` en `crear-usuario/index.ts`. El gate (typecheck + lint + smokes) ahora pasa limpio sin `--no-verify`.
 
+## 2026-09-27 (perfiles en la nube — DESPLEGADO a producción)
+
+- luigi autorizó el deploy: `vercel --prod` → https://habitos-gdr2rof49-luiggi2.vercel.app (alias prod https://habitos-amber.vercel.app, 200 ok).
+- Producción ahora corre el modelo definitivo: un login, selector de perfiles estilo Netflix, PIN hasheado en la nube, todo commiteado (51f4a5d) y pusheado.
+- Nota: la Edge Function `push-notifications` modificada (agrupación por perfil, deep link con `perfil=<id>`) sigue sin desplegarse — pendiente.
+- Pendiente de verificación visual en el teléfono de luigi (10 segundos): login → selector → entrar al perfil.
+
 ## 2026-09-27 (perfiles en la nube — trabajo local, SIN commitear ni desplegar)
 
 > Decisión vigente de luigi: un solo correo+clave de Supabase; tras el login aparece el selector de perfiles estilo Netflix (p. ej. "luigi" y "Novia"); cada perfil con sus hábitos, XP y progreso sincronizados en la nube. Texto literal: "usa exactamente la misma interfaz de antes pero esta vez en la nube".
