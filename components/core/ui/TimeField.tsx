@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { IconReloj, IconX } from "../lib/icons";
+import { IconReloj, IconX } from "../../../lib/core/ui/icons";
 
 interface TimeFieldProps {
   /** Hora en formato "HH:MM" (24 h). */

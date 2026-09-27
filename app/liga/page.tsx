@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../components/AuthGate";
-import { useStoreActions, useStoreState } from "../../lib/store-context";
-import { getSupabase } from "../../lib/supabase";
+import { useStoreActions, useStoreState } from "../../lib/habitos/store-context";
+import { getSupabase } from "../../lib/core/supabase";
 import {
   crearLiga,
   obtenerMisLigas,
@@ -11,7 +11,7 @@ import {
   salirDeLiga,
   unirseALiga,
   type LigaVista,
-} from "../../lib/liga";
+} from "../../lib/habitos/liga";
 import {
   IconAlerta,
   IconCheck,
@@ -19,10 +19,10 @@ import {
   IconTrofeo,
   IconUsuarios,
   IconX,
-} from "../../lib/icons";
-import StatefulButton from "../../components/ui/StatefulButton";
-import { SkeletonLiga } from "../../components/ui/Skeleton";
-import { logEvent } from "../../lib/logger";
+} from "../../lib/core/ui/icons";
+import StatefulButton from "../../components/core/ui/StatefulButton";
+import { SkeletonLiga } from "../../components/core/ui/Skeleton";
+import { logEvent } from "../../lib/core/logger";
 
 export default function Liga() {
   const { user, perfilId } = useAuth();

@@ -1,10 +1,10 @@
 import type { AnclaSueno, AppState, Habit } from "./types";
 import { habitoSueno } from "./anclas";
 import { articuloDeVentana, avisoDeVentana } from "./dates";
-import { getSupabase } from "./supabase";
+import { getSupabase } from "../core/supabase";
 import { leerPerfilActivoId } from "./perfiles";
-import { logEvent } from "./logger";
-import { claveNotifEnviadas } from "./ambito";
+import { logEvent } from "../core/logger";
+import { claveNotifEnviadas } from "../core/ambito";
 
 const LAST_SENT_KEY_BASE = "habitos-notificaciones-enviadas-v1";
 

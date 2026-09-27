@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconCopo, IconRayo, IconRegalo } from "../../lib/icons";
+import { IconCopo, IconRayo, IconRegalo } from "../../lib/core/ui/icons";
 import Sparkles from "./Sparkles";
 
 export interface PremioCofreUI {

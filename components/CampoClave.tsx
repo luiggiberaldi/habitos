@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { IconOjo, IconOjoTachado } from "../lib/icons";
+import { IconOjo, IconOjoTachado } from "../lib/core/ui/icons";
 
 interface Props extends React.InputHTMLAttributes<HTMLInputElement> {
   /** Nombre del campo para el lector de pantalla ("PIN", "contraseña"…). */

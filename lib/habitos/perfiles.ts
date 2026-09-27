@@ -1,4 +1,4 @@
-// lib/perfiles.ts — Perfiles en la nube, estilo Netflix.
+// lib/habitos/perfiles.ts — Perfiles en la nube, estilo Netflix.
 //
 // Una cuenta Supabase contiene varios perfiles. Cada perfil es un silo de
 // datos completo en la nube (perfil_id en cada tabla) y en el dispositivo
@@ -11,7 +11,7 @@
 // guarda en claro. No es seguridad bancaria: 4 dígitos son fuerza bruta
 // por definición; el hash solo evita exponerlo y lo hace portable.
 
-import { getSupabase, getCachedUser } from "./supabase";
+import { getSupabase, getCachedUser } from "../core/supabase";
 import {
   claveColaLog,
   claveEstado,
@@ -19,9 +19,9 @@ import {
   clavePendientes,
   clavesDeDatos,
   sufijoDePerfil,
-} from "./ambito";
+} from "../core/ambito";
 import { crearEstadoInicial } from "./store";
-import { flushLog, logEvent } from "./logger";
+import { flushLog, logEvent } from "../core/logger";
 import { habitoDesdePlantilla, type Plantilla } from "./plantillas";
 import type { AppState } from "./types";
 
@@ -30,10 +30,10 @@ export interface Perfil {
   nombre: string;
   /** Hex del color del avatar. */
   color: string;
-  /** Id de la galería de avatares (lib/avatares.ts); null = inicial con color. */
+  /** Id de la galería de avatares (lib/habitos/avatares.ts); null = inicial con color. */
   avatar: string | null;
   /**
-   * Foto personalizada (dataURL JPEG 256px, ver lib/foto.ts); null = sin foto.
+   * Foto personalizada (dataURL JPEG 256px, ver lib/habitos/foto.ts); null = sin foto.
    * Tiene prioridad sobre `avatar`: si hay foto, se muestra la foto.
    */
   foto: string | null;

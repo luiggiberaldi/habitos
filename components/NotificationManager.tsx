@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useStoreState } from "../lib/store-context";
-import { revisarRecordatorios } from "../lib/notifications";
+import { useStoreState } from "../lib/habitos/store-context";
+import { revisarRecordatorios } from "../lib/habitos/notifications";
 
 export default function NotificationManager() {
   const { state } = useStoreState();

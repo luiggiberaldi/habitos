@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthGate";
 import AvatarPerfil from "./AvatarPerfil";
 import Logo from "./Logo";
-import { useStoreActions, useStoreState } from "../lib/store-context";
-import { premiosPendientes } from "../lib/juego";
-import { IconAjustes, IconCaja, IconEstadisticas, IconInicio, IconLista, IconMaletin, IconMas, IconMedalla, IconCerrarSesion, IconTrofeo } from "../lib/icons";
-// import { IconUsuarios } from "../lib/icons"; // Liga oculta por ahora
+import { useStoreActions, useStoreState } from "../lib/habitos/store-context";
+import { premiosPendientes } from "../lib/habitos/juego";
+import { IconAjustes, IconCaja, IconEstadisticas, IconInicio, IconLista, IconMaletin, IconMas, IconMedalla, IconCerrarSesion, IconTrofeo } from "../lib/core/ui/icons";
+// import { IconUsuarios } from "../lib/core/ui/icons"; // Liga oculta por ahora
 
 type NavItem = { href: string; label: string; icon: (p: { className?: string }) => React.JSX.Element; match?: string[] };
 

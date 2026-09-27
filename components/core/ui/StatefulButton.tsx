@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { IconCheck } from "../../lib/icons";
+import { IconCheck } from "../../../lib/core/ui/icons";
 
 type Estado = "reposo" | "cargando" | "exito";
 

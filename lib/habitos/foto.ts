@@ -1,4 +1,4 @@
-// lib/foto.ts — Foto personalizada como avatar de perfil.
+// lib/habitos/foto.ts — Foto personalizada como avatar de perfil.
 //
 // Recorta la imagen al centro en cuadrado, la reduce a 256px y la comprime
 // a JPEG. El resultado (~15–40 KB) se guarda como dataURL en `Perfil.foto`

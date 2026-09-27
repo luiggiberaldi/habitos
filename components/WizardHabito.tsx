@@ -1,20 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import type { Categoria, EstadoHabit, Habit, Moment, TipoHabit } from "../lib/types";
-import { DIAS_SEMANA } from "../lib/dates";
-import { habitColors as COLORES } from "../lib/design-tokens";
-import { PLANTILLAS, habitoDesdePlantilla, type Plantilla } from "../lib/plantillas";
+import type { Categoria, EstadoHabit, Habit, Moment, TipoHabit } from "../lib/habitos/types";
+import { DIAS_SEMANA } from "../lib/habitos/dates";
+import { habitColors as COLORES } from "../lib/core/ui/design-tokens";
+import { PLANTILLAS, habitoDesdePlantilla, type Plantilla } from "../lib/habitos/plantillas";
 import {
   IconAlerta,
-  IconCategoria,
   IconCheck,
   IconChevronDerecha,
   IconFlechaAtras,
   IconPlus,
   IconX,
-} from "../lib/icons";
-import { TimeField } from "./TimeField";
+} from "../lib/core/ui/icons";
+import { IconCategoria } from "../lib/habitos/iconos-categoria";
+import { TimeField } from "./core/ui/TimeField";
 
 const PASOS = [
   { id: "que", titulo: "¿Qué hábito?" },

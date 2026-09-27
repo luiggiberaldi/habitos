@@ -1,4 +1,4 @@
-// lib/plantillas.ts — Plantillas de hábitos de un tap.
+// lib/habitos/plantillas.ts — Plantillas de hábitos de un tap.
 //
 // Fuente única usada por /habitos (creación rápida) y por el onboarding.
 // Cada plantilla describe cómo construir el Hábito correspondiente.

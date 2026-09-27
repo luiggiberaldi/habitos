@@ -1,6 +1,4 @@
-import type { Categoria } from "./types";
-
-interface IconProps {
+export interface IconProps {
   className?: string;
 }
 
@@ -308,20 +306,6 @@ export function IconAlerta({ className = cls }: IconProps) {
       <line x1="12" y1="16" x2="12.01" y2="16" />
     </svg>
   );
-}
-
-const categoriaIconMap: Record<Categoria, React.FC<IconProps>> = {
-  salud: IconCorazon,
-  productividad: IconMaletin,
-  crecimiento: IconBrote,
-  bienestar: IconLoto,
-  personal: IconPersona,
-  otro: IconCaja,
-};
-
-export function IconCategoria({ categoria, className = cls }: { categoria: Categoria } & IconProps) {
-  const Component = categoriaIconMap[categoria] ?? IconCaja;
-  return <Component className={className} />;
 }
 
 export function IconTrofeo({ className = cls }: IconProps) {

@@ -39,10 +39,10 @@ try {
   execFileSync(
     tscBin,
     [
-      join(root, "lib", "event-id.ts"),
-      join(root, "lib", "store.ts"),
-      join(root, "lib", "dates.ts"),
-      join(root, "lib", "types.ts"),
+      join(root, "lib", "core", "event-id.ts"),
+      join(root, "lib", "habitos", "store.ts"),
+      join(root, "lib", "habitos", "dates.ts"),
+      join(root, "lib", "habitos", "types.ts"),
       "--outDir", outDir,
       "--module", "commonjs",
       "--target", "es2020",
@@ -59,8 +59,8 @@ try {
 }
 
 const req = createRequire(join(outDir, "cargador.cjs"));
-const { construirEventId } = req(join(outDir, "event-id.js"));
-const { registrarCumplimiento, crearEstadoInicial } = req(join(outDir, "store.js"));
+const { construirEventId } = req(join(outDir, "core", "event-id.js"));
+const { registrarCumplimiento, crearEstadoInicial } = req(join(outDir, "habitos", "store.js"));
 
 // (a) 5 taps de cantidad → 5 eventIds únicos con formato h|cantidad|fecha|...
 const idsCantidad = Array.from({ length: 5 }, () => construirEventId("h1", undefined, "2026-09-26"));

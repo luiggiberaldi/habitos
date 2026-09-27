@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Logo from "./Logo";
 import SelectorAvatar from "./SelectorAvatar";
-import { COLORES_PERFIL } from "../lib/perfiles";
-import { PLANTILLAS, type Plantilla } from "../lib/plantillas";
-import { IconCategoria, IconCheck, IconFlechaAtras } from "../lib/icons";
+import { COLORES_PERFIL } from "../lib/habitos/perfiles";
+import { PLANTILLAS, type Plantilla } from "../lib/habitos/plantillas";
+import { IconCheck, IconFlechaAtras } from "../lib/core/ui/icons";
+import { IconCategoria } from "../lib/habitos/iconos-categoria";
 
 export interface DatosOnboarding {
   nombre: string;

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconActualizar, IconX } from "../lib/icons";
-import { logEvent } from "../lib/logger";
+import { IconActualizar, IconX } from "../../../lib/core/ui/icons";
+import { logEvent } from "../../../lib/core/logger";
 
 /**
  * ActualizadorApp: la PWA ya no exige cerrar/reabrir para ver cambios.

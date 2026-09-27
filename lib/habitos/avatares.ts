@@ -1,4 +1,4 @@
-// lib/avatares.ts — Galería de avatares elegibles para perfiles.
+// lib/habitos/avatares.ts — Galería de avatares elegibles para perfiles.
 //
 // Retratos estilo videojuego (render 3D estilizado) con dirección de arte
 // cohesiva: luz cinematográfica y fondo en los tonos brasa de la marca.

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { flameGradient } from "../../lib/design-tokens";
-import { IconMaletin, IconFlechaAtras } from "../../lib/icons";
+import { flameGradient } from "../../lib/core/ui/design-tokens";
+import { IconMaletin, IconFlechaAtras } from "../../lib/core/ui/icons";
 
 /** Placeholder de Finanzas hasta la Fase 1. */
 export default function FinanzasProximamente() {

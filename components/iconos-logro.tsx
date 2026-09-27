@@ -1,4 +1,4 @@
-import type { IconoLogro } from "../lib/gamificacion";
+import type { IconoLogro } from "../lib/habitos/gamificacion";
 import {
   IconCopo,
   IconCorona,
@@ -10,7 +10,7 @@ import {
   IconRegalo,
   IconSol,
   IconTrofeo,
-} from "../lib/icons";
+} from "../lib/core/ui/icons";
 
 export const ICONOS_LOGRO: Record<IconoLogro, (props: { className?: string }) => React.JSX.Element> = {
   fuego: IconFuego,

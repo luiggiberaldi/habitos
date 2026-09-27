@@ -7,7 +7,7 @@ import {
   IconEstadisticas,
   IconMedalla,
   IconTrofeo,
-} from "../../lib/icons";
+} from "../../lib/core/ui/icons";
 
 /**
  * "Más" — accesos del módulo Hábitos que no caben en la barra inferior

@@ -41,12 +41,12 @@ try {
   execFileSync(
     tscBin,
     [
-      join(root, "lib", "sync-merge.ts"),
-      join(root, "lib", "store.ts"),
-      join(root, "lib", "gamificacion.ts"),
-      join(root, "lib", "dates.ts"),
-      join(root, "lib", "event-id.ts"),
-      join(root, "lib", "types.ts"),
+      join(root, "lib", "habitos", "sync-merge.ts"),
+      join(root, "lib", "habitos", "store.ts"),
+      join(root, "lib", "habitos", "gamificacion.ts"),
+      join(root, "lib", "habitos", "dates.ts"),
+      join(root, "lib", "core", "event-id.ts"),
+      join(root, "lib", "habitos", "types.ts"),
       "--outDir", outDir,
       "--module", "commonjs",
       "--target", "es2020",
@@ -63,9 +63,9 @@ try {
 }
 
 const req = createRequire(join(outDir, "cargador.cjs"));
-const { fusionarHidratacion } = req(join(outDir, "sync-merge.js"));
-const { guardarHabit, registrarCumplimiento, normalizarEstado } = req(join(outDir, "store.js"));
-const { rachaActual, objetivoEnFecha } = req(join(outDir, "gamificacion.js"));
+const { fusionarHidratacion } = req(join(outDir, "habitos", "sync-merge.js"));
+const { guardarHabit, registrarCumplimiento, normalizarEstado } = req(join(outDir, "habitos", "store.js"));
+const { rachaActual, objetivoEnFecha } = req(join(outDir, "habitos", "gamificacion.js"));
 
 const mkHabit = (over = {}) => ({
   id: "h1",

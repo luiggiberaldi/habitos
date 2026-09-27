@@ -24,22 +24,23 @@ import {
 } from "./juego";
 import { publicarXpLiga } from "./liga";
 import type { AppState, Habit, CompletionEvent, JuegoState, MarcaSueno, Settings } from "./types";
-import { construirEventId } from "./event-id";
+import { construirEventId } from "../core/event-id";
 import { fusionarHidratacion, type RemoteCompletionRow, type RemoteHabitRow } from "./sync-merge";
-import { getSupabase } from "./supabase";
+import { getSupabase } from "../core/supabase";
 import { todayKey, addDays, moverFecha, timestampLocal } from "./dates";
 import { fechaParaMarcaSueno, nocheEstaCompleta, nochesSueno } from "./gamificacion";
 import { habitosAnclaPendientes } from "./anclas";
-import { useAuth } from "../components/AuthGate";
-import { logEvent, flushLog, type LogAction } from "./logger";
+import { useAuth } from "../../components/AuthGate";
+import { logEvent, flushLog, type LogAction } from "../core/logger";
 import { fijarSufijoNotificaciones } from "./notifications";
 import {
   claveEstado,
   clavePendientes as clavePendientesAmbito,
   clavesDeDatos,
   sufijoDePerfil,
-} from "./ambito";
-import { asegurarSesion } from "./supabase";
+} from "../core/ambito";
+import { asegurarSesion } from "../core/supabase";
+import { crearColaSync, type ColaSync } from "../core/sync-queue";
 
 /** Auditoría: cada evento de juego del dominio se refleja en el activity_log. */
 const ACCION_POR_TIPO_EVENTO: Record<TipoEventoJuego, LogAction | null> = {
@@ -150,22 +151,41 @@ type PendingOp =
   /** Juego: progreso de gamificación (XP, logros, congeladores) por usuario. */
   | { kind: "upsert_game"; payload: unknown };
 
-function leerPendientes(clave: string): PendingOp[] {
-  try {
-    const raw = window.localStorage.getItem(clave);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? (parsed as PendingOp[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function guardarPendientes(clave: string, ops: PendingOp[]): void {
-  try {
-    window.localStorage.setItem(clave, JSON.stringify(ops.slice(-200)));
-  } catch {
-    /* almacenamiento no disponible */
-  }
+/**
+ * Ejecutor de la cola offline (dominio Hábitos): cómo se sube cada operación
+ * a Supabase. Devuelve `true` si se completó. La cola genérica
+ * (`lib/core/sync-queue`) se encarga del orden, el tope y los reintentos.
+ */
+async function ejecutarOpSync(
+  supabase: NonNullable<ReturnType<typeof getSupabase>>,
+  userId: string,
+  perfilId: string,
+  op: PendingOp,
+): Promise<boolean> {
+  const { error } = await (async () => {
+    if (op.kind === "upsert_habit") {
+      return await supabase.from("habits").upsert(op.payload as { id: string; user_id: string; data: Habit });
+    } else if (op.kind === "delete_habit") {
+      return await supabase.from("habits").delete().eq("id", op.id).eq("user_id", userId).eq("perfil_id", perfilId);
+    } else if (op.kind === "upsert_completion") {
+      return await supabase.from("completions").upsert(op.payload as { event_id: string; user_id: string });
+    } else if (op.kind === "delete_completion") {
+      return await supabase.from("completions").delete().eq("event_id", op.event_id).eq("user_id", userId).eq("perfil_id", perfilId);
+    } else if (op.kind === "delete_completions_of_habit") {
+      // D2: reintento del borrado en cascada (ver eliminarHabit).
+      return await supabase.from("completions").delete().eq("habit_id", op.habit_id).eq("user_id", userId).eq("perfil_id", perfilId);
+    } else if (op.kind === "delete_push") {
+      // E4: filtrar por user_id además del endpoint.
+      return await supabase.from("push_subscriptions").delete().eq("endpoint", op.endpoint).eq("user_id", userId).eq("perfil_id", perfilId);
+    } else if (op.kind === "upsert_tombstone") {
+      // P2.6
+      return await supabase.from("deleted_habits").upsert(op.payload as { user_id: string; habit_id: string });
+    } else {
+      // Juego: progreso de gamificación (un registro por usuario, LWW).
+      return await supabase.from("game_state").upsert(op.payload as { user_id: string; data: unknown });
+    }
+  })();
+  return !error;
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -182,8 +202,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // y el primer render de hidratación (evita mismatch de hidratación).
   const [state, setState] = useState<AppState>(crearEstadoInicial);
   const [estadoCargado, setEstadoCargado] = useState(false);
-  const pendientesRef = useRef<PendingOp[]>([]);
-  const sincronizandoRef = useRef(false);
+  // E2: el aviso de cola llena vive aquí para que el alDesbordar de la cola
+  // (definido debajo) pueda llamarlo sin violar el orden de declaración.
+  const [errorSync, setErrorSync] = useState<string | null>(null);
+  /**
+   * Cola offline (núcleo genérico `lib/core/sync-queue` + ejecutor del dominio).
+   * Se (re)crea por identidad: al cambiar de cuenta/perfil se lee la cola de
+   * la clave activa, igual que antes con `leerPendientes`.
+   */
+  const colaRef = useRef<ColaSync<PendingOp> | null>(null);
+  const obtenerCola = useCallback((): ColaSync<PendingOp> => {
+    if (!colaRef.current) {
+      colaRef.current = crearColaSync<PendingOp>({
+        clave: clavePendientes(sufijo),
+        tope: 200,
+        puedeReenviar: () => Boolean(getSupabase() && userId && perfilId),
+        antesDeReenviar: async () => {
+          // Token fresco: si venció mientras estábamos offline, se refresca
+          // aquí para que la cola no choque con 401 al volver la red.
+          await asegurarSesion();
+        },
+        ejecutar: (op) => {
+          const supabase = getSupabase();
+          if (!supabase || !userId || !perfilId) return Promise.resolve(false);
+          return ejecutarOpSync(supabase, userId, perfilId, op);
+        },
+        alDesbordar: () => {
+          // E2: guardarPendientes recorta a 200 en silencio — si se descartó
+          // la más antigua, que el usuario lo vea en vez de perderla sin rastro.
+          setErrorSync("cola de sincronización llena: el cambio más antiguo se descartó");
+        },
+      });
+    }
+    return colaRef.current;
+  }, [sufijo, userId, perfilId]);
   // P2.11: espejo del estado para que las acciones lean sin cerrar sobre `state`
   // y mantengan identidad estable entre renders.
   const stateRef = useRef(state);
@@ -207,7 +259,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const reconciliado = reconciliarJuego(inicial);
       auditarFallosSueno(inicial, reconciliado);
       setState(reconciliado);
-      pendientesRef.current = leerPendientes(clavePendientes(sufijo)); // P1.5
+      colaRef.current = null; // P1.5: la próxima obtención lee la cola de la identidad activa.
       setEstadoCargado(true);
       // Auditoría: apertura de la app + subir eventos que quedaron en cola.
       if (!appOpenedLogged) {
@@ -241,73 +293,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [state, estadoCargado, storageKey]);
 
-  // Cola offline persistida en localStorage (reactiva al cambiar pendientes).
-  const [errorSync, setErrorSync] = useState<string | null>(null);
+  // Cola offline (núcleo genérico): ver obtenerCola arriba.
 
   /** Reenvía la cola de operaciones pendientes (off-line queue) a Supabase. */
   const reenviarPendientes = useCallback(async (): Promise<void> => {
-    const supabase = getSupabase();
-    if (!supabase || !userId || !perfilId || sincronizandoRef.current) return;
-    const ops = pendientesRef.current;
-    if (ops.length === 0) return;
-
-    // Token fresco: si venció mientras estábamos offline, se refresca aquí
-    // para que la cola no choque con 401 al volver la red.
-    await asegurarSesion();
-
-    sincronizandoRef.current = true;
-    const restantes: PendingOp[] = [];
-    for (const op of ops) {
-      try {
-        if (op.kind === "upsert_habit") {
-          const { error } = await supabase.from("habits").upsert(op.payload as { id: string; user_id: string; data: Habit });
-          if (error) restantes.push(op);
-        } else if (op.kind === "delete_habit") {
-          const { error } = await supabase.from("habits").delete().eq("id", op.id).eq("user_id", userId).eq("perfil_id", perfilId);
-          if (error) restantes.push(op);
-        } else if (op.kind === "upsert_completion") {
-          const { error } = await supabase.from("completions").upsert(op.payload as { event_id: string; user_id: string });
-          if (error) restantes.push(op);
-        } else if (op.kind === "delete_completion") {
-          const { error } = await supabase.from("completions").delete().eq("event_id", op.event_id).eq("user_id", userId).eq("perfil_id", perfilId);
-          if (error) restantes.push(op);
-        } else if (op.kind === "delete_completions_of_habit") {
-          // D2: reintento del borrado en cascada (ver eliminarHabit).
-          const { error } = await supabase.from("completions").delete().eq("habit_id", op.habit_id).eq("user_id", userId).eq("perfil_id", perfilId);
-          if (error) restantes.push(op);
-        } else if (op.kind === "delete_push") {
-          // E4: filtrar por user_id además del endpoint.
-          const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", op.endpoint).eq("user_id", userId).eq("perfil_id", perfilId);
-          if (error) restantes.push(op);
-        } else if (op.kind === "upsert_tombstone") {
-          // P2.6
-          const { error } = await supabase.from("deleted_habits").upsert(op.payload as { user_id: string; habit_id: string });
-          if (error) restantes.push(op);
-        } else if (op.kind === "upsert_game") {
-          // Juego: progreso de gamificación (un registro por usuario, LWW).
-          const { error } = await supabase.from("game_state").upsert(op.payload as { user_id: string; data: unknown });
-          if (error) restantes.push(op);
-        }
-      } catch {
-        restantes.push(op);
-      }
-    }
-    pendientesRef.current = restantes;
-    guardarPendientes(clavePendientes(sufijo), restantes); // P1.5
-    sincronizandoRef.current = false;
-  }, [userId, perfilId, sufijo]);
+    await obtenerCola().reenviar();
+  }, [obtenerCola]);
 
   /** Encola una operación para reintento cuando vuelva la conexión. */
   const encolar = useCallback((op: PendingOp): void => {
-    const previos = pendientesRef.current;
-    pendientesRef.current = [...previos, op];
-    guardarPendientes(clavePendientes(sufijo), pendientesRef.current);
-    // E2: guardarPendientes recorta a 200 en silencio — si se descartó la más
-    // antigua, que el usuario lo vea en vez de perderla sin rastro.
-    if (previos.length >= 200) {
-      setErrorSync("cola de sincronización llena: el cambio más antiguo se descartó");
-    }
-  }, [sufijo]);
+    obtenerCola().encolar(op);
+  }, [obtenerCola]);
 
   /**
    * Descarga los datos del usuario desde Supabase y hace merge bidireccional:
@@ -859,7 +855,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         } catch {
           /* almacenamiento no disponible */
         }
-        pendientesRef.current = [];
+        obtenerCola().vaciar();
         // 3. Estado vacío real, sin demos: empezar desde 0.
         //    El sueño es permanente: sobrevive al reinicio (nace de nuevo).
         const base = crearEstadoInicial();
@@ -888,7 +884,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
     }
     },
-    [userId, perfilId, nubeLista, sincronizar, rehidratarFn, reenviarPendientes, storageKey, sufijo],
+    [userId, perfilId, nubeLista, sincronizar, rehidratarFn, reenviarPendientes, storageKey, sufijo, obtenerCola],
   );
 
   // Rehidratar al iniciar sesión (cambio de usuario) y al volver a estar online.

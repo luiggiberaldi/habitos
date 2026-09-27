@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AVATARES } from "../lib/avatares";
-import { procesarFoto } from "../lib/foto";
-import { IconCamara } from "../lib/icons";
+import { AVATARES } from "../lib/habitos/avatares";
+import { procesarFoto } from "../lib/habitos/foto";
+import { IconCamara } from "../lib/core/ui/icons";
 
 interface Props {
   avatar: string | null;

@@ -1,4 +1,4 @@
-// lib/event-id.ts — ÚNICA fuente de verdad para los eventId de completions.
+// lib/core/event-id.ts — ÚNICA fuente de verdad para los eventId de completions.
 //
 // Guardarraíl #1 del plan maestro: un evento = un id generado UNA SOLA VEZ.
 // El mismo valor viaja al estado local, a Supabase y a la cola offline.

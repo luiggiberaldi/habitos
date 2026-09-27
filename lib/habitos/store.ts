@@ -1,6 +1,6 @@
 import type { AppState, CompletionEvent, Habit, MarcaSueno, Moment, Settings } from "./types";
 import { addDays, completadosPara, hhmmDeTimestamp, inicioSemana, todayKey } from "./dates";
-import { eventIdCantidad } from "./event-id";
+import { eventIdCantidad } from "../core/event-id";
 import { diaCompleto, objetivoEnFecha, PUNTOS_OBJETIVO_DIARIO, minutosDeRetraso, nivelEfectivo, xpPorPuntualidad, xpPorRegistro, xpSuenoDeEvento } from "./gamificacion";
 import { juegoInicial, normalizarJuego, aplicarRecompensas, type EventoJuego } from "./juego";
 
@@ -81,7 +81,7 @@ export function registrarCumplimiento(
   fecha: string,
   timestamp = new Date().toISOString(),
   subtareas?: string[],
-  // P0.2: el contexto genera el eventId UNA vez (lib/event-id.ts) y lo pasa aquí;
+  // P0.2: el contexto genera el eventId UNA vez (lib/core/event-id.ts) y lo pasa aquí;
   // el mismo valor se usa para el upsert remoto. Si no se pasa, se genera localmente.
   eventId?: string,
 ): AppState {

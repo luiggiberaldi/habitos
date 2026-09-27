@@ -6,10 +6,10 @@ import {
   objetivoEnFecha,
   puntosEnRango,
   resumenSemanal,
-} from "../lib/gamificacion";
-import { addDays, completadosPara, DIAS_SEMANA, esDescanso, todayKey } from "../lib/dates";
-import type { CompletionEvent, Habit } from "../lib/types";
-import { IconEstrella, IconFuego, IconMedalla, IconObjetivo, IconTrofeo } from "../lib/icons";
+} from "../lib/habitos/gamificacion";
+import { addDays, completadosPara, DIAS_SEMANA, esDescanso, todayKey } from "../lib/habitos/dates";
+import type { CompletionEvent, Habit } from "../lib/habitos/types";
+import { IconEstrella, IconFuego, IconMedalla, IconObjetivo, IconTrofeo } from "../lib/core/ui/icons";
 
 const MESES = [
   "ene", "feb", "mar", "abr", "may", "jun",

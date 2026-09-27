@@ -89,7 +89,7 @@ export async function resolverPerfilId(rpc, USER_ID, fijo) {
 // ── Compilar lib/* con tsc (caché) ───────────────────────────────────────────
 export function cargarLib() {
   const cacheDir = join(root, ".cache", "whatsapp-lib");
-  const fuentes = ["types.ts", "dates.ts", "event-id.ts", "gamificacion.ts", "juego.ts", "store.ts"];
+  const fuentes = ["habitos/types.ts", "habitos/dates.ts", "core/event-id.ts", "habitos/gamificacion.ts", "habitos/juego.ts", "habitos/store.ts"];
   const marcador = join(cacheDir, ".built-at");
   let recompilar = !existsSync(marcador);
   if (!recompilar) {
@@ -114,11 +114,11 @@ export function cargarLib() {
   }
   const req = createRequire(join(cacheDir, "cargador.cjs"));
   return {
-    d: req(join(cacheDir, "dates.js")),
-    e: req(join(cacheDir, "event-id.js")),
-    g: req(join(cacheDir, "gamificacion.js")),
-    j: req(join(cacheDir, "juego.js")),
-    s: req(join(cacheDir, "store.js")),
+    d: req(join(cacheDir, "habitos", "dates.js")),
+    e: req(join(cacheDir, "core", "event-id.js")),
+    g: req(join(cacheDir, "habitos", "gamificacion.js")),
+    j: req(join(cacheDir, "habitos", "juego.js")),
+    s: req(join(cacheDir, "habitos", "store.js")),
   };
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useStoreActions, useStoreState } from "../../lib/store-context";
+import { useStoreActions, useStoreState } from "../../lib/habitos/store-context";
 import { useAuth } from "../../components/AuthGate";
 import {
   PUNTOS_OBJETIVO_DIARIO,
@@ -15,11 +15,11 @@ import {
   puntosTotalesParaFecha,
   rachaActual,
   resumenSemanal,
-} from "../../lib/gamificacion";
-import { suscribirEventosJuego, type EventoJuego } from "../../lib/juego";
-import { etiquetaAncla, horaAncla } from "../../lib/anclas";
+} from "../../lib/habitos/gamificacion";
+import { suscribirEventosJuego, type EventoJuego } from "../../lib/habitos/juego";
+import { etiquetaAncla, horaAncla } from "../../lib/habitos/anclas";
 import ModalMotivo from "../../components/ModalMotivo";
-import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, hhmmDeFecha, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../../lib/dates";
+import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, hhmmDeFecha, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../../lib/habitos/dates";
 import Celebracion, { type CelebracionData } from "../../components/Celebracion";
 import { TarjetaSueno } from "../../components/TarjetaSueno";
 import ResumenSemanal from "../../components/ResumenSemanal";
@@ -31,7 +31,6 @@ import { ICONOS_LOGRO } from "../../components/iconos-logro";
 import { AvatarNivel, PALETA } from "../../components/AvatarNivel";
 import {
   IconAlerta,
-  IconCategoria,
   IconCheck,
   IconChevronAbajo,
   IconChevronDerecha,
@@ -45,9 +44,10 @@ import {
   IconX,
   IconSol,
   IconLuna,
-} from "../../lib/icons";
-import { sufijoDeUsuario } from "../../lib/ambito";
-import type { CompletionEvent, Habit, Moment } from "../../lib/types";
+} from "../../lib/core/ui/icons";
+import { IconCategoria } from "../../lib/habitos/iconos-categoria";
+import { sufijoDeUsuario } from "../../lib/core/ambito";
+import type { CompletionEvent, Habit, Moment } from "../../lib/habitos/types";
 
 function etiquetaMoment(moment: Moment, habits: Habit[], completions: CompletionEvent[], fecha: string): string {
   if (moment.tipo === "ancla" && moment.ancla) {

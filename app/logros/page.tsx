@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { LOGROS, type CategoriaLogro, type LogroDef } from "../../lib/gamificacion";
-import { useStore } from "../../lib/store-context";
+import { LOGROS, type CategoriaLogro, type LogroDef } from "../../lib/habitos/gamificacion";
+import { useStore } from "../../lib/habitos/store-context";
 import { ICONOS_LOGRO } from "../../components/iconos-logro";
 import Celebracion, { type CelebracionData } from "../../components/Celebracion";
-import { IconCandado, IconEstrella, IconRegalo, IconTrofeo } from "../../lib/icons";
+import { IconCandado, IconEstrella, IconRegalo, IconTrofeo } from "../../lib/core/ui/icons";
 
 const CATEGORIAS: CategoriaLogro[] = [
   "Rachas",

@@ -5,10 +5,10 @@ import { useAuth } from "./AuthGate";
 import PerfilCard from "./PerfilCard";
 import Onboarding, { type DatosOnboarding } from "./Onboarding";
 import Logo from "./Logo";
-import { logEvent } from "../lib/logger";
+import { logEvent } from "../lib/core/logger";
 import SelectorAvatar from "./SelectorAvatar";
 import CampoClave from "./CampoClave";
-import { sufijoDePerfil, claveEstado } from "../lib/ambito";
+import { sufijoDePerfil, claveEstado } from "../lib/core/ambito";
 import {
   actualizarPerfil,
   crearPerfilAdicional,
@@ -18,8 +18,8 @@ import {
   COLORES_PERFIL,
   MAX_PERFILES,
   type Perfil,
-} from "../lib/perfiles";
-import { IconAlerta, IconCandado, IconPlus, IconX } from "../lib/icons";
+} from "../lib/habitos/perfiles";
+import { IconAlerta, IconCandado, IconPlus, IconX } from "../lib/core/ui/icons";
 
 type Modal =
   | { tipo: "crear" }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { IconCheck, IconChevronAbajo } from "../lib/icons";
+import { IconCheck, IconChevronAbajo } from "../../../lib/core/ui/icons";
 
 export interface SelectOption {
   value: string;

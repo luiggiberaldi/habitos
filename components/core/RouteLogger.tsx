@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { logEvent } from "../lib/logger";
+import { logEvent } from "../../lib/core/logger";
 
 /**
  * Auditoría de navegación: registra cada cambio de ruta.

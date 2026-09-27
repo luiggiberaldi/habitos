@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
-import type { Perfil } from "../lib/perfiles";
-import { tienePin } from "../lib/perfiles";
+import type { Perfil } from "../lib/habitos/perfiles";
+import { tienePin } from "../lib/habitos/perfiles";
 import AvatarPerfil from "./AvatarPerfil";
-import { IconBorrar, IconCandado, IconEditar, IconFlechaAtras } from "../lib/icons";
+import { IconBorrar, IconCandado, IconEditar, IconFlechaAtras } from "../lib/core/ui/icons";
 
 interface Props {
   perfil: Perfil;

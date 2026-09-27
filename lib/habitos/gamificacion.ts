@@ -221,7 +221,7 @@ export function rachaActual(
  * ----------------------------------------------------------------------------
  * Todo lo de aquí es puro: recibe datos y devuelve datos, sin tocar el estado
  * global ni el almacenamiento. La orquestación (cuándo se llama a cada cosa)
- * vive en lib/juego.ts.
+ * vive en lib/habitos/juego.ts.
  * ========================================================================== */
 
 export const MAX_CONGELADORES = 2;

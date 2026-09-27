@@ -4,7 +4,7 @@ import { claveColaLog, sufijoDePerfil } from "./ambito";
 /**
  * Id del perfil activo. Se lee directo de localStorage (no se importa de
  * ./perfiles para no crear un ciclo: perfiles.ts importa logEvent de aquí).
- * La clave es el contrato de lib/perfiles.ts (PERFIL_ACTIVO_KEY).
+ * La clave es el contrato de lib/habitos/perfiles.ts (PERFIL_ACTIVO_KEY).
  */
 function leerPerfilActivoId(): string | null {
   try {

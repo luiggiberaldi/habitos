@@ -1,4 +1,4 @@
-// lib/liga.ts — Liga semanal opt-in.
+// lib/habitos/liga.ts — Liga semanal opt-in.
 //
 // Grupos pequeños de gente real que compiten por XP semanal. La evidencia
 // (Stanford HCI 2021) muestra que las ligas por niveles con reinicio semanal

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { IconX } from "../lib/icons";
+import { IconX } from "../lib/core/ui/icons";
 import Sparkles from "./ui/Sparkles";
 import Confeti from "./ui/Confeti";
 

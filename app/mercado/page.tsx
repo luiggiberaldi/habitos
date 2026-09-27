@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { flameGradient } from "../../lib/design-tokens";
-import { IconCaja, IconFlechaAtras } from "../../lib/icons";
+import { flameGradient } from "../../lib/core/ui/design-tokens";
+import { IconCaja, IconFlechaAtras } from "../../lib/core/ui/icons";
 
 /** Placeholder de Mercado hasta la Fase 2. */
 export default function MercadoProximamente() {

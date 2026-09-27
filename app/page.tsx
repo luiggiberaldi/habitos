@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useStoreState } from "../lib/store-context";
+import { useStoreState } from "../lib/habitos/store-context";
 import { useAuth } from "../components/AuthGate";
-import { nivelEfectivo, NIVELES } from "../lib/gamificacion";
-import { completadosPara, esDescanso, todayKey } from "../lib/dates";
-import { flameGradient } from "../lib/design-tokens";
+import { nivelEfectivo, NIVELES } from "../lib/habitos/gamificacion";
+import { completadosPara, esDescanso, todayKey } from "../lib/habitos/dates";
+import { flameGradient } from "../lib/core/ui/design-tokens";
 import { AvatarNivel } from "../components/AvatarNivel";
 import Logo from "../components/Logo";
 import {
@@ -14,7 +14,7 @@ import {
   IconChevronDerecha,
   IconFuego,
   IconMaletin,
-} from "../lib/icons";
+} from "../lib/core/ui/icons";
 
 /**
  * Hub de Senda — Inicio. Puerta de entrada a los espacios.

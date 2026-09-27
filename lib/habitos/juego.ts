@@ -1,4 +1,4 @@
-// lib/juego.ts — Orquestación de los sistemas de juego.
+// lib/habitos/juego.ts — Orquestación de los sistemas de juego.
 //
 // gamificacion.ts contiene la matemática pura; aquí vive el "cuándo":
 // qué pasa en el estado cuando el usuario registra un cumplimiento, cómo se

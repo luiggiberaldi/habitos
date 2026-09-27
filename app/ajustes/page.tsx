@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useStoreActions, useStoreState } from "../../lib/store-context";
+import { useStoreActions, useStoreState } from "../../lib/habitos/store-context";
 import { useAuth } from "../../components/AuthGate";
-import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
-import { IconAlerta, IconCampana, IconCerrarSesion, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
+import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/habitos/notifications";
+import { IconAlerta, IconCampana, IconCerrarSesion, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/core/ui/icons";
 import AvatarPerfil from "../../components/AvatarPerfil";
-import { TimeField } from "../../components/TimeField";
+import { TimeField } from "../../components/core/ui/TimeField";
 
 export default function Ajustes() {
   const { state, errorSync } = useStoreState();

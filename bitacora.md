@@ -206,4 +206,18 @@
 
 **Por qué:** petición directa de luigi: "no me gusta, deja el logo y la paleta de antes y cámbiale solo el nombre de habitos a senda para ver como queda".
 
-**Verificación:** `tsc` limpio, `npm run build` ok. Pendiente: revisión visual en su teléfono.
+**Verificación:** `tsc` limpio, `npm run build` ok, commit `886c56a` pusheado a `luiggiberaldi/senda`, deploy a https://habitos-amber.vercel.app (200). Pendiente: revisión visual en su teléfono.
+
+## 2026-09-27 — Extracción del núcleo: lib/core/ + lib/habitos/
+
+**Qué cambió:** reorganización del código en dos namespaces con frontera verificada:
+- `lib/core/` (neutro, cero dependencias del dominio): `supabase.ts`, `ambito.ts`, `logger.ts`, `event-id.ts` y **nuevo** `sync-queue.ts` — cola offline genérica (FIFO, tope 200 con aviso de desborde, reintento sin abortar el lote, guardia hermética contra flush simultáneo, `vaciar()`), extraída del store sin cambiar su semántica.
+- `lib/core/ui/`: `design-tokens.ts`, `icons.tsx` (set SVG), `Select`, `TimeField`, `StatefulButton`, `Skeleton`, `ActualizadorApp`.
+- `components/core/`: `RouteLogger`.
+- `lib/habitos/`: todo el dominio (types, store, store-context, sync-merge, juego, gamificacion, dates, notifications, anclas, liga, plantillas, perfiles, avatares, foto) + **nuevo** `iconos-categoria.tsx` (`IconCategoria` salió del set genérico porque `Categoria` es dominio).
+- `store-context.tsx` ahora usa `crearColaSync` con el switch de Supabase como ejecutor del dominio; `AuthGate` y el sistema de perfiles se quedaron donde estaban a propósito (moverlos arrastraría el dominio de identidad; será un paso propio).
+- Scripts actualizados: `whatsapp-comun.mjs` y los 5 smokes compilan las nuevas rutas con tsc; **nuevo** `scripts/smoke-cola-sync.mjs` (11 pruebas de la cola). Caché `.cache/whatsapp-lib` limpiada y regenerada.
+
+**Por qué:** Fase 0 del roadmap: el núcleo neutro es la base que Finanzas y Mercado van a importar sin arrastrar lógica de hábitos.
+
+**Verificación:** `tsc` limpio, `eslint` limpio, `npm run build` ok (15 rutas), smokes p0 5/5, p1p2 16/16, juego 110/110, sueño 59/59, anclas 10/10, cola-sync 11/11 (211 total), bridge de WhatsApp verificado en modo mock. Frontera verificada por grep: nada en `lib/core` ni `components/core` importa de `lib/habitos`. Commit local SIN push: el refactor cruza todo el repo y espera revisión de luigi antes de pushear/desplegar.

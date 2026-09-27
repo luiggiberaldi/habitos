@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatHoraA12, hhmmDeFecha, hhmmDeTimestamp, todayKey } from "../lib/dates";
-import { nochesSueno, nocheParaAcostar } from "../lib/gamificacion";
-import { IconAjustes, IconCheck, IconLuna, IconSol, IconX } from "../lib/icons";
-import { TimeField } from "./TimeField";
-import { useStoreActions, useStoreState } from "../lib/store-context";
-import type { Habit, MarcaSueno } from "../lib/types";
+import { formatHoraA12, hhmmDeFecha, hhmmDeTimestamp, todayKey } from "../lib/habitos/dates";
+import { nochesSueno, nocheParaAcostar } from "../lib/habitos/gamificacion";
+import { IconAjustes, IconCheck, IconLuna, IconSol, IconX } from "../lib/core/ui/icons";
+import { TimeField } from "./core/ui/TimeField";
+import { useStoreActions, useStoreState } from "../lib/habitos/store-context";
+import type { Habit, MarcaSueno } from "../lib/habitos/types";
 
 /* --------------------------- Modal de confirmación --------------------------- */
 

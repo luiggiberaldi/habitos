@@ -1,13 +1,13 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { getSupabase, getCachedUser } from "../lib/supabase";
+import { getSupabase, getCachedUser } from "../lib/core/supabase";
 import type { User } from "@supabase/supabase-js";
 import Logo from "./Logo";
 import CampoClave from "./CampoClave";
 import SelectorPerfiles from "./SelectorPerfiles";
 import Onboarding, { type DatosOnboarding } from "./Onboarding";
-import { IconAlerta } from "../lib/icons";
+import { IconAlerta } from "../lib/core/ui/icons";
 import {
   cargarPerfiles,
   crearPrimerPerfil,
@@ -16,7 +16,7 @@ import {
   marcarUsoPerfil,
   sincronizarPerfilesPendientes,
   type Perfil,
-} from "../lib/perfiles";
+} from "../lib/habitos/perfiles";
 
 interface AuthContextValue {
   user: User | null;

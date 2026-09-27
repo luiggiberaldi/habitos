@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { Habit } from "../lib/types";
-import { IconReloj, IconX } from "../lib/icons";
+import type { Habit } from "../lib/habitos/types";
+import { IconReloj, IconX } from "../lib/core/ui/icons";
 
 /** Motivos sugeridos para posponer un hábito (se puede escribir uno libre). */
 export const MOTIVOS_POSPONER = [

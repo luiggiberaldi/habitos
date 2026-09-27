@@ -1,22 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useStoreActions, useStoreState } from "../../../lib/store-context";
-import type { Habit, EstadoHabit } from "../../../lib/types";
-import { habitColors as COLORES } from "../../../lib/design-tokens";
+import { useStoreActions, useStoreState } from "../../../lib/habitos/store-context";
+import type { Habit, EstadoHabit } from "../../../lib/habitos/types";
+import { habitColors as COLORES } from "../../../lib/core/ui/design-tokens";
 import { WizardHabito } from "../../../components/WizardHabito";
 import {
   IconBorrar,
-  IconCategoria,
   IconCheck,
   IconDescanso,
   IconDuplicar,
   IconEditar,
   IconPlus,
   IconRayo,
-} from "../../../lib/icons";
+} from "../../../lib/core/ui/icons";
+import { IconCategoria } from "../../../lib/habitos/iconos-categoria";
 
-import { PLANTILLAS, habitoDesdePlantilla, type Plantilla } from "../../../lib/plantillas";
+import { PLANTILLAS, habitoDesdePlantilla, type Plantilla } from "../../../lib/habitos/plantillas";
 
 function uid(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto

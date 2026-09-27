@@ -1,7 +1,7 @@
 "use client";
 
-import type { Perfil } from "../lib/perfiles";
-import { avatarPorId } from "../lib/avatares";
+import type { Perfil } from "../lib/habitos/perfiles";
+import { avatarPorId } from "../lib/habitos/avatares";
 
 interface Props {
   perfil: Perfil;

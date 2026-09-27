@@ -1,4 +1,4 @@
-// lib/ambito.ts — Identidad única offline-first.
+// lib/core/ambito.ts — Identidad única offline-first.
 //
 // La app tiene una sola identidad: la cuenta en la nube (userId de Supabase),
 // cacheada en el dispositivo. Todo (estado, colas, logs, notificaciones) se

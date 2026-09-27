@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { addDays, completadosPara, DIAS_SEMANA, esDescanso, todayKey } from "../../lib/dates";
+import { addDays, completadosPara, DIAS_SEMANA, esDescanso, todayKey } from "../../lib/habitos/dates";
 import {
   consistenciaEnRango,
   diasActivosEnRango,
@@ -11,11 +11,10 @@ import {
   puntosEnRango,
   puntosTotalesParaFecha,
   rachaActual,
-} from "../../lib/gamificacion";
-import { useStoreState } from "../../lib/store-context";
+} from "../../lib/habitos/gamificacion";
+import { useStoreState } from "../../lib/habitos/store-context";
 import ResumenSemanal from "../../components/ResumenSemanal";
 import {
-  IconCategoria,
   IconCheck,
   IconEstadisticas,
   IconEstrella,
@@ -24,7 +23,8 @@ import {
   IconObjetivo,
   IconReloj,
   IconSol,
-} from "../../lib/icons";
+} from "../../lib/core/ui/icons";
+import { IconCategoria } from "../../lib/habitos/iconos-categoria";
 
 const LETRAS_DIA = ["L", "M", "X", "J", "V", "S", "D"]; // lunes..domingo
 const MESES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];

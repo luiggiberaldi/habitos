@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { useStoreState } from "../../lib/store-context";
-import { NIVELES, nivelEfectivo } from "../../lib/gamificacion";
+import { useStoreState } from "../../lib/habitos/store-context";
+import { NIVELES, nivelEfectivo } from "../../lib/habitos/gamificacion";
 import { AvatarNivel, PALETA } from "../../components/AvatarNivel";
-import { IconCheck, IconFlechaAtras, IconRayo } from "../../lib/icons";
+import { IconCheck, IconFlechaAtras, IconRayo } from "../../lib/core/ui/icons";
 
 /**
  * /niveles — mapa de los 9 niveles: qué XP pide cada uno, cuánto falta

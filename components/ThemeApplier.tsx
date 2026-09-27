@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useStoreState } from "../lib/store-context";
+import { useStoreState } from "../lib/habitos/store-context";
 
 export default function ThemeApplier() {
   const { state } = useStoreState();

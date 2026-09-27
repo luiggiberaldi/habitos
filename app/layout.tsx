@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { StoreProvider } from "../lib/store-context";
+import { StoreProvider } from "../lib/habitos/store-context";
 import { AuthGate } from "../components/AuthGate";
 import Nav from "../components/Nav";
 import ThemeApplier from "../components/ThemeApplier";
 import NotificationManager from "../components/NotificationManager";
-import ActualizadorApp from "../components/ActualizadorApp";
-import RouteLogger from "../components/RouteLogger";
+import ActualizadorApp from "../components/core/ui/ActualizadorApp";
+import RouteLogger from "../components/core/RouteLogger";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

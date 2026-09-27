@@ -53,12 +53,12 @@ try {
   execFileSync(
     tscBin,
     [
-      join(root, "lib", "types.ts"),
-      join(root, "lib", "dates.ts"),
-      join(root, "lib", "event-id.ts"),
-      join(root, "lib", "gamificacion.ts"),
-      join(root, "lib", "juego.ts"),
-      join(root, "lib", "store.ts"),
+      join(root, "lib", "habitos", "types.ts"),
+      join(root, "lib", "habitos", "dates.ts"),
+      join(root, "lib", "core", "event-id.ts"),
+      join(root, "lib", "habitos", "gamificacion.ts"),
+      join(root, "lib", "habitos", "juego.ts"),
+      join(root, "lib", "habitos", "store.ts"),
       "--outDir", outDir,
       "--module", "commonjs",
       "--target", "es2020",
@@ -75,10 +75,10 @@ try {
 }
 
 const req = createRequire(join(outDir, "cargador.cjs"));
-const g = req(join(outDir, "gamificacion.js"));
-const j = req(join(outDir, "juego.js"));
-const s = req(join(outDir, "store.js"));
-const d = req(join(outDir, "dates.js"));
+const g = req(join(outDir, "habitos", "gamificacion.js"));
+const j = req(join(outDir, "habitos", "juego.js"));
+const s = req(join(outDir, "habitos", "store.js"));
+const d = req(join(outDir, "habitos", "dates.js"));
 
 // ── Utilidades ─────────────────────────────────────────────────────────────
 const hoy = d.todayKey();

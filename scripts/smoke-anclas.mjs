@@ -40,10 +40,10 @@ try {
   execFileSync(
     tscBin,
     [
-      join(root, "lib", "types.ts"),
-      join(root, "lib", "dates.ts"),
-      join(root, "lib", "anclas.ts"),
-      join(root, "lib", "gamificacion.ts"),
+      join(root, "lib", "habitos", "types.ts"),
+      join(root, "lib", "habitos", "dates.ts"),
+      join(root, "lib", "habitos", "anclas.ts"),
+      join(root, "lib", "habitos", "gamificacion.ts"),
       "--outDir", outDir,
       "--module", "commonjs",
       "--target", "es2020",
