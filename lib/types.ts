@@ -1,6 +1,9 @@
 export type Categoria = "salud" | "productividad" | "crecimiento" | "bienestar" | "personal" | "otro";
 
-export type TipoMoment = "hora" | "ventana";
+export type TipoMoment = "hora" | "ventana" | "ancla";
+
+/** A qué marca del hábito Sueño se ancla un momento de tipo "ancla". */
+export type AnclaSueno = "levantar" | "acostar";
 
 export interface Moment {
   id: string;
@@ -9,6 +12,11 @@ export interface Moment {
   hora?: string;
   /** Etiqueta de ventana flexible cuando tipo === "ventana" */
   ventana?: string;
+  /**
+   * Ancla al sueño (solo cuando tipo === "ancla"): el momento sigue la hora
+   * real de levantarse/acostarse del hábito Sueño en vez de una hora fija.
+   */
+  ancla?: AnclaSueno;
   /** Subtareas opcionales (checklist recordatorio al marcar) */
   subtareas?: string[];
 }

@@ -17,6 +17,7 @@ import {
   resumenSemanal,
 } from "../lib/gamificacion";
 import { suscribirEventosJuego, type EventoJuego } from "../lib/juego";
+import { etiquetaAncla, horaAncla } from "../lib/anclas";
 import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, hhmmDeFecha, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
 import Celebracion, { type CelebracionData } from "../components/Celebracion";
 import { TarjetaSueno } from "../components/TarjetaSueno";
@@ -47,7 +48,10 @@ import {
 import { sufijoDeUsuario } from "../lib/ambito";
 import type { CompletionEvent, Habit, Moment } from "../lib/types";
 
-function etiquetaMoment(moment: Moment): string {
+function etiquetaMoment(moment: Moment, habits: Habit[], completions: CompletionEvent[], fecha: string): string {
+  if (moment.tipo === "ancla" && moment.ancla) {
+    return etiquetaAncla(moment.ancla, horaAncla(habits, completions, moment.ancla, fecha));
+  }
   return moment.tipo === "hora" && moment.hora ? formatHoraA12(moment.hora) : idiomaDeVentana(moment.ventana);
 }
 
@@ -260,6 +264,11 @@ export default function Inicio() {
   // avisos menores en toast (congeladores). Se encolan para no solaparse.
   useEffect(() => {
     return suscribirEventosJuego((e: EventoJuego) => {
+      // Nudge de momentos anclados: pregunta directa, sin sufijo de detalle.
+      if (e.tipo === "recordatorio-ancla") {
+        setToast(e.titulo);
+        return;
+      }
       const modal = celebracionParaEvento(e);
       if (modal) {
         setCelebraciones((prev) => [...prev, modal]);
@@ -599,6 +608,7 @@ export default function Inicio() {
                 habit={habit}
                 fecha={hoy}
                 completions={state.completions}
+                habits={state.habits}
                 marcando={marcando}
                 expandedMoment={expandedMoment}
                 subtareasTemp={subtareasTemp}
@@ -634,6 +644,7 @@ export default function Inicio() {
                       habit={habit}
                       fecha={hoy}
                       completions={state.completions}
+                habits={state.habits}
                       marcando={marcando}
                       expandedMoment={expandedMoment}
                       subtareasTemp={subtareasTemp}
@@ -820,6 +831,7 @@ function HabitCard({
   habit,
   fecha,
   completions,
+  habits,
   marcando,
   expandedMoment,
   subtareasTemp,
@@ -834,6 +846,7 @@ function HabitCard({
   habit: Habit;
   fecha: string;
   completions: CompletionEvent[];
+  habits: Habit[];
   marcando: string | null;
   expandedMoment: string | null;
   subtareasTemp: Record<string, string[]>;
@@ -848,7 +861,7 @@ function HabitCard({
   const completados = completadosPara(habit, fecha, completions);
   const objetivo = habit.objetivo;
   const completos = completados.size >= objetivo;
-  const racha = rachaActual(habit, fecha, completions);
+  const racha = rachaActual(habit, fecha, completions, [], undefined, habits);
 
   const ultimos7 = Array.from({ length: 7 }, (_, i) => {
     const dia = todayKey(addDays(new Date(`${fecha}T12:00:00`), -(6 - i)));
@@ -977,7 +990,7 @@ function HabitCard({
             return (
               <li key={moment.id} className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <span className="min-w-0 flex-1 text-sm text-muted">{etiquetaMoment(moment)}</span>
+                  <span className="min-w-0 flex-1 text-sm text-muted">{etiquetaMoment(moment, habits, completions, fecha)}</span>
                   {tieneSubtareas && !hecho && (
                     <button
                       type="button"
@@ -992,8 +1005,8 @@ function HabitCard({
                     deshabilitado={pulsando}
                     etiqueta={
                       hecho
-                        ? `Deshacer registro de ${etiquetaMoment(moment)}`
-                        : `Marcar ${etiquetaMoment(moment)} como hecho`
+                        ? `Deshacer registro de ${etiquetaMoment(moment, habits, completions, fecha)}`
+                        : `Marcar ${etiquetaMoment(moment, habits, completions, fecha)} como hecho`
                     }
                     onCambiar={(nuevo) => {
                       if (nuevo) onMarcar(habit, moment.id);

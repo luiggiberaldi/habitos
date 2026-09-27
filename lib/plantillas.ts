@@ -12,7 +12,7 @@ export interface Plantilla {
   tipo: TipoHabit;
   objetivo: number;
   unidad?: string;
-  momentos: { tipo: "hora" | "ventana"; hora?: string; ventana?: string }[];
+  momentos: { tipo: "hora" | "ventana" | "ancla"; hora?: string; ventana?: string; ancla?: "levantar" | "acostar" }[];
 }
 
 /** Plantillas de un tap: crear sin pasar por el formulario completo. */

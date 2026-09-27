@@ -29,6 +29,7 @@ import { fusionarHidratacion, type RemoteCompletionRow, type RemoteHabitRow } fr
 import { getSupabase } from "./supabase";
 import { todayKey, addDays, moverFecha, timestampLocal } from "./dates";
 import { fechaParaMarcaSueno, nocheEstaCompleta, nochesSueno } from "./gamificacion";
+import { habitosAnclaPendientes } from "./anclas";
 import { useAuth } from "../components/AuthGate";
 import { logEvent, flushLog, type LogAction } from "./logger";
 import { fijarSufijoNotificaciones } from "./notifications";
@@ -50,6 +51,8 @@ const ACCION_POR_TIPO_EVENTO: Record<TipoEventoJuego, LogAction | null> = {
   "congelador-usado": "FREEZER_USED",
   // Sueño: el tap ya queda auditado con SUENO_REGISTRADO (+ XP_GAINED/LOST).
   sueno: null,
+  // El nudge de momentos anclados es un aviso de UI, no un evento de juego.
+  "recordatorio-ancla": null,
 };
 
 /**
@@ -669,6 +672,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? corregirSuenoConJuego(previo, habitId, cual, fecha, timestamp)
           : registrarSuenoConJuego(previo, habitId, cual, fecha, timestamp, eventId);
         setState(nuevo);
+        // Nudge: si hay hábitos con momento anclado a esta marca (levantar/
+        // acostar) aún sin marcar hoy, se avisa en la UI (solo marcas nuevas,
+        // no correcciones: no naggear).
+        if (!existe) {
+          const pendientes = habitosAnclaPendientes(nuevo.habits, nuevo.completions, cual, fecha);
+          if (pendientes.length > 0) {
+            eventos.push({
+              tipo: "recordatorio-ancla",
+              titulo:
+                pendientes.length === 1
+                  ? `¿Ya hiciste "${pendientes[0].nombre}"?`
+                  : `¿Ya hiciste tus hábitos de ${cual === "levantar" ? "al levantarte" : "al acostarte"}?`,
+              detalle: pendientes.map((h) => h.nombre).join(", "),
+              dato: cual,
+            });
+          }
+        }
         if (eventos.length > 0) emitirEventosJuego(eventos);
         // Auditoría: el XP por puntualidad puede ser negativo.
         const xpDelta = (nuevo.juego?.xpTotal ?? 0) - xpAntes;

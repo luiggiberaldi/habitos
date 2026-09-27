@@ -92,7 +92,8 @@ export type TipoEventoJuego =
   | "desafio"
   | "congelador-ganado"
   | "congelador-usado"
-  | "sueno";
+  | "sueno"
+  | "recordatorio-ancla";
 
 export interface EventoJuego {
   tipo: TipoEventoJuego;
@@ -189,7 +190,7 @@ export function aplicarRecompensas(
   }
 
   // 4. Racha máxima histórica + congelador cada 7 días de racha.
-  const racha = rachaActual(habit, hoy, despues.completions, juego.diasProtegidos);
+  const racha = rachaActual(habit, hoy, despues.completions, juego.diasProtegidos, undefined, despues.habits);
   const rachaMaxPrev = juego.rachaMaxima[habitId] ?? 0;
   if (racha > rachaMaxPrev) {
     juego = { ...juego, rachaMaxima: { ...juego.rachaMaxima, [habitId]: racha } };
@@ -450,7 +451,7 @@ export function reconciliarJuego(state: AppState): AppState {
   }
 
   for (const h of state.habits) {
-    const r = rachaActual(h, hoy, state.completions, juego.diasProtegidos);
+    const r = rachaActual(h, hoy, state.completions, juego.diasProtegidos, undefined, state.habits);
     if ((juego.rachaMaxima[h.id] ?? 0) < r) {
       juego = { ...juego, rachaMaxima: { ...juego.rachaMaxima, [h.id]: r } };
       marcar();

@@ -267,14 +267,26 @@ const main = async () => {
       }
     } else if (moms.length > 0) {
       const ahoraMin = new Date().getHours() * 60 + new Date().getMinutes();
+      // Momento anclado: su hora efectiva es la objetivo del sueño (la real
+      // solo se conoce después de marcar, y aquí importa la cercanía).
+      const horaEfectiva = (m) => {
+        if (m.hora) return m.hora;
+        if (m.ancla) {
+          const s = habits.find((h) => h.tipo === "sueno" && h.estado === "activo");
+          if (!s) return null;
+          return m.ancla === "levantar" ? (s.horaLevantar || "06:00") : (s.horaAcostar || "22:00");
+        }
+        return null;
+      };
       let best = moms[0], bestD = Infinity;
       for (const m of moms) {
-        if (!m.hora) continue;
-        const [hh, mi] = m.hora.split(":").map(Number);
+        const he = horaEfectiva(m);
+        if (!he) continue;
+        const [hh, mi] = he.split(":").map(Number);
         const dd = Math.abs(hh * 60 + mi - ahoraMin);
         if (dd < bestD) { bestD = dd; best = m; }
       }
-      momentId = best.id; momentoHora = best.hora || null;
+      momentId = best.id; momentoHora = horaEfectiva(best);
     } else {
       fail("sin-momento", `"${habit.nombre}" no tiene momentos configurados`);
     }

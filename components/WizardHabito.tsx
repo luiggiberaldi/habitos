@@ -49,6 +49,8 @@ const OPCIONES_MOMENTO = [
   { valor: "noche", etiqueta: "Noche" },
   { valor: "cualquier", etiqueta: "Flexible" },
   { valor: "hora", etiqueta: "Hora exacta" },
+  { valor: "ancla-levantar", etiqueta: "Al levantarme" },
+  { valor: "ancla-acostar", etiqueta: "Al acostarme" },
 ];
 
 const ETIQUETA_VENTANA: Record<string, string> = {
@@ -67,10 +69,12 @@ function uid(): string {
 }
 
 function claveMomento(m: Moment): string {
+  if (m.tipo === "ancla") return `ancla:${m.ancla ?? "levantar"}`;
   return m.tipo === "hora" ? `hora:${m.hora ?? "09:00"}` : `ventana:${m.ventana ?? "cualquier"}`;
 }
 
 function seleccionMomento(m: Moment): string {
+  if (m.tipo === "ancla") return m.ancla === "acostar" ? "ancla-acostar" : "ancla-levantar";
   return m.tipo === "hora" ? "hora" : (m.ventana ?? "cualquier");
 }
 
@@ -271,8 +275,16 @@ export function WizardHabito({
       momentos: prev.momentos.map((m) =>
         m.id === id
           ? sel === "hora"
-            ? { ...m, tipo: "hora", hora: m.hora ?? "09:00", ventana: undefined }
-            : { ...m, tipo: "ventana", ventana: sel, hora: undefined }
+            ? { ...m, tipo: "hora", hora: m.hora ?? "09:00", ventana: undefined, ancla: undefined }
+            : sel === "ancla-levantar" || sel === "ancla-acostar"
+              ? {
+                  ...m,
+                  tipo: "ancla",
+                  ancla: sel === "ancla-acostar" ? "acostar" : "levantar",
+                  hora: undefined,
+                  ventana: undefined,
+                }
+              : { ...m, tipo: "ventana", ventana: sel, hora: undefined, ancla: undefined }
           : m,
       ),
     }));
@@ -558,6 +570,11 @@ export function WizardHabito({
                                     className="input-field min-h-10 min-w-0 flex-1"
                                   />
                                 </div>
+                              ) : sel === "ancla-levantar" || sel === "ancla-acostar" ? (
+                                <p className="min-w-0 flex-1 text-sm text-muted">
+                                  Sigue tu hora de {sel === "ancla-levantar" ? "levantarte" : "acostarte"} del
+                                  hábito Sueño (la real si ya la marcaste, si no la objetivo).
+                                </p>
                               ) : (
                                 <p className="min-w-0 flex-1 text-sm text-muted">
                                   Se sugiere {ETIQUETA_VENTANA[sel]?.toLowerCase() === "flexible" ? "a cualquier hora" : `en la ${ETIQUETA_VENTANA[sel]?.toLowerCase()}`}.
@@ -651,7 +668,11 @@ export function WizardHabito({
                     <dd className="text-right font-medium">
                       {draft.momentos
                         .map((m) =>
-                          m.tipo === "hora" ? (m.hora ?? "09:00") : (ETIQUETA_VENTANA[m.ventana ?? "cualquier"] ?? ""),
+                          m.tipo === "hora"
+                            ? (m.hora ?? "09:00")
+                            : m.tipo === "ancla"
+                              ? (m.ancla === "acostar" ? "Al acostarme" : "Al levantarme")
+                              : (ETIQUETA_VENTANA[m.ventana ?? "cualquier"] ?? ""),
                         )
                         .join(" · ") || "—"}
                     </dd>

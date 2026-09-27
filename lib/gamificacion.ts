@@ -1,5 +1,6 @@
 import type { CompletionEvent, DesafioSemanal, Habit, JuegoState, MarcaSueno } from "./types";
 import { addDays, completadosPara, esDescanso, hhmmDeFecha, hhmmDeTimestamp, inicioSemana, moverFecha, todayKey } from "./dates";
+import { horaAncla } from "./anclas";
 
 export const PUNTOS_POR_REGISTRO = 10;
 export const PUNTOS_OBJETIVO_DIARIO = 5;
@@ -141,6 +142,12 @@ export function rachaActual(
   completions: CompletionEvent[],
   diasProtegidos: string[] = [],
   ahoraHHMM?: string,
+  /**
+   * Hábitos del estado (opcional): si se pasa, los momentos anclados al sueño
+   * resuelven su hora efectiva para el cálculo de "vencido". Sin esto se
+   * tratan como ventanas (nunca vencen por hora).
+   */
+  habitsParaAnclas: Habit[] = [],
 ): number {
   const porDia = new Map<string, CompletionEvent[]>();
   for (const c of completions) {
@@ -163,13 +170,16 @@ export function rachaActual(
       return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
     })();
   const eventosHoy = porDia.get(hoy) ?? [];
-  const hayVencidoHoy = (habit.momentos ?? []).some(
-    (m) =>
-      m.tipo === "hora" &&
-      m.hora &&
-      m.hora <= hhmm &&
-      !eventosHoy.some((c) => c.momentId === m.id),
-  );
+  const hayVencidoHoy = (habit.momentos ?? []).some((m) => {
+    // Momento anclado: su hora efectiva es la del sueño (real u objetivo).
+    const hora =
+      m.tipo === "hora"
+        ? m.hora
+        : m.tipo === "ancla" && m.ancla
+          ? (horaAncla(habitsParaAnclas, completions, m.ancla, hoy) ?? undefined)
+          : undefined;
+    return !!hora && hora <= hhmm && !eventosHoy.some((c) => c.momentId === m.id);
+  });
 
   let d = new Date(`${hoy}T12:00:00`);
   // Sueño: el "día" se juzga por la noche atribuida a hoy (acostar ayer +
@@ -742,7 +752,7 @@ export function asegurarDesafios(
   const protegidos = juego.diasProtegidos;
   const candidatos = habits
     .filter((h) => h.estado === "activo")
-    .map((h) => ({ h, racha: rachaActual(h, hoy, completions, protegidos) }))
+    .map((h) => ({ h, racha: rachaActual(h, hoy, completions, protegidos, undefined, habits) }))
     .sort((a, b) => b.racha - a.racha)
     .slice(0, 3);
 

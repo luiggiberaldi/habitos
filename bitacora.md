@@ -2,7 +2,29 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
-## 2026-09-27 (paquete de animaciones P1–P3 — SIN commitear)
+## 2026-09-27 (momentos anclados al sueño — SIN commitear)
+
+- luigi quiere un objetivo tipo "cepillarme los dientes al levantarme y antes
+  de acostarme": las horas fijas no sirven porque su hora de dormir varía.
+- Nuevo tipo de momento `ancla` (`Al levantarme` / `Al acostarme`) en el
+  wizard: no tiene hora propia, sigue la hora del hábito Sueño — la real
+  marcada ese día si existe, si no la objetivo configurada (`lib/anclas.ts`).
+- Tarjeta: el momento anclado muestra `Al levantarte · 6:40` con la hora
+  efectiva; la racha lo trata como vencido según esa hora.
+- Al marcar "Me levanté"/"Me acosté" sale un nudge (`recordatorio-ancla`)
+  si hay momentos anclados sin marcar: `¿Ya hiciste "Cepillarme los dientes"?`
+  Solo en marcas nuevas, no en correcciones.
+- Notificaciones: los momentos anclados se programan con la hora objetivo del
+  sueño y se avisan incluso en horario de descanso (rutina de sueño); título
+  `Al levantarte: <hábito>`.
+- WhatsApp (`whatsapp-registrar.mjs`): al resolver el momento más cercano
+  usa la hora efectiva del ancla.
+- Validación: tsc limpio; eslint 0 errores (1 warning preexistente);
+  smokes 200/200 (p0 5, p1p2 16, juego 110, sueño 59, anclas 10 — nuevo
+  `scripts/smoke-anclas.mjs`); build exit 0.
+- SIN commitear: pendiente autorización de luigi.
+
+## 2026-09-27 (paquete de animaciones P1–P3 — DESPLEGADO a producción)
 
 - luigi aprobó añadir las 3 prioridades del audit de animaciones.
 - P1: `+N XP` flotante al marcar hábito — `components/ui/XpFlotante.tsx` nuevo

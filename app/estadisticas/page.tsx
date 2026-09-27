@@ -558,7 +558,7 @@ export default function Estadisticas() {
           </div>
         ) : (
           datos.porHabit.map(({ habit, totalRegistros, consistencia }) => {
-            const racha = rachaActual(habit, hoy, state.completions);
+            const racha = rachaActual(habit, hoy, state.completions, [], undefined, state.habits);
             const mejor = Math.max(state.juego.rachaMaxima[habit.id] ?? 0, racha);
             return (
               <article key={habit.id} className="card min-w-0 p-4">
