@@ -37,14 +37,18 @@ function Glifo({ nivel }: { nivel: number }) {
           <circle className="avn-rise avn-d2" cx="19" cy="47" r="1.9" fill={BLANCO} />
         </g>
       );
-    case 2: // Impulso: flecha que sube con líneas de velocidad
+    case 2: // Impulso: cohete despegando — impulso como despegue
       return (
         <g>
           <g className="avn-float">
-            <path d="M32 10 L45 25 H37 V46 H27 V25 H19 Z" fill={BLANCO} />
+            <path
+              d="M32 10 C36 16 38 22 38 30 L38 42 L26 42 L26 30 C26 22 28 16 32 10 Z"
+              fill={BLANCO}
+            />
+            <path d="M26 34 L19 47 L26 45 Z" fill={BLANCO} />
+            <path d="M38 34 L45 47 L38 45 Z" fill={BLANCO} />
+            <path d="M28.5 42 L32 53 L35.5 42 Z" fill={BLANCO} />
           </g>
-          <path d="M20 52 H44" stroke={BLANCO} strokeWidth="3.5" strokeLinecap="round" opacity="0.8" />
-          <path d="M25 57.5 H39" stroke={BLANCO} strokeWidth="3.5" strokeLinecap="round" opacity="0.45" />
         </g>
       );
     case 3: // Ritmo: ecualizador que late
