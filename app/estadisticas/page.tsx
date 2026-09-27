@@ -12,6 +12,7 @@ import {
   rachaActual,
 } from "../../lib/gamificacion";
 import { useStoreState } from "../../lib/store-context";
+import ResumenSemanal from "../../components/ResumenSemanal";
 import {
   IconCategoria,
   IconCheck,
@@ -25,6 +26,7 @@ import {
 } from "../../lib/icons";
 
 const LETRAS_DIA = ["L", "M", "X", "J", "V", "S", "D"]; // lunes..domingo
+const MESES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 function letraDia(fecha: string): string {
   const d = new Date(`${fecha}T12:00:00`);
@@ -99,10 +101,15 @@ function Sparkline({ valores, color = "var(--accent)" }: { valores: (number | nu
 
 export default function Estadisticas() {
   const { state } = useStoreState();
-  const [rango, setRango] = useState<7 | 30>(7);
+  const [rango, setRango] = useState<7 | 30 | 365>(7);
   const [diaSeleccionado, setDiaSeleccionado] = useState<string | null>(null);
   const hoy = todayKey();
-  const inicio = todayKey(addDays(new Date(`${hoy}T12:00:00`), -(rango - 1)));
+  const inicioBase = todayKey(addDays(new Date(`${hoy}T12:00:00`), -(rango - 1)));
+  // En vista anual se alinea el inicio al lunes para columnas de semanas completas.
+  const inicio =
+    rango === 365
+      ? todayKey(addDays(new Date(`${inicioBase}T12:00:00`), -((new Date(`${inicioBase}T12:00:00`).getDay() + 6) % 7)))
+      : inicioBase;
   const inicioAnterior = todayKey(addDays(new Date(`${inicio}T12:00:00`), -rango));
 
   const datos = useMemo(() => {
@@ -171,6 +178,33 @@ export default function Estadisticas() {
   }, [state.habits, state.completions, inicio, hoy]);
 
   const maxConteo = useMemo(() => Math.max(1, ...serie.map((d) => d.registros)), [serie]);
+
+  /** Vista anual estilo GitHub: columnas = semanas (lunes..domingo). */
+  const vistaAnual = useMemo(() => {
+    if (rango !== 365) return null;
+    const porFecha = new Map(serie.map((s) => [s.fecha, s.registros]));
+    const semanas: { fecha: string; registros: number }[][] = [];
+    const etiquetas: string[] = [];
+    const d = new Date(`${inicio}T12:00:00`);
+    const fin = new Date(`${hoy}T12:00:00`);
+    let mesPrevio = -1;
+    while (d <= fin) {
+      const sem: { fecha: string; registros: number }[] = [];
+      for (let i = 0; i < 7; i++) {
+        if (d <= fin) {
+          const key = todayKey(d);
+          sem.push({ fecha: key, registros: porFecha.get(key) ?? 0 });
+        }
+        d.setDate(d.getDate() + 1);
+      }
+      const primero = sem[0]?.fecha;
+      const mes = primero ? new Date(`${primero}T12:00:00`).getMonth() : -1;
+      etiquetas.push(mes !== mesPrevio && mes >= 0 ? MESES_CORTO[mes] : "");
+      mesPrevio = mes;
+      semanas.push(sem);
+    }
+    return { semanas, etiquetas };
+  }, [rango, serie, inicio, hoy]);
 
   /** Racha global: días consecutivos con al menos un registro. */
   const rachaGlobal = useMemo(() => {
@@ -258,7 +292,7 @@ export default function Estadisticas() {
     return "var(--accent)";
   }
 
-  const cambiarRango = (nuevo: 7 | 30) => {
+  const cambiarRango = (nuevo: 7 | 30 | 365) => {
     setRango(nuevo);
     setDiaSeleccionado(null);
   };
@@ -271,7 +305,7 @@ export default function Estadisticas() {
           <p className="mt-1 text-sm text-muted">Tu progreso en detalle.</p>
         </div>
         <div className="inline-flex shrink-0 rounded-xl border border-border bg-surface p-1">
-          {([7, 30] as const).map((diasRango) => (
+          {([7, 30, 365] as const).map((diasRango) => (
             <button
               key={diasRango}
               type="button"
@@ -280,7 +314,7 @@ export default function Estadisticas() {
                 rango === diasRango ? "bg-accent text-accent-foreground shadow-sm" : "text-muted hover:text-foreground"
               }`}
             >
-              {diasRango === 7 ? "7 días" : "30 días"}
+              {diasRango === 7 ? "7 días" : diasRango === 30 ? "30 días" : "1 año"}
             </button>
           ))}
         </div>
@@ -319,6 +353,9 @@ export default function Estadisticas() {
         />
       </section>
 
+      {/* Resumen de la semana pasada */}
+      <ResumenSemanal habits={state.habits} completions={state.completions} />
+
       {/* Calendario de actividad */}
       <section className="card min-w-0 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -354,6 +391,32 @@ export default function Estadisticas() {
                 />
               </div>
             ))}
+          </div>
+        ) : rango === 365 && vistaAnual ? (
+          <div className="mt-3 overflow-x-auto pb-1">
+            <div className="flex min-w-max gap-1" role="img" aria-label="Mapa de calor del último año, por semanas">
+              {vistaAnual.semanas.map((sem, si) => (
+                <div key={si} className="flex flex-col gap-1">
+                  <span className="h-4 text-[9px] font-medium text-muted" aria-hidden="true">
+                    {vistaAnual.etiquetas[si]}
+                  </span>
+                  {sem.map(({ fecha, registros }) => (
+                    <button
+                      key={fecha}
+                      type="button"
+                      onClick={() => setDiaSeleccionado((prev) => (prev === fecha ? null : fecha))}
+                      aria-pressed={diaSeleccionado === fecha}
+                      title={`${nombreDia(fecha)}: ${registros} registro${registros !== 1 ? "s" : ""}`}
+                      aria-label={`${nombreDia(fecha)}: ${registros} registro${registros !== 1 ? "s" : ""}. Activar para ver el detalle.`}
+                      className={`h-3 w-3 rounded-[3px] outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-accent ${
+                        diaSeleccionado === fecha ? "ring-2 ring-accent ring-offset-1 ring-offset-surface" : ""
+                      }`}
+                      style={{ backgroundColor: intensidadColor(registros) }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="mt-3">

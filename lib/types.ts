@@ -37,6 +37,12 @@ export interface Habit {
   tipo?: TipoHabit;
   /** Unidad de medida para hábitos de cantidad (ej. 'vasos', 'litros'). */
   unidad?: string;
+  /**
+   * Aplazamiento puntual (YYYY-MM-DD): el hábito no aplica antes de esa fecha
+   * y sí aplica ese día aunque no esté en `dias`. "Posponer para mañana".
+   * Se ignora solo una vez que la fecha pasa.
+   */
+  pospuestoHasta?: string;
 }
 
 /**

@@ -23,7 +23,7 @@ import type { AppState, Habit, CompletionEvent, JuegoState, Settings } from "./t
 import { construirEventId } from "./event-id";
 import { fusionarHidratacion, type RemoteCompletionRow, type RemoteHabitRow } from "./sync-merge";
 import { getSupabase } from "./supabase";
-import { todayKey } from "./dates";
+import { todayKey, addDays } from "./dates";
 import { useAuth } from "../components/AuthGate";
 import { logEvent } from "./logger";
 
@@ -44,6 +44,8 @@ interface StoreContextValue {
   deshacer: (event: CompletionEvent) => void;
   /** Modo vacaciones: pausa o reanuda todos los hábitos no archivados de una vez. */
   cambiarEstadoTodos: (estado: "activo" | "pausado") => void;
+  /** Aplaza un hábito para mañana (toggle: si ya está aplazado, lo devuelve a hoy). */
+  posponerHabit: (id: string) => void;
   /** Actualiza campos del estado de juego (p. ej. nombre visible en la liga). */
   actualizarJuego: (parcial: Partial<JuegoState>) => void;
   rehidratar: () => Promise<void>;
@@ -423,11 +425,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // P2.11: acciones con identidad estable — solo dependen de callbacks estables
   // y de stateRef, nunca del `state` del render.
   const actions = useMemo<Omit<StoreContextValue, "state" | "errorSync">>(
-    () => ({
-      rehidratar: rehidratarFn,
-      // E3: exponer el flush para que el cierre de sesión no deje la cola huérfana.
-      sincronizarAhora: reenviarPendientes,
-      guardarHabit: (habit) => {
+    () => {
+      const guardar = (habit: Habit) => {
         const esNuevo = !stateRef.current.habits.some((h) => h.id === habit.id);
         setState((s) => guardarHabit(s, habit));
         const supabase = getSupabase();
@@ -440,7 +439,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           );
         }
         logEvent(esNuevo ? "HABIT_CREATED" : "HABIT_UPDATED", "habit", habit.id, { nombre: habit.nombre, categoria: habit.categoria });
-      },
+      };
+      return {
+      rehidratar: rehidratarFn,
+      // E3: exponer el flush para que el cierre de sesión no deje la cola huérfana.
+      sincronizarAhora: reenviarPendientes,
+      guardarHabit: guardar,
       eliminarHabit: (id) => {
         setState((s) => eliminarHabit(s, id));
         const supabase = getSupabase();
@@ -596,7 +600,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         logEvent("APP_RESET", "app", null, null);
       },
-    }),
+      posponerHabit: (id) => {
+        const h = stateRef.current.habits.find((x) => x.id === id);
+        if (!h || h.estado !== "activo") return;
+        const manana = todayKey(addDays(new Date(), 1));
+        // Toggle: si ya está aplazado para mañana, se devuelve a hoy.
+        const pospuestoHasta = h.pospuestoHasta === manana ? undefined : manana;
+        guardar({ ...h, pospuestoHasta });
+      },
+    }
+    },
     [userId, sincronizar, rehidratarFn, reenviarPendientes, storageKey],
   );
 

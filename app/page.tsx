@@ -18,6 +18,7 @@ import {
 import { suscribirEventosJuego, type EventoJuego } from "../lib/juego";
 import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
 import Celebracion, { type CelebracionData } from "../components/Celebracion";
+import ResumenSemanal from "../components/ResumenSemanal";
 import CofreFlip, { type PremioCofreUI } from "../components/ui/CofreFlip";
 import CheckAnimado from "../components/ui/CheckAnimado";
 import Logo from "../components/Logo";
@@ -35,6 +36,7 @@ import {
   IconMedalla,
   IconObjetivo,
   IconRegalo,
+  IconReloj,
   IconSol,
   IconTrofeo,
   IconRayo,
@@ -93,7 +95,8 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
 
 export default function Inicio() {
   const { state } = useStoreState();
-  const { registrar, deshacer } = useStoreActions();
+  const { registrar, deshacer, posponerHabit } = useStoreActions();
+  const [mostrarPospuestos, setMostrarPospuestos] = useState(false);
   const [marcando, setMarcando] = useState<string | null>(null);
   const [subtareasTemp, setSubtareasTemp] = useState<Record<string, string[]>>({});
   const [expandedMoment, setExpandedMoment] = useState<string | null>(null);
@@ -116,6 +119,11 @@ export default function Inicio() {
   const habitosCompletados = useMemo(
     () => habitosHoy.filter((h) => completadosPara(h, hoy, state.completions).size >= h.objetivo),
     [habitosHoy, hoy, state.completions],
+  );
+  // Aplazados para una fecha futura: no tocan hoy, vuelven solos ese día.
+  const habitosPospuestos = useMemo(
+    () => state.habits.filter((h) => h.estado === "activo" && h.pospuestoHasta != null && h.pospuestoHasta > hoy),
+    [state.habits, hoy],
   );
 
   // Deep link del botón "Listo" de la notificación push: auto-registra el momento.
@@ -330,6 +338,11 @@ export default function Inicio() {
         </div>
       </header>
 
+      {/* Resumen de la semana pasada, solo los lunes */}
+      {new Date().getDay() === 1 && (
+        <ResumenSemanal habits={state.habits} completions={state.completions} />
+      )}
+
       {/* Recordatorio in-app */}
       {pendientes > 0 && habitosHoy.length > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-secondary/30 bg-secondary-soft px-4 py-3">
@@ -543,6 +556,7 @@ export default function Inicio() {
                 onToggleSubtarea={toggleSubtarea}
                 onExpand={(id) => setExpandedMoment(id)}
                 onRegistrarCantidad={alRegistrarCantidad}
+                onPosponer={(h) => posponerHabit(h.id)}
               />
             ))}
           </section>
@@ -576,9 +590,51 @@ export default function Inicio() {
                       onToggleSubtarea={toggleSubtarea}
                       onExpand={(id) => setExpandedMoment(id)}
                       onRegistrarCantidad={alRegistrarCantidad}
+                      onPosponer={(h) => posponerHabit(h.id)}
                     />
                   ))}
                 </div>
+              )}
+            </section>
+          )}
+          {habitosPospuestos.length > 0 && (
+            <section className="card overflow-hidden" aria-label="Hábitos pospuestos para mañana">
+              <button
+                type="button"
+                onClick={() => setMostrarPospuestos((v) => !v)}
+                aria-expanded={mostrarPospuestos}
+                className="flex w-full items-center justify-between gap-2 px-5 py-4 text-left"
+              >
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-muted">
+                  <IconReloj className="h-4 w-4 text-accent" />
+                  Pospuestos para mañana ({habitosPospuestos.length})
+                </span>
+                <IconChevronAbajo className={`h-4 w-4 shrink-0 text-muted transition-transform ${mostrarPospuestos ? "rotate-180" : ""}`} />
+              </button>
+              {mostrarPospuestos && (
+                <ul className="divide-y divide-border border-t border-border">
+                  {habitosPospuestos.map((habit) => (
+                    <li key={habit.id} className="flex items-center gap-3 px-5 py-3">
+                      <div
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                        style={{ backgroundColor: `${habit.color}1f`, color: habit.color }}
+                      >
+                        <IconCategoria categoria={habit.categoria} className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{habit.nombre}</p>
+                        <p className="text-xs text-muted">Vuelve mañana solo</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => posponerHabit(habit.id)}
+                        className="shrink-0 rounded-lg px-2 py-1.5 text-xs font-medium text-accent hover:underline"
+                      >
+                        Volver a hoy
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
           )}
@@ -609,6 +665,7 @@ function HabitCard({
   onToggleSubtarea,
   onExpand,
   onRegistrarCantidad,
+  onPosponer,
 }: {
   habit: Habit;
   fecha: string;
@@ -621,6 +678,7 @@ function HabitCard({
   onToggleSubtarea: (habitId: string, momentId: string, subtarea: string) => void;
   onExpand: (id: string | null) => void;
   onRegistrarCantidad: (habit: Habit) => void;
+  onPosponer: (habit: Habit) => void;
 }) {
   const completados = completadosPara(habit, fecha, completions);
   const objetivo = habit.objetivo;
@@ -668,6 +726,17 @@ function HabitCard({
               {racha > 0 && racha < 3 && ` · Racha: ${racha}d`}
             </p>
           </div>
+          {!completos && (
+            <button
+              type="button"
+              onClick={() => onPosponer(habit)}
+              title="Posponer para mañana"
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              <IconReloj className="h-4 w-4" aria-hidden="true" />
+              Posponer
+            </button>
+          )}
         </header>
 
         <div className="mt-4" role="group" aria-label={`Progreso de hoy: ${completados.size} de ${objetivo} momentos`}>

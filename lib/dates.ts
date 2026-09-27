@@ -25,6 +25,11 @@ export const DIAS_SEMANA = [
 ];
 
 export function esDescanso(habit: Habit, fechaKey: string): boolean {
+  // Aplazamiento puntual: no aplica antes de la fecha destino, sí aplica ese día.
+  if (habit.pospuestoHasta) {
+    if (habit.pospuestoHasta === fechaKey) return false;
+    if (habit.pospuestoHasta > fechaKey) return true;
+  }
   const d = new Date(fechaKey + "T00:00:00");
   return !habit.dias.includes(d.getDay());
 }
