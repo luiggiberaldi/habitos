@@ -310,6 +310,12 @@ select.input-field:focus {
   50% { transform: translateY(-6px); }
 }
 .animate-flotar { animation: ui-flotar 2.8s ease-in-out infinite; }
+@keyframes ui-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-7px); }
+  40%, 80% { transform: translateX(7px); }
+}
+.animate-shake { animation: ui-shake 0.4s ease-in-out; }
 
 @media (prefers-reduced-motion: reduce) {
   *,

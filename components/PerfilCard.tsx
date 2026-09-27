@@ -3,7 +3,7 @@
 import { useState, type CSSProperties } from "react";
 import type { Perfil } from "../lib/perfiles";
 import AvatarPerfil from "./AvatarPerfil";
-import { IconBorrar, IconEditar, IconFlechaAtras } from "../lib/icons";
+import { IconBorrar, IconCandado, IconEditar, IconFlechaAtras } from "../lib/icons";
 
 interface Props {
   perfil: Perfil;
@@ -33,11 +33,20 @@ export default function PerfilCard({ perfil, numHabitos, onEntrar, onEditar, onE
           type="button"
           onClick={() => setVolteado(true)}
           aria-label={`Ver opciones de ${perfil.nombre}`}
-          className="perfil-flip-cara flex cursor-pointer flex-col items-center justify-center gap-4 rounded-[2rem] text-white shadow-lg"
+          className="perfil-flip-cara flex cursor-pointer flex-col items-center justify-center gap-4 rounded-[2rem] text-white shadow-lg relative"
           style={{
             background: "linear-gradient(135deg, var(--pc), color-mix(in srgb, var(--pc) 55%, black))",
           }}
         >
+          {perfil.pin && (
+            <span
+              aria-label="Perfil protegido con PIN"
+              title="Protegido con PIN"
+              className="absolute right-4 top-4 rounded-full bg-black/30 p-1.5"
+            >
+              <IconCandado className="h-4 w-4 text-white" aria-hidden="true" />
+            </span>
+          )}
           <AvatarPerfil perfil={perfil} className="h-20 w-20 text-4xl" />
           <span className="max-w-full truncate px-4 text-lg font-bold">{perfil.nombre}</span>
           <span className="text-xs font-medium text-white/80">Toca para ver opciones</span>

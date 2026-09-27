@@ -12,16 +12,18 @@ import {
   crearPerfil,
   eliminarPerfil,
   leerPerfiles,
+  verificarPin,
   COLORES_PERFIL,
   MAX_PERFILES,
   type Perfil,
 } from "../lib/perfiles";
-import { IconAlerta, IconPlus, IconX } from "../lib/icons";
+import { IconAlerta, IconCandado, IconPlus, IconX } from "../lib/icons";
 
 type Modal =
   | { tipo: "crear" }
   | { tipo: "editar"; perfil: Perfil }
   | { tipo: "eliminar"; perfil: Perfil }
+  | { tipo: "pin"; perfil: Perfil; accion: "entrar" | "eliminar" }
   | null;
 
 /** ¿Cuántos hábitos tiene cada perfil? Se lee directo del localStorage. */
@@ -49,16 +51,38 @@ export default function SelectorPerfiles() {
   const conteos = useMemo(() => contarHabitos(perfiles), [perfiles]);
   const lleno = perfiles.length >= MAX_PERFILES;
 
-  const guardar = (nombre: string, color: string, avatar: string | null, editando: Perfil | null) => {
+  const guardar = (
+    nombre: string,
+    color: string,
+    avatar: string | null,
+    pin: string | null,
+    editando: Perfil | null,
+  ) => {
     if (editando) {
-      const p = actualizarPerfil(editando.id, { nombre, color, avatar });
-      if (p) logEvent("PERFIL_ACTUALIZADO", "perfil", p.id, { nombre: p.nombre }, `perfil:${p.id}`);
+      const p = actualizarPerfil(editando.id, { nombre, color, avatar, pin });
+      if (p) logEvent("PERFIL_ACTUALIZADO", "perfil", p.id, { nombre: p.nombre, pin: p.pin ? "si" : "no" }, `perfil:${p.id}`);
     } else {
-      const p = crearPerfil(nombre, color, avatar);
-      if (p) logEvent("PERFIL_CREATED", "perfil", p.id, { nombre: p.nombre }, `perfil:${p.id}`);
+      const p = crearPerfil(nombre, color, avatar, pin);
+      if (p) logEvent("PERFIL_CREATED", "perfil", p.id, { nombre: p.nombre, pin: p.pin ? "si" : "no" }, `perfil:${p.id}`);
     }
     setModal(null);
     recargar();
+  };
+
+  /** Entrar o eliminar pasando por el PIN cuando el perfil lo tiene. */
+  const pedirPinSiAplica = (p: Perfil, accion: "entrar" | "eliminar") => {
+    if (p.pin) setModal({ tipo: "pin", perfil: p, accion });
+    else if (accion === "entrar") entrarAPerfil(p.id);
+    else setModal({ tipo: "eliminar", perfil: p });
+  };
+
+  const alPasarPin = (p: Perfil, accion: "entrar" | "eliminar") => {
+    if (accion === "entrar") {
+      setModal(null);
+      entrarAPerfil(p.id);
+    } else {
+      setModal({ tipo: "eliminar", perfil: p });
+    }
   };
 
   const confirmarEliminar = (p: Perfil) => {
@@ -83,9 +107,9 @@ export default function SelectorPerfiles() {
             key={p.id}
             perfil={p}
             numHabitos={conteos[p.id] ?? 0}
-            onEntrar={() => entrarAPerfil(p.id)}
+            onEntrar={() => pedirPinSiAplica(p, "entrar")}
             onEditar={() => setModal({ tipo: "editar", perfil: p })}
-            onEliminar={() => setModal({ tipo: "eliminar", perfil: p })}
+            onEliminar={() => pedirPinSiAplica(p, "eliminar")}
           />
         ))}
         {!lleno && (
@@ -110,14 +134,23 @@ export default function SelectorPerfiles() {
       </button>
 
       {modal?.tipo === "crear" && (
-        <ModalPerfil key="crear" onCerrar={() => setModal(null)} onGuardar={(n, c, a) => guardar(n, c, a, null)} />
+        <ModalPerfil key="crear" onCerrar={() => setModal(null)} onGuardar={(n, c, a, pin) => guardar(n, c, a, pin, null)} />
       )}
       {modal?.tipo === "editar" && (
         <ModalPerfil
           key={modal.perfil.id}
           perfil={modal.perfil}
           onCerrar={() => setModal(null)}
-          onGuardar={(n, c, a) => guardar(n, c, a, modal.perfil)}
+          onGuardar={(n, c, a, pin) => guardar(n, c, a, pin, modal.perfil)}
+        />
+      )}
+      {modal?.tipo === "pin" && (
+        <ModalPin
+          key={`pin-${modal.perfil.id}-${modal.accion}`}
+          perfil={modal.perfil}
+          accion={modal.accion}
+          onCerrar={() => setModal(null)}
+          onExito={() => alPasarPin(modal.perfil, modal.accion)}
         />
       )}
       {modal?.tipo === "eliminar" && (
@@ -139,11 +172,14 @@ function ModalPerfil({
 }: {
   perfil?: Perfil;
   onCerrar: () => void;
-  onGuardar: (nombre: string, color: string, avatar: string | null) => void;
+  onGuardar: (nombre: string, color: string, avatar: string | null, pin: string | null) => void;
 }) {
   const [nombre, setNombre] = useState(perfil?.nombre ?? "");
   const [color, setColor] = useState(perfil?.color ?? COLORES_PERFIL[0]);
   const [avatar, setAvatar] = useState<string | null>(perfil?.avatar ?? null);
+  const [pinInput, setPinInput] = useState("");
+  const [quitarPin, setQuitarPin] = useState(false);
+  const [editandoPin, setEditandoPin] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -153,8 +189,18 @@ function ModalPerfil({
     return () => window.removeEventListener("keydown", onKey);
   }, [onCerrar]);
 
-  const valido = nombre.trim().length > 0;
+  const tienePin = !!perfil?.pin && !quitarPin;
+  const pinLimpio = pinInput.replace(/\D/g, "").slice(0, 4);
+  const pinValido = pinLimpio === "" || /^\d{4}$/.test(pinLimpio);
+  const valido = nombre.trim().length > 0 && pinValido;
   const inicial = (nombre.trim()[0] ?? "?").toUpperCase();
+
+  /** PIN final al guardar: null = quitar/sin PIN, 4 dígitos = nuevo, o el existente. */
+  const pinFinal = (): string | null => {
+    if (quitarPin) return null;
+    if (/^\d{4}$/.test(pinLimpio)) return pinLimpio;
+    return perfil?.pin ?? null;
+  };
 
   return (
     <div
@@ -248,6 +294,65 @@ function ModalPerfil({
           ))}
         </div>
 
+        <p className="mb-2 mt-5 text-sm font-medium">
+          PIN de seguridad <span className="font-normal text-muted">(opcional)</span>
+        </p>
+        {tienePin && !editandoPin ? (
+          <div className="flex items-center gap-2 rounded-2xl bg-surface-2 p-3">
+            <IconCandado className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+            <span className="flex-1 text-sm font-medium">PIN activado</span>
+            <button
+              type="button"
+              onClick={() => setEditandoPin(true)}
+              className="min-h-9 rounded-full px-3 text-sm font-semibold text-accent hover:bg-accent-soft"
+            >
+              Cambiar
+            </button>
+            <button
+              type="button"
+              onClick={() => setQuitarPin(true)}
+              className="min-h-9 rounded-full px-3 text-sm font-semibold text-muted hover:bg-surface hover:text-foreground"
+            >
+              Quitar
+            </button>
+          </div>
+        ) : quitarPin ? (
+          <div className="flex items-center gap-2 rounded-2xl bg-surface-2 p-3">
+            <IconCandado className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+            <span className="flex-1 text-sm text-muted">Se quitará el PIN al guardar</span>
+            <button
+              type="button"
+              onClick={() => setQuitarPin(false)}
+              className="min-h-9 rounded-full px-3 text-sm font-semibold text-accent hover:bg-accent-soft"
+            >
+              Deshacer
+            </button>
+          </div>
+        ) : (
+          <>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={4}
+              value={pinLimpio}
+              onChange={(e) => setPinInput(e.target.value)}
+              placeholder="4 dígitos"
+              aria-label="PIN de 4 dígitos"
+              aria-invalid={!pinValido}
+              className="input-field text-center text-xl tracking-[0.75em]"
+            />
+            <p className="mt-1.5 text-xs text-muted">
+              {perfil?.pin ? "Escribe el nuevo PIN (déjalo vacío para no cambiarlo)." : "Se pedirá al entrar a este perfil. Déjalo vacío para no usar PIN."}
+            </p>
+            {!pinValido && (
+              <p role="alert" className="mt-1 text-xs font-medium text-red-500">
+                El PIN debe tener 4 dígitos.
+              </p>
+            )}
+          </>
+        )}
+
         <div className="mt-6 flex gap-3">
           <button type="button" onClick={onCerrar} className="btn-secondary min-h-11 flex-1">
             Cancelar
@@ -255,7 +360,7 @@ function ModalPerfil({
           <button
             type="button"
             disabled={!valido}
-            onClick={() => valido && onGuardar(nombre.trim(), color, avatar)}
+            onClick={() => valido && onGuardar(nombre.trim(), color, avatar, pinFinal())}
             className="btn-primary min-h-11 flex-1 disabled:opacity-50"
           >
             Guardar
@@ -320,6 +425,101 @@ function ModalEliminar({
             {armado ? "Sí, eliminar" : "Eliminar"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Pide el PIN de 4 dígitos antes de entrar o eliminar un perfil protegido. */
+function ModalPin({
+  perfil,
+  accion,
+  onCerrar,
+  onExito,
+}: {
+  perfil: Perfil;
+  accion: "entrar" | "eliminar";
+  onCerrar: () => void;
+  onExito: () => void;
+}) {
+  const [intento, setIntento] = useState("");
+  const [fallos, setFallos] = useState(0);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCerrar();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  const manejarCambio = (valor: string) => {
+    const limpio = valor.replace(/\D/g, "").slice(0, 4);
+    setIntento(limpio);
+    if (limpio.length !== 4) return;
+    if (verificarPin(perfil, limpio)) {
+      onExito();
+    } else {
+      setFallos((f) => f + 1);
+      window.setTimeout(() => setIntento(""), 300);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onCerrar}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`PIN de ${perfil.nombre}`}
+    >
+      <div
+        className="w-full max-w-xs rounded-3xl border border-border bg-surface p-6 text-center shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span
+          className="mx-auto flex h-12 w-12 items-center justify-center rounded-full"
+          style={{ backgroundColor: perfil.color }}
+        >
+          <IconCandado className="h-6 w-6 text-white" aria-hidden="true" />
+        </span>
+        <h2 className="mt-3 text-lg font-bold">{perfil.nombre}</h2>
+        <p className="mt-1 text-sm text-muted">
+          {accion === "entrar" ? "Escribe el PIN para entrar" : "Escribe el PIN para eliminar este perfil"}
+        </p>
+
+        <div key={fallos} className={`mt-5 flex justify-center gap-3 ${fallos > 0 ? "animate-shake" : ""}`}>
+          {[0, 1, 2, 3].map((i) => (
+            <span
+              key={i}
+              aria-hidden="true"
+              className={`h-4 w-4 rounded-full transition-colors ${
+                i < intento.length ? "bg-accent" : "bg-surface-2"
+              }`}
+            />
+          ))}
+        </div>
+
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          autoFocus
+          maxLength={4}
+          value={intento}
+          onChange={(e) => manejarCambio(e.target.value)}
+          aria-label="PIN de 4 dígitos"
+          placeholder="••••"
+          className="input-field mx-auto mt-4 w-36 text-center text-2xl tracking-[0.5em]"
+        />
+
+        <p role="alert" aria-live="assertive" className="mt-3 min-h-5 text-sm font-medium text-red-500">
+          {fallos > 0 ? "PIN incorrecto, intenta de nuevo." : ""}
+        </p>
+
+        <button type="button" onClick={onCerrar} className="btn-secondary mt-2 min-h-11 w-full">
+          Cancelar
+        </button>
       </div>
     </div>
   );

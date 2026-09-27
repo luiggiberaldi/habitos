@@ -14,6 +14,12 @@ export interface Perfil {
   color: string;
   /** Id de la galería de avatares (lib/avatares.ts); null = inicial con color. */
   avatar: string | null;
+  /**
+   * PIN de 4 dígitos (bloqueo casual tipo Netflix, solo en este dispositivo).
+   * null = sin PIN. No es seguridad real: cualquiera con el dispositivo puede
+   * leer el localStorage; es una cerradura doméstica, no una caja fuerte.
+   */
+  pin: string | null;
   creadoEn: string;
   ultimoUso: string;
 }
@@ -60,8 +66,8 @@ function escribir(clave: string, valor: unknown): void {
 export function leerPerfiles(): Perfil[] {
   const lista = leer<Perfil[]>(PERFILES_KEY, []);
   if (!Array.isArray(lista)) return [];
-  // Normaliza perfiles creados antes del campo `avatar`.
-  return lista.map((p) => ({ ...p, avatar: p.avatar ?? null }));
+  // Normaliza perfiles creados antes de los campos `avatar` y `pin`.
+  return lista.map((p) => ({ ...p, avatar: p.avatar ?? null, pin: p.pin ?? null }));
 }
 
 function guardarPerfiles(perfiles: Perfil[]): void {
@@ -109,20 +115,44 @@ function nuevoId(): string {
   return `p-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
 }
 
-export function crearPerfil(nombre: string, color: string, avatar: string | null = null): Perfil | null {
+/** Un PIN válido son exactamente 4 dígitos. */
+export function esPinValido(pin: string | null | undefined): pin is string {
+  return typeof pin === "string" && /^\d{4}$/.test(pin);
+}
+
+/** Compara el intento con el PIN del perfil (null = sin PIN = entra directo). */
+export function verificarPin(perfil: Perfil, intento: string): boolean {
+  if (!perfil.pin) return true;
+  return intento === perfil.pin;
+}
+
+export function crearPerfil(
+  nombre: string,
+  color: string,
+  avatar: string | null = null,
+  pin: string | null = null,
+): Perfil | null {
   const limpio = nombre.trim().slice(0, 24);
   if (!limpio) return null;
   const perfiles = leerPerfiles();
   if (perfiles.length >= MAX_PERFILES) return null;
   const ahora = new Date().toISOString();
-  const perfil: Perfil = { id: nuevoId(), nombre: limpio, color, avatar, creadoEn: ahora, ultimoUso: ahora };
+  const perfil: Perfil = {
+    id: nuevoId(),
+    nombre: limpio,
+    color,
+    avatar,
+    pin: esPinValido(pin) ? pin : null,
+    creadoEn: ahora,
+    ultimoUso: ahora,
+  };
   guardarPerfiles([...perfiles, perfil]);
   return perfil;
 }
 
 export function actualizarPerfil(
   id: string,
-  cambios: { nombre?: string; color?: string; avatar?: string | null },
+  cambios: { nombre?: string; color?: string; avatar?: string | null; pin?: string | null },
 ): Perfil | null {
   const perfiles = leerPerfiles();
   const i = perfiles.findIndex((p) => p.id === id);
@@ -133,6 +163,7 @@ export function actualizarPerfil(
     nombre: nombre || perfiles[i].nombre,
     color: cambios.color ?? perfiles[i].color,
     avatar: cambios.avatar !== undefined ? cambios.avatar : perfiles[i].avatar,
+    pin: cambios.pin !== undefined ? (esPinValido(cambios.pin) ? cambios.pin : null) : perfiles[i].pin,
   };
   perfiles[i] = actualizado;
   guardarPerfiles(perfiles);
