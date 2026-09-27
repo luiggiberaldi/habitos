@@ -9,12 +9,15 @@ export default function ThemeApplier() {
 
   useEffect(() => {
     const root = document.documentElement;
+    // El setting usa español ("claro"/"oscuro") pero el CSS espera "light"/"dark".
     const resolved =
       tema === "sistema"
         ? window.matchMedia("(prefers-color-scheme: dark)").matches
           ? "dark"
           : "light"
-        : tema;
+        : tema === "oscuro"
+          ? "dark"
+          : "light";
     root.dataset.theme = resolved;
   }, [tema]);
 

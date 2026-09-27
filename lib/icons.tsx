@@ -227,9 +227,9 @@ export function IconRayo({ className = cls }: IconProps) {
 export function IconBrote({ className = cls }: IconProps) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 22V10" />
-      <path d="M7 10a5 5 0 0 1 5-5V10H7z" />
-      <path d="M17 14a5 5 0 0 0-5-5v5h5z" />
+      <path d="M12 21v-9" />
+      <path d="M12 12C8 12 5 9 5 5c4 0 7 3 7 7z" />
+      <path d="M12 12c4 0 7-3 7-7-4 0-7 3-7 7z" />
     </svg>
   );
 }
@@ -249,6 +249,34 @@ export function IconCaja({ className = cls }: IconProps) {
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
       <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
       <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  );
+}
+
+export function IconMaletin({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    </svg>
+  );
+}
+
+export function IconPersona({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M5 21c0-4.5 3-8 7-8s7 3.5 7 8" />
+    </svg>
+  );
+}
+
+export function IconLoto({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 4c1.8 2.8 1.8 6 0 8.8-1.8-2.8-1.8-6 0-8.8z" />
+      <path d="M11.2 12.8C8.8 12.3 6.8 10.5 6 8c2.6.8 4.4 2.6 5.2 4.8z" />
+      <path d="M12.8 12.8c2.4-.5 4.4-2.3 5.2-4.8-2.6.8-4.4 2.6-5.2 4.8z" />
     </svg>
   );
 }
@@ -284,10 +312,10 @@ export function IconAlerta({ className = cls }: IconProps) {
 
 const categoriaIconMap: Record<Categoria, React.FC<IconProps>> = {
   salud: IconCorazon,
-  productividad: IconRayo,
+  productividad: IconMaletin,
   crecimiento: IconBrote,
-  bienestar: IconHoja,
-  personal: IconEstrella,
+  bienestar: IconLoto,
+  personal: IconPersona,
   otro: IconCaja,
 };
 

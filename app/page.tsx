@@ -18,6 +18,7 @@ import {
 import { suscribirEventosJuego, type EventoJuego } from "../lib/juego";
 import { addDays, completadosPara, DIAS_SEMANA, esDescanso, formatHoraA12, idiomaDeVentana, inicioSemana as lunesDeSemana, todayKey } from "../lib/dates";
 import Celebracion, { type CelebracionData } from "../components/Celebracion";
+import Logo from "../components/Logo";
 import { AvatarNivel, PALETA } from "../components/AvatarNivel";
 import {
   IconAlerta,
@@ -261,9 +262,15 @@ export default function Inicio() {
           />
           <div className="relative [text-shadow:0_1px_10px_rgba(0,0,0,0.30)]">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">Tus hábitos</h1>
-              <p className="text-xs text-white/85">{fechaHoy}</p>
+            <div className="flex min-w-0 items-center gap-2.5">
+              {/* Marca visible solo en móvil (en escritorio ya está en el sidebar) */}
+              <span className="shrink-0 rounded-2xl bg-white/95 p-1.5 shadow md:hidden">
+                <Logo className="block h-8 w-8" />
+              </span>
+              <div className="min-w-0">
+                <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">Tus hábitos</h1>
+                <p className="text-xs text-white/85">{fechaHoy}</p>
+              </div>
             </div>
             <div className="shrink-0 rounded-full bg-white/20 p-1 ring-2 ring-white/50">
               <AvatarNivel nivel={nivel.nivel} nombre={nivel.nombre} className="block h-12 w-12" />
