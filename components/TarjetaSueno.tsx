@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatHoraA12, hhmmDeFecha, hhmmDeTimestamp, moverFecha, todayKey } from "../lib/dates";
-import { horaSugeridaSueno, nochesSueno } from "../lib/gamificacion";
+import { nochesSueno } from "../lib/gamificacion";
 import { IconAjustes, IconCheck, IconLuna, IconSol, IconX } from "../lib/icons";
 import { TimeField } from "./TimeField";
 import { useStoreActions, useStoreState } from "../lib/store-context";
@@ -283,11 +283,21 @@ export function TarjetaSueno({ habit }: { habit: Habit }) {
         : null;
 
   const abrir = (cual: MarcaSueno) => {
-    const fecha = cual === "levantar" ? hoy : nocheAcostar;
+    // `ahora` fresco en cada apertura: el memoizado del componente puede tener
+    // horas si la app quedó abierta. La sugerencia es siempre la hora actual
+    // (editable); la noche se resuelve con la regla de medianoche.
+    const ahoraFresco = new Date();
+    const hoyFresco = todayKey(ahoraFresco);
+    const fecha =
+      cual === "levantar"
+        ? hoyFresco
+        : hhmmDeFecha(ahoraFresco) < "12:00"
+          ? moverFecha(hoyFresco, -1)
+          : hoyFresco;
     const existente = evento(cual, fecha);
     setModal({
       cual,
-      hora: existente ? hhmmDeTimestamp(existente.timestamp) : horaSugeridaSueno(cual, habit.horaAcostar ?? "22:00", ahora),
+      hora: existente ? hhmmDeTimestamp(existente.timestamp) : hhmmDeFecha(ahoraFresco),
       fecha,
       existe: !!existente,
     });

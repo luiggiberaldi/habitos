@@ -1,5 +1,5 @@
 import type { CompletionEvent, DesafioSemanal, Habit, JuegoState, MarcaSueno } from "./types";
-import { addDays, completadosPara, esDescanso, hhmmDeFecha, hhmmDeTimestamp, inicioSemana, moverFecha, todayKey } from "./dates";
+import { addDays, completadosPara, esDescanso, hhmmDeTimestamp, inicioSemana, moverFecha, todayKey } from "./dates";
 
 export const PUNTOS_POR_REGISTRO = 10;
 export const PUNTOS_OBJETIVO_DIARIO = 5;
@@ -545,16 +545,6 @@ export function fechaParaMarcaSueno(cual: MarcaSueno, horaReal: string, ahora: D
   const hoy = todayKey(ahora);
   if (cual === "levantar") return hoy;
   return horaReal < "12:00" ? moverFecha(hoy, -1) : hoy;
-}
-
-/**
- * Hora sugerida en el modal: si marcas "Me acosté" en la mañana (olvido de
- * anoche), se propone la hora objetivo en vez de la hora actual.
- */
-export function horaSugeridaSueno(cual: MarcaSueno, horaAcostar: string, ahora: Date): string {
-  const h = hhmmDeFecha(ahora);
-  if (cual === "acostar" && h < "12:00") return horaAcostar;
-  return h;
 }
 
 /** XP que otorgó (o quitó) un evento de sueño: espejo para deshacer/backfill. */

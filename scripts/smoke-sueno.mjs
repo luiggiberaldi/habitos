@@ -8,7 +8,7 @@
 //     −10 si > 50 min tarde (corte exacto en 50/51).
 //   - minutosDeRetraso con cruce de medianoche (22:00 → 00:30 = 150 min).
 //   - fechaParaMarcaSueno: levantar siempre hoy; acostar de madrugada va a
-//     la noche anterior. horaSugeridaSueno propone el objetivo si se olvidó.
+//     la noche anterior. El modal sugiere siempre la hora actual (editable).
 //   - Seed: crearHabitoSueno (06:00/22:00, objetivo 8 h), nace en
 //     crearEstadoInicial, normalizarEstado lo siembra y deduplica.
 //   - eliminarHabit rechaza borrar Sueño.
@@ -121,14 +121,6 @@ check(
 check(
   "acostar de madrugada pertenece a anoche",
   g.fechaParaMarcaSueno("acostar", "01:00", ahora) === ayer,
-);
-check(
-  "olvido en la mañana: se sugiere la hora objetivo",
-  g.horaSugeridaSueno("acostar", "22:00", new Date(2026, 8, 27, 7, 30)) === "22:00",
-);
-check(
-  "levantar en la mañana: se sugiere la hora actual",
-  g.horaSugeridaSueno("levantar", "22:00", new Date(2026, 8, 27, 7, 30)) === "07:30",
 );
 
 // ── Seed y protecciones ─────────────────────────────────────────────────────
