@@ -12,6 +12,8 @@ export interface Perfil {
   nombre: string;
   /** Hex del color del avatar. */
   color: string;
+  /** Id de la galería de avatares (lib/avatares.ts); null = inicial con color. */
+  avatar: string | null;
   creadoEn: string;
   ultimoUso: string;
 }
@@ -57,7 +59,9 @@ function escribir(clave: string, valor: unknown): void {
 
 export function leerPerfiles(): Perfil[] {
   const lista = leer<Perfil[]>(PERFILES_KEY, []);
-  return Array.isArray(lista) ? lista : [];
+  if (!Array.isArray(lista)) return [];
+  // Normaliza perfiles creados antes del campo `avatar`.
+  return lista.map((p) => ({ ...p, avatar: p.avatar ?? null }));
 }
 
 function guardarPerfiles(perfiles: Perfil[]): void {
@@ -105,18 +109,21 @@ function nuevoId(): string {
   return `p-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
 }
 
-export function crearPerfil(nombre: string, color: string): Perfil | null {
+export function crearPerfil(nombre: string, color: string, avatar: string | null = null): Perfil | null {
   const limpio = nombre.trim().slice(0, 24);
   if (!limpio) return null;
   const perfiles = leerPerfiles();
   if (perfiles.length >= MAX_PERFILES) return null;
   const ahora = new Date().toISOString();
-  const perfil: Perfil = { id: nuevoId(), nombre: limpio, color, creadoEn: ahora, ultimoUso: ahora };
+  const perfil: Perfil = { id: nuevoId(), nombre: limpio, color, avatar, creadoEn: ahora, ultimoUso: ahora };
   guardarPerfiles([...perfiles, perfil]);
   return perfil;
 }
 
-export function actualizarPerfil(id: string, cambios: { nombre?: string; color?: string }): Perfil | null {
+export function actualizarPerfil(
+  id: string,
+  cambios: { nombre?: string; color?: string; avatar?: string | null },
+): Perfil | null {
   const perfiles = leerPerfiles();
   const i = perfiles.findIndex((p) => p.id === id);
   if (i === -1) return null;
@@ -125,6 +132,7 @@ export function actualizarPerfil(id: string, cambios: { nombre?: string; color?:
     ...perfiles[i],
     nombre: nombre || perfiles[i].nombre,
     color: cambios.color ?? perfiles[i].color,
+    avatar: cambios.avatar !== undefined ? cambios.avatar : perfiles[i].avatar,
   };
   perfiles[i] = actualizado;
   guardarPerfiles(perfiles);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
 import { useAuth } from "./AuthGate";
+import AvatarPerfil from "./AvatarPerfil";
 import { useStoreActions } from "../lib/store-context";
 import { IconAjustes, IconEstadisticas, IconInicio, IconLista, IconCerrarSesion, IconTrofeo } from "../lib/icons";
 // import { IconUsuarios } from "../lib/icons"; // Liga oculta por ahora
@@ -77,12 +78,7 @@ export default function Nav() {
           </button>
           {perfil ? (
             <div className="mt-1 flex items-center gap-2 px-3">
-              <span
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                style={{ backgroundColor: perfil.color }}
-              >
-                {(perfil.nombre.trim()[0] ?? "?").toUpperCase()}
-              </span>
+              <AvatarPerfil perfil={perfil} className="h-6 w-6 text-[10px]" />
               <p className="truncate text-xs text-muted">{perfil.nombre}</p>
             </div>
           ) : (

@@ -5,6 +5,7 @@ import { useAuth } from "./AuthGate";
 import PerfilCard from "./PerfilCard";
 import Logo from "./Logo";
 import { logEvent } from "../lib/logger";
+import { AVATARES } from "../lib/avatares";
 import {
   actualizarPerfil,
   claveEstado,
@@ -48,12 +49,12 @@ export default function SelectorPerfiles() {
   const conteos = useMemo(() => contarHabitos(perfiles), [perfiles]);
   const lleno = perfiles.length >= MAX_PERFILES;
 
-  const guardar = (nombre: string, color: string, editando: Perfil | null) => {
+  const guardar = (nombre: string, color: string, avatar: string | null, editando: Perfil | null) => {
     if (editando) {
-      const p = actualizarPerfil(editando.id, { nombre, color });
+      const p = actualizarPerfil(editando.id, { nombre, color, avatar });
       if (p) logEvent("PERFIL_ACTUALIZADO", "perfil", p.id, { nombre: p.nombre }, `perfil:${p.id}`);
     } else {
-      const p = crearPerfil(nombre, color);
+      const p = crearPerfil(nombre, color, avatar);
       if (p) logEvent("PERFIL_CREATED", "perfil", p.id, { nombre: p.nombre }, `perfil:${p.id}`);
     }
     setModal(null);
@@ -109,14 +110,14 @@ export default function SelectorPerfiles() {
       </button>
 
       {modal?.tipo === "crear" && (
-        <ModalPerfil key="crear" onCerrar={() => setModal(null)} onGuardar={(n, c) => guardar(n, c, null)} />
+        <ModalPerfil key="crear" onCerrar={() => setModal(null)} onGuardar={(n, c, a) => guardar(n, c, a, null)} />
       )}
       {modal?.tipo === "editar" && (
         <ModalPerfil
           key={modal.perfil.id}
           perfil={modal.perfil}
           onCerrar={() => setModal(null)}
-          onGuardar={(n, c) => guardar(n, c, modal.perfil)}
+          onGuardar={(n, c, a) => guardar(n, c, a, modal.perfil)}
         />
       )}
       {modal?.tipo === "eliminar" && (
@@ -138,10 +139,11 @@ function ModalPerfil({
 }: {
   perfil?: Perfil;
   onCerrar: () => void;
-  onGuardar: (nombre: string, color: string) => void;
+  onGuardar: (nombre: string, color: string, avatar: string | null) => void;
 }) {
   const [nombre, setNombre] = useState(perfil?.nombre ?? "");
   const [color, setColor] = useState(perfil?.color ?? COLORES_PERFIL[0]);
+  const [avatar, setAvatar] = useState<string | null>(perfil?.avatar ?? null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -152,6 +154,7 @@ function ModalPerfil({
   }, [onCerrar]);
 
   const valido = nombre.trim().length > 0;
+  const inicial = (nombre.trim()[0] ?? "?").toUpperCase();
 
   return (
     <div
@@ -190,6 +193,43 @@ function ModalPerfil({
           />
         </label>
 
+        <p className="mb-2 mt-5 text-sm font-medium">Avatar</p>
+        <div className="grid grid-cols-5 gap-2.5" role="radiogroup" aria-label="Avatar del perfil">
+          <button
+            key="inicial"
+            type="button"
+            role="radio"
+            aria-checked={avatar === null}
+            aria-label="Inicial del nombre"
+            title="Inicial"
+            onClick={() => setAvatar(null)}
+            className={`flex h-14 w-14 items-center justify-center rounded-full text-xl font-bold text-white transition-transform ${
+              avatar === null ? "scale-105 ring-2 ring-accent ring-offset-2 ring-offset-surface" : "hover:scale-105"
+            }`}
+            style={{ backgroundColor: color }}
+          >
+            {inicial}
+          </button>
+          {AVATARES.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="radio"
+              aria-checked={avatar === a.id}
+              aria-label={a.nombre}
+              title={a.nombre}
+              onClick={() => setAvatar(a.id)}
+              className={`h-14 w-14 overflow-hidden rounded-full transition-transform ${
+                avatar === a.id
+                  ? "scale-105 ring-2 ring-accent ring-offset-2 ring-offset-surface"
+                  : "hover:scale-105"
+              }`}
+            >
+              <img src={a.src} alt="" className="h-full w-full object-cover" loading="lazy" />
+            </button>
+          ))}
+        </div>
+
         <p className="mb-2 mt-5 text-sm font-medium">Color del avatar</p>
         <div className="flex flex-wrap gap-3" role="radiogroup" aria-label="Color del avatar">
           {COLORES_PERFIL.map((c) => (
@@ -215,7 +255,7 @@ function ModalPerfil({
           <button
             type="button"
             disabled={!valido}
-            onClick={() => valido && onGuardar(nombre.trim(), color)}
+            onClick={() => valido && onGuardar(nombre.trim(), color, avatar)}
             className="btn-primary min-h-11 flex-1 disabled:opacity-50"
           >
             Guardar

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStoreActions, useStoreState } from "../../lib/store-context";
 import { useAuth } from "../../components/AuthGate";
+import AvatarPerfil from "../../components/AvatarPerfil";
 import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
 import { IconAlerta, IconCampana, IconCandado, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
 
@@ -220,12 +221,7 @@ export default function Ajustes() {
       {perfil && (
         <section className="card p-4 sm:p-5">
           <div className="flex items-center gap-3">
-            <span
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white"
-              style={{ backgroundColor: perfil.color }}
-            >
-              {(perfil.nombre.trim()[0] ?? "?").toUpperCase()}
-            </span>
+            <AvatarPerfil perfil={perfil} className="h-11 w-11 shrink-0 text-lg" />
             <div className="min-w-0 flex-1">
               <h2 className="truncate font-semibold">{perfil.nombre}</h2>
               <p className="text-sm text-muted">Perfil en este dispositivo</p>

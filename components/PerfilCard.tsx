@@ -2,6 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import type { Perfil } from "../lib/perfiles";
+import AvatarPerfil from "./AvatarPerfil";
 import { IconBorrar, IconEditar, IconFlechaAtras } from "../lib/icons";
 
 interface Props {
@@ -15,12 +16,11 @@ interface Props {
 /**
  * Ficha de perfil con giro 3D (efecto adaptado de Uiverse).
  * - El original giraba con hover; aquí es por toque (en móvil no hay hover).
- * - Frente: avatar con la inicial y el nombre. Dorso: datos y acciones.
+ * - Frente: avatar (imagen elegida o inicial) y el nombre. Dorso: datos y acciones.
  * - Respeta `prefers-reduced-motion` (el giro se desactiva en globals.css).
  */
 export default function PerfilCard({ perfil, numHabitos, onEntrar, onEditar, onEliminar }: Props) {
   const [volteado, setVolteado] = useState(false);
-  const inicial = (perfil.nombre.trim()[0] ?? "?").toUpperCase();
 
   return (
     <div
@@ -38,9 +38,7 @@ export default function PerfilCard({ perfil, numHabitos, onEntrar, onEditar, onE
             background: "linear-gradient(135deg, var(--pc), color-mix(in srgb, var(--pc) 55%, black))",
           }}
         >
-          <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/25 text-4xl font-bold backdrop-blur-sm">
-            {inicial}
-          </span>
+          <AvatarPerfil perfil={perfil} className="h-20 w-20 text-4xl" />
           <span className="max-w-full truncate px-4 text-lg font-bold">{perfil.nombre}</span>
           <span className="text-xs font-medium text-white/80">Toca para ver opciones</span>
         </button>
