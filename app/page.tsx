@@ -21,7 +21,7 @@ import ResumenSemanal from "../components/ResumenSemanal";
 import CofreFlip, { type PremioCofreUI } from "../components/ui/CofreFlip";
 import CheckAnimado from "../components/ui/CheckAnimado";
 import Logo from "../components/Logo";
-import { ICONOS_LOGRO } from "../components/EstanteLogros";
+import { ICONOS_LOGRO } from "../components/iconos-logro";
 import { AvatarNivel, PALETA } from "../components/AvatarNivel";
 import {
   IconAlerta,

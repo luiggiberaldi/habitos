@@ -231,7 +231,26 @@ export function aplicarRecompensas(
   // 8. Aplicar el XP ganado.
   juego = { ...juego, xpTotal: juego.xpTotal + xpGanado, xpSemanal: juego.xpSemanal + xpGanado };
 
-  // 9. ¿Subió de nivel?
+  // 9. Logros recién desbloqueados. Cada logro otorga su XP una sola vez.
+  let xpLogros = 0;
+  for (const id of logrosNuevos({ juego, habits: despues.habits, completions: despues.completions, hoy })) {
+    juego = { ...juego, logros: [...juego.logros, id] };
+    const def = LOGROS.find((l) => l.id === id);
+    if (def) {
+      xpLogros += def.xp;
+      eventos.push({
+        tipo: "logro",
+        titulo: `¡Logro: ${def.nombre}!`,
+        detalle: `+${def.xp} XP · ${def.mensaje}`,
+        dato: id,
+      });
+    }
+  }
+  if (xpLogros > 0) {
+    juego = { ...juego, xpTotal: juego.xpTotal + xpLogros, xpSemanal: juego.xpSemanal + xpLogros };
+  }
+
+  // 10. ¿Subió de nivel? (después de sumar el XP de los logros)
   const nivelDespues = nivelParaXp(juego.xpTotal);
   if (nivelDespues.nivel > nivelAntes) {
     eventos.push({
@@ -240,15 +259,6 @@ export function aplicarRecompensas(
       detalle: "Tu constancia está dando frutos.",
       dato: String(nivelDespues.nivel),
     });
-  }
-
-  // 10. Logros recién desbloqueados.
-  for (const id of logrosNuevos({ juego, habits: despues.habits, completions: despues.completions, hoy })) {
-    juego = { ...juego, logros: [...juego.logros, id] };
-    const def = LOGROS.find((l) => l.id === id);
-    if (def) {
-      eventos.push({ tipo: "logro", titulo: `¡Logro: ${def.nombre}!`, detalle: def.descripcion, dato: id });
-    }
   }
 
   juego = { ...juego, actualizadoEn: new Date().toISOString() };
@@ -338,7 +348,14 @@ export function reconciliarJuego(state: AppState): AppState {
   {
     const nuevos = logrosNuevos({ juego, habits: state.habits, completions: state.completions, hoy });
     if (nuevos.length > 0) {
-      juego = { ...juego, logros: [...juego.logros, ...nuevos] };
+      // El XP de logros ya ganados se otorga aunque se desbloqueen en silencio.
+      const xpLogros = nuevos.reduce((s, id) => s + (LOGROS.find((l) => l.id === id)?.xp ?? 0), 0);
+      juego = {
+        ...juego,
+        logros: [...juego.logros, ...nuevos],
+        xpTotal: juego.xpTotal + xpLogros,
+        xpSemanal: juego.xpSemanal + xpLogros,
+      };
       marcar();
     }
   }

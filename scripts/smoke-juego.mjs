@@ -117,6 +117,11 @@ const mkState = (habits, completions, juegoOver = {}) => ({
   version: 1,
 });
 
+// Los tests de XP base aíslan la mecánica pre-desbloqueando todo el catálogo:
+// así logrosNuevos no suma XP extra en sus fixtures.
+const TODOS_LOS_LOGROS = g.LOGROS.map((l) => l.id);
+const sinLogrosNuevos = { logros: TODOS_LOS_LOGROS };
+
 // ── Niveles ────────────────────────────────────────────────────────────────
 {
   const n0 = g.nivelParaXp(0);
@@ -178,7 +183,7 @@ const mkState = (habits, completions, juegoOver = {}) => ({
       { id: "m2", tipo: "hora", hora: "23:00" },
     ],
   });
-  const st = mkState([habit2], []);
+  const st = mkState([habit2], [], sinLogrosNuevos);
   const r1 = s.registrarConJuego(st, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
   check("un registro da 10 XP sin bonus si no alcanza el objetivo", r1.state.juego.xpTotal === 10);
   check("el XP semanal también sube", r1.state.juego.xpSemanal === 10);
@@ -232,9 +237,32 @@ const mkState = (habits, completions, juegoOver = {}) => ({
   check("racha de 7 → logro racha-7", nuevos.includes("racha-7"));
   check("5 madrugadas → logro madrugador", nuevos.includes("madrugador"));
   check("no repite logros ya desbloqueados", g.logrosNuevos({
-    juego: { ...juego, logros: ["racha-7", "madrugador"] },
+    juego: { ...juego, logros: ["racha-3", "racha-7", "madrugador", "primer-habito"] },
     habits: [mkHabit()], completions: [], hoy,
   }).length === 0);
+  check("todo logro otorga XP positivo", g.LOGROS.every((l) => l.xp > 0));
+  check("todo logro trae mensaje de ánimo", g.LOGROS.every((l) => l.mensaje.trim().length > 0));
+  check("catálogo ampliado (29 logros)", g.LOGROS.length === 29);
+}
+
+// ── Logros otorgan XP ───────────────────────────────────────────────────────
+{
+  // Al registrar con el catálogo bloqueado, el primer hábito desbloquea
+  // "primer-habito" (+10 XP) además del XP base, y emite el evento con el XP.
+  const st = mkState([mkHabit()], []);
+  const r = s.registrarConJuego(st, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
+  const evLogro = r.eventos.find((e) => e.tipo === "logro" && e.dato === "primer-habito");
+  check("desbloquear un logro suma su XP al total", r.state.juego.xpTotal >= 20); // 10 base + 10 del logro (+bonus/cofre)
+  check("el XP semanal también incluye el del logro", r.state.juego.xpSemanal === r.state.juego.xpTotal);
+  check("el evento de logro anuncia el XP y el mensaje", !!evLogro && evLogro.detalle.includes("+10 XP"));
+  check("el logro queda guardado", r.state.juego.logros.includes("primer-habito"));
+  // Deshacer no revoca el hito: los logros son para siempre por diseño.
+  const st2 = s.deshacerConJuego(r.state, `h1|m1|${hoy}`);
+  check("deshacer no revoca el logro desbloqueado", st2.juego.logros.includes("primer-habito"));
+  check("deshacer devuelve base+bonus pero no el XP del logro", st2.juego.xpTotal === r.state.juego.xpTotal - 15);
+  // El backfill silencioso también otorga el XP de logros ya ganados.
+  const rb = j.reconciliarJuego(mkState([mkHabit()], []));
+  check("reconciliar otorga el XP del logro en silencio", rb.juego.xpTotal === 10 && rb.juego.logros.includes("primer-habito"));
 }
 
 // ── Fusión entre dispositivos ──────────────────────────────────────────────
@@ -253,7 +281,7 @@ const mkState = (habits, completions, juegoOver = {}) => ({
 {
   const habit = mkHabit();
   const comps = [hace(2), hace(1)].map((f) => mkCompletion("h1", "m1", f));
-  const st = mkState([habit], comps, { xpTotal: 0 });
+  const st = mkState([habit], comps, { xpTotal: 0, ...sinLogrosNuevos });
   const r1 = j.reconciliarJuego(st);
   check("backfill: XP histórico > 0", r1.juego.xpTotal > 0);
   // 2 registros (10 c/u) + 2 bonus de objetivo (5 c/u) = 30.
@@ -301,7 +329,7 @@ const mkState = (habits, completions, juegoOver = {}) => ({
 {
   const h1 = mkHabit({ momentos: [{ id: "m1", tipo: "hora", hora: "23:00" }] });
   const h2 = mkHabit({ id: "h2", nombre: "Otro", momentos: [{ id: "m2", tipo: "hora", hora: "23:00" }] });
-  const st0 = mkState([h1, h2], []);
+  const st0 = mkState([h1, h2], [], sinLogrosNuevos);
   const r1 = s.registrarConJuego(st0, "h1", "m1", hoy);
   // 10 base + 5 bonus (objetivo 1 cruzado); sin cofre porque h2 sigue pendiente.
   check("registrar otorga 10+5 de XP", r1.state.juego.xpTotal === 15 && r1.state.juego.xpSemanal === 15);
@@ -321,7 +349,7 @@ const mkState = (habits, completions, juegoOver = {}) => ({
   // El bonus solo se devuelve si el día deja de cumplir el objetivo.
   const h = mkHabit({ momentos: [{ id: "m1", tipo: "hora", hora: "23:00" }, { id: "m2", tipo: "hora", hora: "23:00" }] });
   const h2 = mkHabit({ id: "h2", nombre: "Otro", momentos: [{ id: "m2b", tipo: "hora", hora: "23:00" }] });
-  const st0 = mkState([h, h2], []);
+  const st0 = mkState([h, h2], [], sinLogrosNuevos);
   const r1 = s.registrarConJuego(st0, "h1", "m1", hoy); // +15 (10+5)
   const r2 = s.registrarConJuego(r1.state, "h1", "m2", hoy); // +10
   check("dos taps con objetivo 1 dan 25 XP", r2.state.juego.xpTotal === 25);

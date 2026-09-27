@@ -261,29 +261,73 @@ export type IconoLogro =
   | "estrella"
   | "sol"
   | "rayo"
-  | "medalla";
+  | "medalla"
+  | "regalo"
+  | "objetivo"
+  | "copo";
+
+export type CategoriaLogro =
+  | "Rachas"
+  | "Días perfectos"
+  | "Registros"
+  | "Madrugadas"
+  | "Niveles"
+  | "Colección"
+  | "Extras";
 
 export interface LogroDef {
   id: string;
   nombre: string;
   descripcion: string;
   icono: IconoLogro;
+  categoria: CategoriaLogro;
+  /** XP que se suma al juego al desbloquearlo (una sola vez). */
+  xp: number;
+  /** Mensaje corto de ánimo que acompaña la celebración. */
+  mensaje: string;
 }
 
 /**
- * Catálogo de logros: pocos, difíciles y visibles. La evidencia dice que las
- * medallas que "todos ganan" no aportan estatus ni motivación; estas requieren
- * esfuerzo real y por eso se muestran en el estante aunque estén bloqueadas.
+ * Catálogo de logros: visibles en la sala de trofeos (/logros). Los
+ * bloqueados se muestran para dar meta; cada uno otorga XP una sola vez.
  */
 export const LOGROS: LogroDef[] = [
-  { id: "racha-7", nombre: "Primera semana", descripcion: "Racha de 7 días en un hábito", icono: "fuego" },
-  { id: "racha-30", nombre: "Mes imparable", descripcion: "Racha de 30 días en un hábito", icono: "fuego" },
-  { id: "racha-100", nombre: "Centenario", descripcion: "Racha de 100 días en un hábito", icono: "trofeo" },
-  { id: "racha-365", nombre: "Año legendario", descripcion: "Racha de 365 días en un hábito", icono: "corona" },
-  { id: "semana-perfecta", nombre: "Semana perfecta", descripcion: "7 días completos seguidos", icono: "estrella" },
-  { id: "madrugador", nombre: "Madrugador", descripcion: "5 registros antes de las 8:00 a. m.", icono: "sol" },
-  { id: "dias-completos-10", nombre: "Máquina", descripcion: "10 días completos en total", icono: "rayo" },
-  { id: "nivel-5", nombre: "Disciplinado", descripcion: "Alcanza el nivel 5", icono: "medalla" },
+  // Rachas
+  { id: "racha-3", nombre: "Calentando", descripcion: "Racha de 3 días en un hábito", icono: "fuego", categoria: "Rachas", xp: 20, mensaje: "Tres días seguidos. El hábito está naciendo." },
+  { id: "racha-7", nombre: "Primera semana", descripcion: "Racha de 7 días en un hábito", icono: "fuego", categoria: "Rachas", xp: 50, mensaje: "Una semana entera. Ya no eres el mismo de antes." },
+  { id: "racha-14", nombre: "Quincena firme", descripcion: "Racha de 14 días en un hábito", icono: "fuego", categoria: "Rachas", xp: 80, mensaje: "Dos semanas sin fallar. Esto va en serio." },
+  { id: "racha-30", nombre: "Mes imparable", descripcion: "Racha de 30 días en un hábito", icono: "fuego", categoria: "Rachas", xp: 150, mensaje: "Un mes completo. La constancia es tu superpoder." },
+  { id: "racha-60", nombre: "Sesenta y contando", descripcion: "Racha de 60 días en un hábito", icono: "fuego", categoria: "Rachas", xp: 250, mensaje: "Sesenta días. Ya ni te cuesta: es parte de ti." },
+  { id: "racha-100", nombre: "Centenario", descripcion: "Racha de 100 días en un hábito", icono: "trofeo", categoria: "Rachas", xp: 400, mensaje: "Cien días. Eso no lo hace cualquiera." },
+  { id: "racha-365", nombre: "Año legendario", descripcion: "Racha de 365 días en un hábito", icono: "corona", categoria: "Rachas", xp: 1000, mensaje: "Un año entero. Eres leyenda, sin discusión." },
+  // Días perfectos
+  { id: "dia-perfecto", nombre: "Día perfecto", descripcion: "Completa todos tus hábitos un día", icono: "estrella", categoria: "Días perfectos", xp: 30, mensaje: "Todo tachado. Así se siente ganar el día." },
+  { id: "dias-completos-10", nombre: "Máquina", descripcion: "10 días completos en total", icono: "estrella", categoria: "Días perfectos", xp: 100, mensaje: "Diez días perfectos. Ritmo de máquina." },
+  { id: "dias-completos-25", nombre: "Imparable", descripcion: "25 días completos en total", icono: "estrella", categoria: "Días perfectos", xp: 200, mensaje: "Veinticinco días perfectos. Nada te detiene." },
+  { id: "dias-completos-50", nombre: "Medio centenar", descripcion: "50 días completos en total", icono: "trofeo", categoria: "Días perfectos", xp: 400, mensaje: "Cincuenta días perfectos. Disciplina de otro nivel." },
+  { id: "semana-perfecta", nombre: "Semana perfecta", descripcion: "7 días completos seguidos", icono: "estrella", categoria: "Días perfectos", xp: 200, mensaje: "Una semana perfecta. Pura disciplina." },
+  // Registros
+  { id: "registros-10", nombre: "En marcha", descripcion: "10 registros en total", icono: "rayo", categoria: "Registros", xp: 20, mensaje: "Diez marcas. El motor ya arrancó." },
+  { id: "registros-50", nombre: "Constante", descripcion: "50 registros en total", icono: "rayo", categoria: "Registros", xp: 60, mensaje: "Cincuenta registros. La constancia se nota." },
+  { id: "registros-100", nombre: "Centena", descripcion: "100 registros en total", icono: "rayo", categoria: "Registros", xp: 150, mensaje: "Cien registros. Sigue así, vas volando." },
+  { id: "registros-500", nombre: "Quinientos", descripcion: "500 registros en total", icono: "trofeo", categoria: "Registros", xp: 400, mensaje: "Quinientos registros. Compromiso de verdad." },
+  { id: "registros-1000", nombre: "Mil marcas", descripcion: "1000 registros en total", icono: "corona", categoria: "Registros", xp: 800, mensaje: "Mil marcas. Esto ya es un estilo de vida." },
+  // Madrugadas
+  { id: "madrugador", nombre: "Madrugador", descripcion: "5 registros antes de las 8:00 a. m.", icono: "sol", categoria: "Madrugadas", xp: 50, mensaje: "Madrugar también es disciplina. Bien ahí." },
+  { id: "madrugador-20", nombre: "Dueño del amanecer", descripcion: "20 registros antes de las 8:00 a. m.", icono: "sol", categoria: "Madrugadas", xp: 120, mensaje: "Veinte madrugadas. El día te pertenece." },
+  // Niveles
+  { id: "nivel-3", nombre: "Subiendo", descripcion: "Alcanza el nivel 3", icono: "medalla", categoria: "Niveles", xp: 40, mensaje: "Nivel 3. La subida ya empezó." },
+  { id: "nivel-5", nombre: "Disciplinado", descripcion: "Alcanza el nivel 5", icono: "medalla", categoria: "Niveles", xp: 100, mensaje: "Nivel 5. La disciplina te está cambiando." },
+  { id: "nivel-7", nombre: "Veterano", descripcion: "Alcanza el nivel 7", icono: "medalla", categoria: "Niveles", xp: 250, mensaje: "Nivel 7. Ya eres veterano en esto." },
+  { id: "nivel-9", nombre: "Leyenda viva", descripcion: "Alcanza el nivel 9", icono: "corona", categoria: "Niveles", xp: 500, mensaje: "Nivel máximo. Leyenda viva, nada menos." },
+  // Colección
+  { id: "primer-habito", nombre: "Primera piedra", descripcion: "Crea tu primer hábito", icono: "objetivo", categoria: "Colección", xp: 10, mensaje: "Todo imperio empieza con una piedra." },
+  { id: "habitos-3", nombre: "Trío", descripcion: "3 hábitos activos a la vez", icono: "objetivo", categoria: "Colección", xp: 30, mensaje: "Tres hábitos en marcha. Buen equilibrio." },
+  { id: "habitos-5", nombre: "Malabarista", descripcion: "5 hábitos activos a la vez", icono: "objetivo", categoria: "Colección", xp: 80, mensaje: "Cinco hábitos a la vez. Qué nivel de malabarista." },
+  // Extras
+  { id: "cofre-1", nombre: "Cazatesoros", descripcion: "Abre tu primer cofre del día", icono: "regalo", categoria: "Extras", xp: 30, mensaje: "El primer cofre. Los días perfectos tienen premio." },
+  { id: "desafio-1", nombre: "Reto aceptado", descripcion: "Completa un desafío semanal", icono: "objetivo", categoria: "Extras", xp: 60, mensaje: "Reto cumplido. Los desafíos te hacen crecer." },
+  { id: "congelador-1", nombre: "Red de seguridad", descripcion: "Gana un congelador de racha", icono: "copo", categoria: "Extras", xp: 40, mensaje: "Racha protegida. Cuidas lo que construyes." },
 ];
 
 /** ¿El hábito cumplió su objetivo en la fecha? Un día protegido cuenta como cumplido. */
@@ -324,6 +368,8 @@ export function logrosNuevos(params: {
   const tiene = new Set(juego.logros);
   const nuevos: string[] = [];
   const maxRacha = Math.max(0, ...Object.values(juego.rachaMaxima));
+  const activos = habits.filter((h) => h.estado === "activo").length;
+  const nivel = nivelParaXp(juego.xpTotal).nivel;
 
   const chequear = (id: string, condicion: boolean): void => {
     if (condicion && !tiene.has(id)) {
@@ -332,13 +378,34 @@ export function logrosNuevos(params: {
     }
   };
 
+  chequear("racha-3", maxRacha >= 3);
   chequear("racha-7", maxRacha >= 7);
+  chequear("racha-14", maxRacha >= 14);
   chequear("racha-30", maxRacha >= 30);
+  chequear("racha-60", maxRacha >= 60);
   chequear("racha-100", maxRacha >= 100);
   chequear("racha-365", maxRacha >= 365);
-  chequear("madrugador", juego.madrugadas >= 5);
+  chequear("dia-perfecto", juego.diasCompletos >= 1);
   chequear("dias-completos-10", juego.diasCompletos >= 10);
-  chequear("nivel-5", nivelParaXp(juego.xpTotal).nivel >= 5);
+  chequear("dias-completos-25", juego.diasCompletos >= 25);
+  chequear("dias-completos-50", juego.diasCompletos >= 50);
+  chequear("registros-10", completions.length >= 10);
+  chequear("registros-50", completions.length >= 50);
+  chequear("registros-100", completions.length >= 100);
+  chequear("registros-500", completions.length >= 500);
+  chequear("registros-1000", completions.length >= 1000);
+  chequear("madrugador", juego.madrugadas >= 5);
+  chequear("madrugador-20", juego.madrugadas >= 20);
+  chequear("nivel-3", nivel >= 3);
+  chequear("nivel-5", nivel >= 5);
+  chequear("nivel-7", nivel >= 7);
+  chequear("nivel-9", nivel >= 9);
+  chequear("primer-habito", habits.length >= 1);
+  chequear("habitos-3", activos >= 3);
+  chequear("habitos-5", activos >= 5);
+  chequear("cofre-1", juego.cofres >= 1);
+  chequear("desafio-1", juego.desafios.some((d) => d.completado));
+  chequear("congelador-1", Object.keys(juego.rachaPremiada).length >= 1);
 
   let semanaPerfecta = true;
   let algunProgramado = false;
