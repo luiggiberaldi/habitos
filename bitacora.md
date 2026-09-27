@@ -191,3 +191,11 @@
 **Por qué:** luigi pidió reformular el roadmap y ver cómo quedaría la suite. El mockup usa branding Senda (petróleo/menta), respeta las 3 reglas de UI y muestra el modelo de navegación (hub + tabs).
 
 **Verificación:** solo documentación y mockup estático, sin código funcional.
+
+## 2026-09-27 — Fase 0.1: rebrand Senda + shell de la suite
+
+**Qué cambió:** la app ahora abre como **Senda**: hub en `/` (saludo, fecha, nivel, tarjetas por espacio con resumen vivo de Hábitos), barra inferior con Inicio · Hábitos · Finanzas · Mercado · Más; `/habitos` es el home de hábitos (movido desde `/`, sin cambios visuales), gestión en `/habitos/gestionar`; placeholders "Próximamente" en `/finanzas` y `/mercado`; `/mas` agrupa Logros/Niveles/Estadísticas/Ajustes en móvil. Rebrand: manifest, iconos PWA y theme-color con petróleo `#0C3544` desde `public/senda/icono.png`, título "Senda". Repo de GitHub renombrado a `luiggiberaldi/senda` (directorio local intacto). Tokens `senda`/`sendaGradient` en `lib/design-tokens.ts` + `IconMas` en el set propio.
+
+**Por qué:** Fase 0 del roadmap: shell + rebrand antes de la extracción del núcleo (riesgo bajo primero). Hábitos queda visualmente intacto; solo cambió su ruta.
+
+**Verificación:** `tsc` limpio, `npm run build` ok (15 rutas), smokes p0 5/5, p1p2 16/16, juego 110/110, sueño 59/59. Pendiente: verificación visual en el teléfono de luigi.

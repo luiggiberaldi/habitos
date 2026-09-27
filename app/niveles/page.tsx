@@ -31,7 +31,7 @@ export default function Niveles() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex items-center gap-3">
         <Link
-          href="/"
+          href="/habitos"
           aria-label="Volver al inicio"
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted/20 text-muted transition-colors hover:text-foreground"
         >

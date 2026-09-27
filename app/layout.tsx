@@ -20,12 +20,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hábitos - Seguimiento Diario",
-  description: "Aplicación para crear, seguir y mantener buenos hábitos diarios.",
+  title: "Senda",
+  description: "Tu suite personal: hábitos, finanzas del hogar y mercado.",
   // Fase 3 (PWA): enlaza el manifest y el icono instalable.
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.svg",
+    icon: "/icon-192.png",
     apple: "/apple-touch-icon.png",
   },
 };
@@ -34,7 +34,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#E8491D",
+  themeColor: "#0C3544",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

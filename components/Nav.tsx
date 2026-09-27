@@ -2,22 +2,37 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import Logo from "./Logo";
 import { useAuth } from "./AuthGate";
 import AvatarPerfil from "./AvatarPerfil";
 import { useStoreActions, useStoreState } from "../lib/store-context";
 import { premiosPendientes } from "../lib/juego";
-import { IconAjustes, IconEstadisticas, IconInicio, IconLista, IconCerrarSesion, IconTrofeo } from "../lib/icons";
+import { IconAjustes, IconCaja, IconEstadisticas, IconInicio, IconLista, IconMaletin, IconMas, IconMedalla, IconCerrarSesion, IconTrofeo } from "../lib/icons";
 // import { IconUsuarios } from "../lib/icons"; // Liga oculta por ahora
 
-const items = [
-  { href: "/", label: "Hoy", icon: IconInicio },
+type NavItem = { href: string; label: string; icon: (p: { className?: string }) => React.JSX.Element; match?: string[] };
+
+/** Pestañas de la suite (barra inferior en móvil). */
+const tabs: NavItem[] = [
+  { href: "/", label: "Inicio", icon: IconInicio },
   { href: "/habitos", label: "Hábitos", icon: IconLista },
+  { href: "/finanzas", label: "Finanzas", icon: IconMaletin },
+  { href: "/mercado", label: "Mercado", icon: IconCaja },
+  // "Más" agrupa en móvil lo que no cabe: logros, niveles, estadísticas, ajustes.
+  { href: "/mas", label: "Más", icon: IconMas, match: ["/mas", "/logros", "/niveles", "/estadisticas", "/ajustes"] },
+];
+
+/** Sección Hábitos (solo sidebar desktop). */
+const seccionHabitos: NavItem[] = [
   { href: "/logros", label: "Logros", icon: IconTrofeo },
+  { href: "/niveles", label: "Niveles", icon: IconMedalla },
   // { href: "/liga", label: "Liga", icon: IconUsuarios }, // ← pestaña oculta por ahora
   { href: "/estadisticas", label: "Estadísticas", icon: IconEstadisticas },
-  { href: "/ajustes", label: "Ajustes", icon: IconAjustes },
 ];
+
+function estaActivo(item: NavItem, pathname: string): boolean {
+  if (item.match) return item.match.some((m) => pathname === m || pathname.startsWith(m + "/"));
+  return item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+}
 
 export default function Nav() {
   const pathname = usePathname();
@@ -51,11 +66,32 @@ export default function Nav() {
       {/* Sidebar desktop */}
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-border md:bg-surface md:fixed md:inset-y-0 md:z-30">
         <div className="flex h-16 items-center border-b border-border px-5">
-          <Logo className="h-9 w-9" withWordmark />
+          <img src="/senda/logo.png" alt="Senda" className="h-8 w-auto" />
         </div>
-        <nav className="flex flex-1 flex-col gap-1 p-3">
-          {items.map((item) => {
-            const activo = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+          <p className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-muted">Senda</p>
+          {tabs.filter((t) => t.href !== "/mas").map((item) => {
+            const activo = estaActivo(item, pathname);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={activo ? "page" : undefined}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                  activo
+                    ? "bg-accent-soft text-accent"
+                    : "text-muted hover:bg-surface-2 hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                {item.label}
+              </Link>
+            );
+          })}
+          <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wide text-muted">Hábitos</p>
+          {seccionHabitos.map((item) => {
+            const activo = estaActivo(item, pathname);
             const Icon = item.icon;
             const conPremios = item.href === "/logros" && pendientes > 0;
             return (
@@ -85,6 +121,18 @@ export default function Nav() {
           })}
         </nav>
         <div className="border-t border-border p-3">
+          <Link
+            href="/ajustes"
+            aria-current={pathname.startsWith("/ajustes") ? "page" : undefined}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+              pathname.startsWith("/ajustes")
+                ? "bg-accent-soft text-accent"
+                : "text-muted hover:bg-surface-2 hover:text-foreground"
+            }`}
+          >
+            <IconAjustes className="h-5 w-5" />
+            Ajustes
+          </Link>
           <button
             onClick={salir}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-all hover:bg-surface-2 hover:text-foreground"
@@ -113,16 +161,16 @@ export default function Nav() {
       {/* Bottom nav mobile */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80 pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto flex w-full max-w-2xl items-stretch justify-around">
-          {items.map((item) => {
-            const activo = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          {tabs.map((item) => {
+            const activo = estaActivo(item, pathname);
             const Icon = item.icon;
-            const conPremios = item.href === "/logros" && pendientes > 0;
+            const conPremios = item.href === "/mas" && pendientes > 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={activo ? "page" : undefined}
-                aria-label={conPremios ? `Logros, ${pendientes} premios por reclamar` : undefined}
+                aria-label={conPremios ? `Más, ${pendientes} premios por reclamar en Logros` : undefined}
                 className={`flex flex-1 flex-col items-center gap-0.5 px-2 py-3 text-[11px] font-medium transition-colors min-h-[44px] justify-center ${
                   activo ? "text-accent" : "text-muted hover:text-foreground"
                 }`}
