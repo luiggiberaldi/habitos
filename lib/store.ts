@@ -25,7 +25,7 @@ export function crearEstadoInicial(): AppState {
   // conservan sus ids (no se migran).
   const sufijo = Math.random().toString(36).slice(2, 10);
   const agua: Habit = makeHabit({
-    id: `demo-agua-${sufijo}`, nombre: "Tomar agua", descripcion: "Un vaso y una pausa para hidratarte.", icono: "💧", color: "#328b78", categoria: "salud", dias: [0, 1, 2, 3, 4, 5, 6], objetivo: 3,
+    id: `demo-agua-${sufijo}`, nombre: "Tomar agua", descripcion: "Un vaso y una pausa para hidratarte.", icono: "💧", color: "#F88808", categoria: "salud", dias: [0, 1, 2, 3, 4, 5, 6], objetivo: 3,
     momentos: [{ id: "agua-manana", tipo: "hora", hora: "09:00" }, { id: "agua-mediodia", tipo: "hora", hora: "13:00" }, { id: "agua-tarde", tipo: "hora", hora: "18:00" }], estado: "activo", creadoEn,
   });
   const lectura: Habit = makeHabit({

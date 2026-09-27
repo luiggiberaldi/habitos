@@ -1,7 +1,7 @@
 export default function Logo({
   className = "h-9 w-9",
   withWordmark = false,
-  wordmarkClassName = "text-lg font-bold tracking-tight text-[#d15435]",
+  wordmarkClassName = "text-lg font-bold tracking-tight text-[#CE3F14]",
 }: {
   className?: string;
   withWordmark?: boolean;
@@ -9,35 +9,10 @@ export default function Logo({
 }) {
   return (
     <span className="inline-flex items-center gap-2.5">
-      <svg
-        viewBox="140 10 610 620"
-        className={className}
-        aria-hidden="true"
-        role="img"
-      >
-        {/* Sol naciente con halo blanco */}
-        <circle
-          cx="441"
-          cy="362"
-          r="207"
-          fill="#F6A62B"
-          stroke="#FFFFFF"
-          strokeWidth="18"
-        />
-        {/* Rayos */}
-        <g stroke="#F6A62B" strokeWidth="38" strokeLinecap="round">
-          <line x1="449" y1="34" x2="449" y2="120" />
-          <line x1="250" y1="84" x2="312" y2="174" />
-          <line x1="649" y1="84" x2="587" y2="174" />
-          <line x1="163" y1="256" x2="237" y2="284" />
-          <line x1="721" y1="256" x2="647" y2="284" />
-        </g>
-        {/* Barras de progreso ascendentes */}
-        <rect x="197" y="502" width="77" height="117" rx="24" fill="#FA9C58" />
-        <rect x="292" y="465" width="83" height="154" rx="24" fill="#F2823C" />
-        <rect x="394" y="418" width="87" height="201" rx="24" fill="#E9763E" />
-        <rect x="499" y="370" width="88" height="249" rx="24" fill="#E66931" />
-        <rect x="606" y="319" width="98" height="300" rx="24" fill="#D15433" />
+      <svg viewBox="0 0 490 902" className={className} aria-hidden="true" role="img">
+        <path d="M374.5,31.0L383.5,38.0L396.5,61.0L406.5,91.0L410.5,115.0L411.5,144.0L409.5,165.0L404.5,186.0L395.5,209.0L375.5,241.0L345.0,274.5L319.0,297.5L260.0,342.5L216.5,383.0L194.5,413.0L185.0,434.5L161.0,415.5L138.5,394.0L126.5,378.0L120.5,366.0L116.5,350.0L116.5,332.0L123.5,307.0L137.5,283.0L159.0,259.5L192.0,232.5L300.0,153.5L335.5,121.0L354.5,99.0L368.5,74.0L374.5,52.0L375.0,31.5Z" fill="#F84818" />
+        <path d="M413.5,279.0L419.5,286.0L432.5,313.0L439.5,336.0L443.5,359.0L443.5,392.0L440.5,409.0L427.5,443.0L408.5,471.0L382.0,498.5L346.0,527.5L292.0,566.5L256.0,596.5L227.5,628.0L210.0,658.5L107.0,583.5L88.0,566.5L69.5,546.0L58.5,530.0L47.5,506.0L42.5,485.0L41.5,465.0L46.5,435.0L55.5,410.0L67.5,387.0L81.0,368.5L91.5,404.0L108.5,431.0L138.0,461.5L186.0,497.5L242.0,446.5L336.0,375.5L364.0,351.5L398.5,312.0L409.5,292.0L413.5,280.0Z" fill="#F88808" />
+        <path d="M443.5,496.0L449.5,508.0L457.5,540.0L460.5,586.0L454.5,621.0L441.5,652.0L424.5,679.0L406.5,701.0L379.0,728.5L325.0,773.5L281.5,815.0L257.5,844.0L240.0,872.5L140.0,787.5L94.5,744.0L70.5,714.0L47.5,674.0L34.5,637.0L29.5,608.0L29.5,584.0L36.0,558.5L55.5,594.0L66.5,608.0L92.0,633.5L129.0,662.5L211.0,718.5L226.5,700.0L267.0,660.5L393.0,561.5L426.5,526.0L443.5,497.0Z" fill="#F8B808" />
       </svg>
       {withWordmark && <span className={wordmarkClassName}>Hábitos</span>}
     </span>

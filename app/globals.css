@@ -9,9 +9,14 @@
   --surface: #ffffff;
   --surface-2: #f9fafb;
   --border: #e5e7eb;
-  --accent: #276e5f;
-  --accent-soft: #276e5f18;
-  --accent-strong: #276e5f;
+  /* Marca: la flama (ver lib/design-tokens.ts) */
+  --brand-ember: #F84818;
+  --brand-blaze: #F88808;
+  --brand-gold: #F8B808;
+  --gradient-flame: linear-gradient(165deg, #F84818 0%, #F88808 52%, #F8B808 100%);
+  --accent: #CE3F14;
+  --accent-soft: #F8481816;
+  --accent-strong: #F84818;
   --accent-foreground: #ffffff;
   --secondary: #6366f1;
   --secondary-soft: #6366f118;
@@ -29,10 +34,15 @@
   --surface: #151823;
   --surface-2: #1c2030;
   --border: #252a3a;
-  --accent: #4fbfa4;
-  --accent-soft: #4fbfa420;
-  --accent-strong: #6dd5bc;
-  --accent-foreground: #0c0e14;
+  /* Marca: la flama (ver lib/design-tokens.ts) */
+  --brand-ember: #F84818;
+  --brand-blaze: #F88808;
+  --brand-gold: #F8B808;
+  --gradient-flame: linear-gradient(165deg, #F84818 0%, #F88808 52%, #F8B808 100%);
+  --accent: #F88808;
+  --accent-soft: #F8880822;
+  --accent-strong: #F8B808;
+  --accent-foreground: #201104;
   --secondary: #818cf8;
   --secondary-soft: #818cf820;
   --danger: #f87171;
@@ -52,6 +62,9 @@
   --color-accent-soft: var(--accent-soft);
   --color-accent-strong: var(--accent-strong);
   --color-accent-foreground: var(--accent-foreground);
+  --color-brand-ember: var(--brand-ember);
+  --color-brand-blaze: var(--brand-blaze);
+  --color-brand-gold: var(--brand-gold);
   --color-secondary: var(--secondary);
   --color-secondary-soft: var(--secondary-soft);
   --color-danger: var(--danger);
@@ -69,10 +82,10 @@
     --surface: #151823;
     --surface-2: #1c2030;
     --border: #343a4d;
-    --accent: #4fbfa4;
-    --accent-soft: #4fbfa420;
-    --accent-strong: #6dd5bc;
-    --accent-foreground: #0c0e14;
+    --accent: #F88808;
+    --accent-soft: #F8880822;
+    --accent-strong: #F8B808;
+    --accent-foreground: #201104;
     --secondary: #818cf8;
     --secondary-soft: #818cf820;
     --danger: #f87171;
@@ -238,7 +251,7 @@ select.input-field:not([class*="rounded-"]) {
   cursor: pointer;
 }
 select.input-field:focus {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23276e5f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23CE3F14' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
 }
 
 /* ===== Avatares de nivel 2D (componente AvatarNivel) ===== */

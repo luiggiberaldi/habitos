@@ -5,6 +5,7 @@ import { useStoreActions, useStoreState } from "../../lib/store-context";
 import { Select } from "../../components/Select";
 import { DIAS_SEMANA } from "../../lib/dates";
 import type { Categoria, Habit, EstadoHabit, TipoHabit } from "../../lib/types";
+import { habitColors as COLORES } from "../../lib/design-tokens";
 import {
   IconAlerta,
   IconBorrar,
@@ -28,7 +29,6 @@ const CATEGORIAS: { valor: Categoria; etiqueta: string }[] = [
   { valor: "otro", etiqueta: "Otro" },
 ];
 
-const COLORES = ["#328b78", "#6366f1", "#d28a4d", "#ef4444", "#3b82f6", "#a855f7", "#22c55e", "#eab308"];
 
 interface Plantilla {
   nombre: string;
