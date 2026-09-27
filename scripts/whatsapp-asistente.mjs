@@ -24,7 +24,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import {
   root, cargarConfig, crearRpc, cargarLib, norm, expandir, matchHabito,
-  cargarEstado, aplicaHoy, uid, DIAS_ES,
+  cargarEstado, aplicaHoy, uid, DIAS_ES, resolverPerfilId,
 } from "./whatsapp-comun.mjs";
 
 const args = {};
@@ -143,6 +143,8 @@ const main = async () => {
     if (p.error) { fail(p.error, p.detalle); return; }
     const cfg = cargarConfig(args);
     const rpc = crearRpc(cfg);
+    const PERFIL_ID = await resolverPerfilId(rpc, cfg.USER_ID, args["perfil-id"] || process.env.HABITOS_PERFIL_ID)
+      .catch((e) => fail("sin-perfil", e.message));
     const ahora = new Date().toISOString();
     const habit = {
       id: uid(), nombre: p.nombre, descripcion: "", icono: "", color: p.color,
@@ -151,7 +153,7 @@ const main = async () => {
       momentos: p.momentos, estado: "activo", creadoEn: ahora, actualizadoEn: ahora, tipo: p.tipo,
     };
     if (!args["dry-run"]) {
-      await rpc("rpc_habitos_upsert", { p_user_id: cfg.USER_ID, p_id: habit.id, p_data: habit });
+      await rpc("rpc_habitos_upsert", { p_user_id: cfg.USER_ID, p_perfil_id: PERFIL_ID, p_id: habit.id, p_data: habit });
     }
     out({
       ok: true, intencion: "crear", dryRun: !!args["dry-run"],
@@ -167,9 +169,11 @@ const main = async () => {
 
   const cfg = cargarConfig(args);
   const rpc = crearRpc(cfg);
+  const PERFIL_ID = await resolverPerfilId(rpc, cfg.USER_ID, args["perfil-id"] || process.env.HABITOS_PERFIL_ID)
+    .catch((e) => fail("sin-perfil", e.message));
   const lib = cargarLib();
   const { d, g, j } = lib;
-  const { habits, completions, juego, hoy } = await cargarEstado(rpc, cfg.USER_ID, lib);
+  const { habits, completions, juego, hoy } = await cargarEstado(rpc, cfg.USER_ID, PERFIL_ID, lib);
   const nivel = g.nivelEfectivo(juego.xpTotal ?? 0, juego.nivelMaximo ?? 1).nivel;
 
   if (intencion === "estado") {

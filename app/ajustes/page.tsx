@@ -6,13 +6,13 @@ import { useStoreActions, useStoreState } from "../../lib/store-context";
 import { useAuth } from "../../components/AuthGate";
 import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
 import { IconAlerta, IconCampana, IconCerrarSesion, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
-import GestionUsuarios from "../../components/GestionUsuarios";
+import AvatarPerfil from "../../components/AvatarPerfil";
 import { TimeField } from "../../components/TimeField";
 
 export default function Ajustes() {
   const { state, errorSync } = useStoreState();
   const { guardarSettings, rehidratar } = useStoreActions();
-  const { user, sinConexion, cerrarSesion } = useAuth();
+  const { user, sinConexion, cerrarSesion, perfil, salirAPerfil } = useAuth();
   const settings = state.settings;
   const [notificationMessage, setNotificationMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -218,6 +218,31 @@ export default function Ajustes() {
         </div>
       </section>
 
+      {/* Perfil activo: quién está usando la app ahora. */}
+      <section className="card p-4 sm:p-5" aria-label="Perfil activo">
+        <h2 className="font-semibold">Perfil</h2>
+        <div className="mt-4 flex items-center gap-3">
+          {perfil ? (
+            <AvatarPerfil perfil={perfil} className="h-11 w-11 text-lg" />
+          ) : (
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+              <IconPersona className="h-5 w-5" />
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold">{perfil?.nombre ?? "Sin perfil"}</p>
+            <p className="text-sm text-muted">Sus hábitos y progreso se guardan en la nube, separados de los demás.</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={salirAPerfil}
+          className="btn-secondary mt-4 min-h-11 w-full"
+        >
+          Cambiar de perfil
+        </button>
+      </section>
+
       {/* Cuenta: identidad única offline-first. */}
       <section className="card p-4 sm:p-5" aria-label="Cuenta">
         <h2 className="font-semibold">Cuenta</h2>
@@ -245,8 +270,6 @@ export default function Ajustes() {
           </span>
         </button>
       </section>
-
-      <GestionUsuarios />
 
       {/* Zona de peligro */}
       <section className="card border-red-500/30 p-4 sm:p-5">

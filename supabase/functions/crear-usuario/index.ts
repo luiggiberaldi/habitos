@@ -96,5 +96,5 @@ export default async function handler(req: Request): Promise<Response> {
   return json({ error: "Acción desconocida" }, 400);
 }
 
-// @ts-ignore: Deno.serve existe en el runtime de Edge Functions
+// @ts-expect-error: Deno.serve existe en el runtime de Edge Functions
 Deno.serve(handler);

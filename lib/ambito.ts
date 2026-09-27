@@ -37,3 +37,14 @@ export function clavesDeDatos(sufijo: string): string[] {
 export function sufijoDeUsuario(userId: string | null): string {
   return userId ?? "";
 }
+
+/**
+ * Sufijo de ámbito para un perfil en la nube: `<userId>:perfil:<perfilId>`.
+ * Cada perfil es un silo completo (estado, colas, logs, notificaciones).
+ * Sin perfil (cuenta sin perfiles o desarrollo local), se degrada al sufijo
+ * de usuario para no romper nada.
+ */
+export function sufijoDePerfil(userId: string | null, perfilId: string | null): string {
+  if (userId && perfilId) return `${userId}:perfil:${perfilId}`;
+  return userId ?? "";
+}

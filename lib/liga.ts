@@ -11,6 +11,8 @@ import type { JuegoState } from "./types";
 
 export interface MiembroLiga {
   userId: string;
+  /** Perfil que compite (una cuenta puede tener varios perfiles en la liga). */
+  perfilId: string | null;
   nombreVisible: string;
   /** XP de la semana en curso (0 si su dato es de una semana vieja). */
   xpSemanal: number;
@@ -38,7 +40,7 @@ function nombreCorto(nombre: string, defecto: string): string {
   return limpio || defecto;
 }
 
-async function obtenerLiga(supabase: SupabaseClient, userId: string, ligaId: string): Promise<LigaVista> {
+async function obtenerLiga(supabase: SupabaseClient, userId: string, perfilId: string, ligaId: string): Promise<LigaVista> {
   const semana = inicioSemana(todayKey());
   const { data: liga, error: eLiga } = await supabase
     .from("ligas")
@@ -48,7 +50,7 @@ async function obtenerLiga(supabase: SupabaseClient, userId: string, ligaId: str
   if (eLiga || !liga) throw new Error("No se encontró la liga.");
   const { data: miembros } = await supabase
     .from("liga_miembros")
-    .select("user_id, nombre_visible, xp_semanal, semana")
+    .select("user_id, perfil_id, nombre_visible, xp_semanal, semana")
     .eq("liga_id", ligaId);
   const lista: MiembroLiga[] = ((miembros ?? []) as {
     user_id: string;
@@ -58,20 +60,21 @@ async function obtenerLiga(supabase: SupabaseClient, userId: string, ligaId: str
   }[])
     .map((m) => ({
       userId: m.user_id,
+      perfilId: (m as { perfil_id?: string }).perfil_id ?? null,
       nombreVisible: m.nombre_visible,
       xpSemanal: m.semana === semana ? m.xp_semanal : 0,
-      esYo: m.user_id === userId,
+      esYo: m.user_id === userId && (m as { perfil_id?: string }).perfil_id === perfilId,
     }))
     .sort((a, b) => b.xpSemanal - a.xpSemanal);
   return { id: liga.id, nombre: liga.nombre, codigo: liga.codigo, miembros: lista };
 }
 
-export async function obtenerMisLigas(supabase: SupabaseClient, userId: string): Promise<LigaVista[]> {
-  const { data, error } = await supabase.from("liga_miembros").select("liga_id").eq("user_id", userId);
+export async function obtenerMisLigas(supabase: SupabaseClient, userId: string, perfilId: string): Promise<LigaVista[]> {
+  const { data, error } = await supabase.from("liga_miembros").select("liga_id").eq("user_id", userId).eq("perfil_id", perfilId);
   if (error || !data || data.length === 0) return [];
   const vistas: LigaVista[] = [];
   for (const m of data as { liga_id: string }[]) {
-    vistas.push(await obtenerLiga(supabase, userId, m.liga_id));
+    vistas.push(await obtenerLiga(supabase, userId, perfilId, m.liga_id));
   }
   return vistas;
 }
@@ -80,6 +83,7 @@ export async function obtenerMisLigas(supabase: SupabaseClient, userId: string):
 export async function crearLiga(
   supabase: SupabaseClient,
   userId: string,
+  perfilId: string,
   nombre: string,
   nombreVisible: string,
 ): Promise<LigaVista> {
@@ -95,9 +99,9 @@ export async function crearLiga(
     if (!error && data) {
       const { error: eMiembro } = await supabase
         .from("liga_miembros")
-        .insert({ liga_id: (data as { id: string }).id, user_id: userId, nombre_visible: visible });
+        .insert({ liga_id: (data as { id: string }).id, user_id: userId, perfil_id: perfilId, nombre_visible: visible });
       if (eMiembro) throw new Error("No se pudo crear la liga.");
-      return obtenerLiga(supabase, userId, (data as { id: string }).id);
+      return obtenerLiga(supabase, userId, perfilId, (data as { id: string }).id);
     }
     // 23505 = código duplicado: reintentar con otro. Otro error: abortar.
     if (!error || (error as { code?: string }).code !== "23505") {
@@ -114,6 +118,7 @@ export async function crearLiga(
 export async function unirseALiga(
   supabase: SupabaseClient,
   userId: string,
+  perfilId: string,
   codigo: string,
   nombreVisible: string,
 ): Promise<LigaVista> {
@@ -122,16 +127,17 @@ export async function unirseALiga(
   const { data, error } = await supabase.rpc("unirse_a_liga", {
     p_codigo: limpio,
     p_nombre: nombreCorto(nombreVisible, "Jugador"),
+    p_perfil_id: perfilId,
   });
   if (error) {
     const msg = (error as { message?: string }).message ?? "";
     throw new Error(msg.includes("codigo_invalido") ? "Código inválido." : "No se pudo unir a la liga.");
   }
-  return obtenerLiga(supabase, userId, data as string);
+  return obtenerLiga(supabase, userId, perfilId, data as string);
 }
 
-export async function salirDeLiga(supabase: SupabaseClient, userId: string, ligaId: string): Promise<void> {
-  const { error } = await supabase.from("liga_miembros").delete().eq("liga_id", ligaId).eq("user_id", userId);
+export async function salirDeLiga(supabase: SupabaseClient, userId: string, perfilId: string, ligaId: string): Promise<void> {
+  const { error } = await supabase.from("liga_miembros").delete().eq("liga_id", ligaId).eq("user_id", userId).eq("perfil_id", perfilId);
   if (error) throw new Error("No se pudo salir de la liga.");
 }
 
@@ -142,18 +148,20 @@ export async function salirDeLiga(supabase: SupabaseClient, userId: string, liga
 export async function publicarXpLiga(
   supabase: SupabaseClient,
   userId: string,
+  perfilId: string,
   juego: JuegoState,
 ): Promise<void> {
   try {
     const semana = inicioSemana(todayKey());
-    const { data } = await supabase.from("liga_miembros").select("liga_id").eq("user_id", userId);
+    const { data } = await supabase.from("liga_miembros").select("liga_id").eq("user_id", userId).eq("perfil_id", perfilId);
     if (!data || data.length === 0) return;
     for (const m of data as { liga_id: string }[]) {
       await supabase
         .from("liga_miembros")
         .update({ xp_semanal: juego.xpSemanal, semana, updated_at: new Date().toISOString() })
         .eq("liga_id", m.liga_id)
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .eq("perfil_id", perfilId);
     }
   } catch {
     /* la próxima vez será */

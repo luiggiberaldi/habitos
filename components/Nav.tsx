@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
 import { useAuth } from "./AuthGate";
+import AvatarPerfil from "./AvatarPerfil";
 import { useStoreActions, useStoreState } from "../lib/store-context";
 import { premiosPendientes } from "../lib/juego";
 import { IconAjustes, IconEstadisticas, IconInicio, IconLista, IconCerrarSesion, IconTrofeo } from "../lib/icons";
@@ -20,7 +21,7 @@ const items = [
 
 export default function Nav() {
   const pathname = usePathname();
-  const { user, cerrarSesion } = useAuth();
+  const { user, perfil, cerrarSesion } = useAuth();
   const { sincronizarAhora } = useStoreActions();
   const { state } = useStoreState();
   // Premios de logros desbloqueados sin reclamar (tap en la sala de trofeos).
@@ -89,7 +90,21 @@ export default function Nav() {
             <IconCerrarSesion className="h-5 w-5" />
             Cerrar sesión
           </button>
-          {user && <p className="mt-1 truncate px-3 text-xs text-muted">{user.email}</p>}
+          {perfil ? (
+            <Link
+              href="/ajustes"
+              className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-1.5 text-left hover:bg-surface-2"
+              aria-label={`Perfil ${perfil.nombre}: ir a ajustes`}
+            >
+              <AvatarPerfil perfil={perfil} className="h-7 w-7 text-xs" />
+              <span className="min-w-0">
+                <span className="block truncate text-xs font-semibold">{perfil.nombre}</span>
+                {user && <span className="block truncate text-[11px] text-muted">{user.email}</span>}
+              </span>
+            </Link>
+          ) : (
+            user && <p className="mt-1 truncate px-3 text-xs text-muted">{user.email}</p>
+          )}
         </div>
       </aside>
 

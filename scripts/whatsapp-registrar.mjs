@@ -3,6 +3,7 @@
 //
 //   TZ=America/Caracas node scripts/whatsapp-registrar.mjs --q "beber agua" [--dry-run]
 //   node scripts/whatsapp-registrar.mjs --habit <id> [--moment <id|HH:MM>] [--fecha YYYY-MM-DD]
+//   [--perfil-id <uuid>] (por defecto: el perfil usado más recientemente)
 //
 // 1. Lee hábitos vía RPC y hace match difuso del query (sin tildes, por tokens).
 // 2. Lee historial (400 días) + game_state vía RPC.
@@ -20,6 +21,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { resolverPerfilId } from "./whatsapp-comun.mjs";
 
 // ── 0. Forzar zona horaria de luigi (madrugadas y todayKey dependen de hora local) ──
 if (process.env.TZ !== "America/Caracas") {
@@ -106,6 +108,7 @@ function mockRpc(fn) {
   }
   if (fn === "rpc_habitos_historial") return [];
   if (fn === "rpc_game_get") return null;
+  if (fn === "rpc_perfil_reciente") return "00000000-0000-0000-0000-000000000000";
   if (fn === "rpc_habitos_complete") return true;
   if (fn === "rpc_game_upsert") return true;
   throw new Error(`mock sin datos para ${fn}`);
@@ -183,7 +186,12 @@ const main = async () => {
   const fecha = args.fecha || hoy;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) fail("args", `--fecha debe ser YYYY-MM-DD`);
 
-  const rows = await rpc("rpc_habitos_list", { p_user_id: USER_ID });
+  // El registro va al perfil fijado (--perfil-id / HABITOS_PERFIL_ID) o al
+  // usado más recientemente en la app (migración 0014: rpc_perfil_reciente).
+  const PERFIL_ID = await resolverPerfilId(rpc, USER_ID, args["perfil-id"] || env.HABITOS_PERFIL_ID)
+    .catch((e) => fail("sin-perfil", e.message));
+
+  const rows = await rpc("rpc_habitos_list", { p_user_id: USER_ID, p_perfil_id: PERFIL_ID });
   const habits = (rows || []).map((r) => ({ ...r.data, id: r.id }));
   if (habits.length === 0) fail("sin-habitos", "el RPC no devolvió hábitos (¿user-id correcto? ¿secreto configurado?)");
 
@@ -274,12 +282,12 @@ const main = async () => {
 
   // Estado remoto → registrarConJuego REAL.
   const desde = d.todayKey(d.addDays(new Date(`${hoy}T12:00:00`), -400));
-  const hist = (await rpc("rpc_habitos_historial", { p_user_id: USER_ID, p_desde: desde })) || [];
+  const hist = (await rpc("rpc_habitos_historial", { p_user_id: USER_ID, p_perfil_id: PERFIL_ID, p_desde: desde })) || [];
   const completions = hist.map((c) => ({
     id: c.event_id, eventId: c.event_id, habitId: c.habit_id,
     momentId: c.moment_id || undefined, fecha: c.fecha, timestamp: c.created_at,
   }));
-  const gj = await rpc("rpc_game_get", { p_user_id: USER_ID });
+  const gj = await rpc("rpc_game_get", { p_user_id: USER_ID, p_perfil_id: PERFIL_ID });
   const juego = gj ? j.normalizarJuego(gj) : j.juegoInicial();
   const estado = {
     habits, completions,
@@ -311,11 +319,11 @@ const main = async () => {
 
   if (!args["dry-run"]) {
     const okComplete = await rpc("rpc_habitos_complete", {
-      p_user_id: USER_ID, p_event_id: eventId, p_habit_id: habit.id,
+      p_user_id: USER_ID, p_perfil_id: PERFIL_ID, p_event_id: eventId, p_habit_id: habit.id,
       p_moment_id: momentoIdFinal || null, p_fecha: fechaFinal,
     });
     if (!okComplete) fail("rpc", "rpc_habitos_complete devolvió false (¿duplicado?)");
-    await rpc("rpc_game_upsert", { p_user_id: USER_ID, p_data: nuevo.juego });
+    await rpc("rpc_game_upsert", { p_user_id: USER_ID, p_perfil_id: PERFIL_ID, p_data: nuevo.juego });
   }
 
   const hechos = d.completadosPara(habit, fechaFinal, nuevo.completions).size;

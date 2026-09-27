@@ -88,7 +88,7 @@ function eventId(habitId: string, momentId: string, fecha: string): string {
 const DESCANSOS_DEFAULT = { inicio: "22:00", fin: "08:00" };
 
 async function calcularDebidos(): Promise<
-  { userId: string; habitId: string; momentId: string; nombre: string; body: string; url: string; fecha: string }[]
+  { userId: string; perfilId: string | null; habitId: string; momentId: string; nombre: string; body: string; url: string; fecha: string }[]
 > {
   // P1.8: timezone real por usuario desde push_subscriptions.timezone
   // (la escribe el cliente en guardarSuscripcion). Sin suscripción no hay a
@@ -117,11 +117,11 @@ async function calcularDebidos(): Promise<
   // 1. Leer hábitos activos con su data (el estado está dentro de la columna jsonb "data",
   //    no como una columna separada). Filtramos por data->>'estado' = 'activo'.
   //    P3.4: paginado.
-  const habits: { id: string; user_id: string; data: unknown }[] = [];
+  const habits: { id: string; user_id: string; perfil_id: string | null; data: unknown }[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabase
       .from("habits")
-      .select("id, user_id, data")
+      .select("id, user_id, perfil_id, data")
       .filter("data->>estado", "eq", "activo")
       .order("id")
       .range(from, from + 999);
@@ -129,11 +129,11 @@ async function calcularDebidos(): Promise<
       console.error("Error leyendo hábitos:", error.message);
       return [];
     }
-    habits.push(...((data ?? []) as { id: string; user_id: string; data: unknown }[]));
+    habits.push(...((data ?? []) as { id: string; user_id: string; perfil_id: string | null; data: unknown }[]));
     if (!data || data.length < 1000) break;
   }
 
-  const debidos: { habitId: string; momentId: string; userId: string; nombre: string; sueno?: boolean }[] = [];
+  const debidos: { habitId: string; momentId: string; userId: string; perfilId: string | null; nombre: string; sueno?: boolean }[] = [];
 
   // 2. Para cada usuario calcular su hora local y evaluar sus hábitos.
   for (const row of habits ?? []) {
@@ -173,6 +173,7 @@ async function calcularDebidos(): Promise<
         habitId: habit.id,
         momentId: moment.id,
         userId: row.user_id,
+        perfilId: row.perfil_id,
         nombre: habit.nombre,
         sueno: esSueno || undefined,
       });
@@ -219,6 +220,7 @@ async function calcularDebidos(): Promise<
     })
     .map(({ d, fecha }) => ({
       userId: d.userId,
+      perfilId: d.perfilId,
       habitId: d.habitId,
       momentId: d.momentId,
       nombre: d.nombre,
@@ -232,14 +234,15 @@ async function calcularDebidos(): Promise<
         : `Es momento de "${d.nombre}". ¡A por ello!`,
       // Deep link de auto-registro: el botón "Listo" de la notificación abre
       // la app y registra el momento sin más taps (ver notificationclick en sw.js).
-      url: `/?complete=${d.habitId}|${d.momentId}`,
+      // El perfil viaja en la URL: si no es el activo, la app no auto-registra.
+      url: `/?complete=${d.habitId}|${d.momentId}${d.perfilId ? `&perfil=${d.perfilId}` : ""}`,
       fecha, // P1.9: fecha en la zona del usuario (para push_log).
     }));
 }
 
 async function enviarPush(
-  row: { endpoint: string; p256dh?: string | null; auth?: string | null },
-  payload: { title: string; body: string; actions?: { action: string; title: string }[]; data: { habitId: string; momentId: string; url: string } },
+  row: { endpoint: string; user_id: string; perfil_id: string | null; p256dh?: string | null; auth?: string | null },
+  payload: { title: string; body: string; actions?: { action: string; title: string }[]; data: { habitId: string; momentId: string; perfilId: string | null; url: string } },
 ): Promise<boolean> {
   try {
     // Schema real (0001): p256dh/auth son columnas planas, no JSONB "keys".
@@ -251,9 +254,11 @@ async function enviarPush(
     return true;
   } catch (err) {
     const code = (err as { statusCode?: number }).statusCode;
-    // 404/410: suscripción caducada o eliminada → limpiarla.
+    // 404/410: suscripción caducada o eliminada → limpiarla (acotada al perfil:
+    // el mismo endpoint puede servir a varios perfiles de la cuenta).
     if (code === 404 || code === 410) {
-      await supabase.from("push_subscriptions").delete().eq("endpoint", row.endpoint);
+      const q = supabase.from("push_subscriptions").delete().eq("endpoint", row.endpoint).eq("user_id", row.user_id);
+      await (row.perfil_id ? q.eq("perfil_id", row.perfil_id) : q.is("perfil_id", null));
     }
     console.error("Error enviando push:", (err as Error).message);
     return false;
@@ -276,29 +281,32 @@ async function run(req: Request): Promise<Response> {
     return new Response(JSON.stringify({ ok: true, sent: 0 }), { headers: { "Content-Type": "application/json" } });
   }
 
-  // Agrupar por usuario y cargar sus suscripciones.
+  // Agrupar por (usuario, perfil) y cargar sus suscripciones: cada perfil
+  // tiene su propia fila por endpoint (unique endpoint+perfil_id).
   const userIds = [...new Set(debidos.map((d) => d.userId))];
   const { data: subs, error: subError } = await supabase
     .from("push_subscriptions")
-    .select("endpoint, user_id, p256dh, auth")
+    .select("endpoint, user_id, perfil_id, p256dh, auth")
     .in("user_id", userIds);
 
   if (subError) {
     console.error("Error leyendo suscripciones:", subError.message);
   }
 
-  const porUsuario = new Map<string, typeof subs>();
+  const clave = (userId: string, perfilId: string | null) => `${userId}:${perfilId ?? ""}`;
+  const porPerfil = new Map<string, typeof subs>();
   for (const s of subs ?? []) {
-    const list = porUsuario.get(s.user_id) ?? [];
+    const k = clave(s.user_id, (s as { perfil_id?: string | null }).perfil_id ?? null);
+    const list = porPerfil.get(k) ?? [];
     list.push(s);
-    porUsuario.set(s.user_id, list);
+    porPerfil.set(k, list);
   }
 
   let sent = 0;
   const logs: { event_id: string; habit_id: string; moment_id: string; user_id: string }[] = [];
 
   for (const d of debidos) {
-    const userSubs = porUsuario.get(d.userId) ?? [];
+    const userSubs = porPerfil.get(clave(d.userId, d.perfilId)) ?? [];
     if (userSubs.length === 0) continue;
 
     const fecha = d.fecha; // P1.9: ya calculada en la zona del usuario.
@@ -306,7 +314,7 @@ async function run(req: Request): Promise<Response> {
       title: d.title,
       body: d.body,
       actions: [{ action: "hecho", title: "Listo" }],
-      data: { habitId: d.habitId, momentId: d.momentId, url: d.url },
+      data: { habitId: d.habitId, momentId: d.momentId, perfilId: d.perfilId, url: d.url },
     };
 
     let exito = false;

@@ -25,7 +25,7 @@ import { SkeletonLiga } from "../../components/ui/Skeleton";
 import { logEvent } from "../../lib/logger";
 
 export default function Liga() {
-  const { user } = useAuth();
+  const { user, perfilId } = useAuth();
   const { state } = useStoreState();
   const { actualizarJuego } = useStoreActions();
   const [ligas, setLigas] = useState<LigaVista[]>([]);
@@ -55,8 +55,8 @@ export default function Liga() {
     }
     try {
       // Publicar el XP semanal antes de leer el ranking (dato fresco).
-      if (state.juego) await publicarXpLiga(supabase, user.id, state.juego);
-      setLigas(await obtenerMisLigas(supabase, user.id));
+      if (state.juego && perfilId) await publicarXpLiga(supabase, user.id, perfilId, state.juego);
+      setLigas(perfilId ? await obtenerMisLigas(supabase, user.id, perfilId) : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron cargar las ligas.");
     } finally {
@@ -109,7 +109,7 @@ export default function Liga() {
     ejecutar(async () => {
       const supabase = getSupabase();
       if (!supabase || !user) throw new Error("Inicia sesión para crear una liga.");
-      const vista = await crearLiga(supabase, user.id, nombreNueva, nombreVisible);
+      const vista = await crearLiga(supabase, user.id, perfilId ?? "", nombreNueva, nombreVisible);
       actualizarJuego({ nombreLiga: nombreVisible.trim().slice(0, 30) });
       setNombreNueva("");
       setLigas((prev) => [...prev, vista]);
@@ -121,7 +121,7 @@ export default function Liga() {
     ejecutar(async () => {
       const supabase = getSupabase();
       if (!supabase || !user) throw new Error("Inicia sesión para unirte a una liga.");
-      const vista = await unirseALiga(supabase, user.id, codigoUnirse, nombreVisible);
+      const vista = await unirseALiga(supabase, user.id, perfilId ?? "", codigoUnirse, nombreVisible);
       actualizarJuego({ nombreLiga: nombreVisible.trim().slice(0, 30) });
       setCodigoUnirse("");
       setLigas((prev) => (prev.some((l) => l.id === vista.id) ? prev : [...prev, vista]));
@@ -133,7 +133,7 @@ export default function Liga() {
     conCarga(async () => {
       const supabase = getSupabase();
       if (!supabase || !user) return;
-      await salirDeLiga(supabase, user.id, ligaId);
+      await salirDeLiga(supabase, user.id, perfilId ?? "", ligaId);
       setConfirmarSalida(null);
       setLigas((prev) => prev.filter((l) => l.id !== ligaId));
       setOk("Saliste de la liga.");

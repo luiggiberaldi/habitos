@@ -46,6 +46,7 @@ function mockRpc(fn) {
   }
   if (fn === "rpc_habitos_historial") return [];
   if (fn === "rpc_game_get") return null;
+  if (fn === "rpc_perfil_reciente") return "00000000-0000-0000-0000-000000000000";
   if (fn === "rpc_habitos_complete") return true;
   if (fn === "rpc_habitos_upsert") return true;
   if (fn === "rpc_game_upsert") return true;
@@ -69,6 +70,20 @@ export function crearRpc(cfg) {
     if (!res.ok) throw new Error(`rpc ${fn}: HTTP ${res.status} ${text.slice(0, 300)}`);
     return text ? JSON.parse(text) : null;
   };
+}
+
+// ── Perfil activo ────────────────────────────────────────────────────────────────
+// El puente escribe en UN perfil: el fijado con --perfil-id / HABITOS_PERFIL_ID,
+// o el usado más recientemente en la app (RPC rpc_perfil_reciente, migración 0014).
+export async function resolverPerfilId(rpc, USER_ID, fijo) {
+  if (fijo) return fijo;
+  const id = await rpc("rpc_perfil_reciente", { p_user_id: USER_ID });
+  if (!id) {
+    throw new Error(
+      "sin-perfil: la cuenta no tiene perfiles todavía — crea uno en la app (o pasa --perfil-id)"
+    );
+  }
+  return id;
 }
 
 // ── Compilar lib/* con tsc (caché) ───────────────────────────────────────────
@@ -142,18 +157,18 @@ export function matchHabito(habits, q) {
 }
 
 // ── Estado remoto normalizado ────────────────────────────────────────────────
-export async function cargarEstado(rpc, USER_ID, lib, diasHistorial = 400) {
+export async function cargarEstado(rpc, USER_ID, PERFIL_ID, lib, diasHistorial = 400) {
   const { d, j } = lib;
   const hoy = d.todayKey();
-  const rows = await rpc("rpc_habitos_list", { p_user_id: USER_ID });
+  const rows = await rpc("rpc_habitos_list", { p_user_id: USER_ID, p_perfil_id: PERFIL_ID });
   const habits = (rows || []).map((r) => ({ ...r.data, id: r.id }));
   const desde = d.todayKey(d.addDays(new Date(`${hoy}T12:00:00`), -diasHistorial));
-  const hist = (await rpc("rpc_habitos_historial", { p_user_id: USER_ID, p_desde: desde })) || [];
+  const hist = (await rpc("rpc_habitos_historial", { p_user_id: USER_ID, p_perfil_id: PERFIL_ID, p_desde: desde })) || [];
   const completions = hist.map((c) => ({
     id: c.event_id, eventId: c.event_id, habitId: c.habit_id,
     momentId: c.moment_id || undefined, fecha: c.fecha, timestamp: c.created_at,
   }));
-  const gj = await rpc("rpc_game_get", { p_user_id: USER_ID });
+  const gj = await rpc("rpc_game_get", { p_user_id: USER_ID, p_perfil_id: PERFIL_ID });
   const juego = gj ? j.normalizarJuego(gj) : j.juegoInicial();
   return { habits, completions, juego, hoy };
 }

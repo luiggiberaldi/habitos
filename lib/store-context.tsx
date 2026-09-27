@@ -36,7 +36,7 @@ import {
   claveEstado,
   clavePendientes as clavePendientesAmbito,
   clavesDeDatos,
-  sufijoDeUsuario,
+  sufijoDePerfil,
 } from "./ambito";
 import { asegurarSesion } from "./supabase";
 
@@ -166,11 +166,13 @@ function guardarPendientes(clave: string, ops: PendingOp[]): void {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, perfilId } = useAuth();
   const userId = user?.id ?? null;
-  // Identidad única offline-first: el userId de la cuenta en la nube.
-  // Todo (estado, colas, logs, notificaciones) se aísla por este sufijo.
-  const sufijo = sufijoDeUsuario(userId);
+  // Identidad = cuenta + perfil activo. Todo (estado, colas, logs,
+  // notificaciones, filas en la nube) se aísla por este sufijo.
+  const sufijo = sufijoDePerfil(userId, perfilId);
+  // Puerta de la nube: sin perfil activo no se escribe nada remoto.
+  const nubeLista = !!userId && !!perfilId;
   const storageKey = sufijo ? claveEstado(sufijo) : STORAGE_KEY;
 
   // Siempre se arranca con el estado inicial por defecto para el render del servidor
@@ -242,7 +244,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   /** Reenvía la cola de operaciones pendientes (off-line queue) a Supabase. */
   const reenviarPendientes = useCallback(async (): Promise<void> => {
     const supabase = getSupabase();
-    if (!supabase || !userId || sincronizandoRef.current) return;
+    if (!supabase || !userId || !perfilId || sincronizandoRef.current) return;
     const ops = pendientesRef.current;
     if (ops.length === 0) return;
 
@@ -258,21 +260,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const { error } = await supabase.from("habits").upsert(op.payload as { id: string; user_id: string; data: Habit });
           if (error) restantes.push(op);
         } else if (op.kind === "delete_habit") {
-          const { error } = await supabase.from("habits").delete().eq("id", op.id).eq("user_id", userId);
+          const { error } = await supabase.from("habits").delete().eq("id", op.id).eq("user_id", userId).eq("perfil_id", perfilId);
           if (error) restantes.push(op);
         } else if (op.kind === "upsert_completion") {
           const { error } = await supabase.from("completions").upsert(op.payload as { event_id: string; user_id: string });
           if (error) restantes.push(op);
         } else if (op.kind === "delete_completion") {
-          const { error } = await supabase.from("completions").delete().eq("event_id", op.event_id).eq("user_id", userId);
+          const { error } = await supabase.from("completions").delete().eq("event_id", op.event_id).eq("user_id", userId).eq("perfil_id", perfilId);
           if (error) restantes.push(op);
         } else if (op.kind === "delete_completions_of_habit") {
           // D2: reintento del borrado en cascada (ver eliminarHabit).
-          const { error } = await supabase.from("completions").delete().eq("habit_id", op.habit_id).eq("user_id", userId);
+          const { error } = await supabase.from("completions").delete().eq("habit_id", op.habit_id).eq("user_id", userId).eq("perfil_id", perfilId);
           if (error) restantes.push(op);
         } else if (op.kind === "delete_push") {
           // E4: filtrar por user_id además del endpoint.
-          const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", op.endpoint).eq("user_id", userId);
+          const { error } = await supabase.from("push_subscriptions").delete().eq("endpoint", op.endpoint).eq("user_id", userId).eq("perfil_id", perfilId);
           if (error) restantes.push(op);
         } else if (op.kind === "upsert_tombstone") {
           // P2.6
@@ -290,7 +292,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     pendientesRef.current = restantes;
     guardarPendientes(clavePendientes(sufijo), restantes); // P1.5
     sincronizandoRef.current = false;
-  }, [userId, sufijo]);
+  }, [userId, perfilId, sufijo]);
 
   /** Encola una operación para reintento cuando vuelva la conexión. */
   const encolar = useCallback((op: PendingOp): void => {
@@ -319,7 +321,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    */
   const rehidratar = useCallback(async (): Promise<void> => {
     const supabase = getSupabase();
-    if (!supabase || !userId) return;
+    if (!supabase || !userId || !perfilId) return;
 
     // 1. Reenviar pendientes acumulados off-line antes de descargar.
     await reenviarPendientes();
@@ -329,7 +331,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // resucitar borrados de otro dispositivo.
       const borrados = new Set<string>();
       {
-        const { data: tombRows, error: tError } = await supabase.from("deleted_habits").select("habit_id");
+        const { data: tombRows, error: tError } = await supabase.from("deleted_habits").select("habit_id").eq("user_id", userId).eq("perfil_id", perfilId);
         if (tError) {
           if (!esErrorRed(tError)) console.error("Error descargando borrados:", tError.message);
           logEvent("SYNC_ERROR", "sync", null, { fase: "tombstones", error: tError.message });
@@ -345,6 +347,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const { data, error } = await supabase
           .from("habits")
           .select("id, data, updated_at")
+          .eq("user_id", userId)
+          .eq("perfil_id", perfilId)
           .range(from, from + PAGE - 1);
         if (error) {
           if (!esErrorRed(error)) console.error("Error descargando habits:", error.message);
@@ -393,7 +397,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return localTs >= remoteTs; // empate o más nuevo: el local gana el LWW
         });
         for (const h of paraSubir) {
-          const payload = { id: h.id, user_id: userId, data: h };
+          const payload = { id: h.id, user_id: userId, perfil_id: perfilId, data: h };
           const { error } = await supabase.from("habits").upsert(payload);
           if (error) {
             if (esErrorRed(error)) {
@@ -413,6 +417,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const { data, error } = await supabase
           .from("completions")
           .select("event_id, habit_id, moment_id, fecha, subtareas_completadas, created_at")
+          .eq("user_id", userId)
+          .eq("perfil_id", perfilId)
           .range(from, from + PAGE - 1);
         if (error) {
           if (!esErrorRed(error)) console.error("Error descargando completions:", error.message);
@@ -440,12 +446,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           .from("game_state")
           .select("data")
           .eq("user_id", userId)
+          .eq("perfil_id", perfilId)
           .maybeSingle();
         if (!gsError) {
           const remoto = (gsRow as { data?: unknown } | null)?.data as JuegoState | undefined ?? null;
           const combinado = fusionarJuego(stateRef.current.juego ?? juegoInicial(), remoto);
           setState((prev) => ({ ...prev, juego: combinado }));
-          const payload = { user_id: userId, data: combinado, updated_at: new Date().toISOString() };
+          const payload = { user_id: userId, perfil_id: perfilId, data: combinado, updated_at: new Date().toISOString() };
           const { error: upError } = await supabase.from("game_state").upsert(payload);
           if (upError) {
             if (esErrorRed(upError)) encolar({ kind: "upsert_game", payload });
@@ -470,7 +477,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       console.error("Error durante la hidratación:", e);
       logEvent("SYNC_ERROR", "sync", null, { fase: "rehidratar", error: (e as { message?: string })?.message ?? String(e) });
     }
-  }, [userId, reenviarPendientes, encolar]);
+  }, [userId, perfilId, reenviarPendientes, encolar]);
 
   /**
    * P0.3 (guardarraíl #2): ejecuta un write remoto inspeccionando SIEMPRE el
@@ -483,7 +490,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const sincronizar = useCallback(
     async (op: PendingOp, req: () => PromiseLike<{ error: unknown }>, descripcion: string): Promise<void> => {
       const supabase = getSupabase();
-      if (!supabase || !userId) return;
+      if (!supabase || !userId || !perfilId) return;
       // Sesión fresca antes de escribir (lectura local; solo toca la red si
       // el token venció). Evita 401 en taps hechos tras volver la conexión.
       await asegurarSesion();
@@ -506,7 +513,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         manejarFallo(e);
       }
     },
-    [userId, encolar],
+    [userId, perfilId, encolar],
   );
 
   // Registro de satisfacción: rehidratar usa reenviarPendientes; exponer igual.
@@ -523,8 +530,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const esNuevo = !stateRef.current.habits.some((h) => h.id === habit.id);
         setState((s) => guardarHabit(s, habit));
         const supabase = getSupabase();
-        if (supabase && userId) {
-          const payload = { id: habit.id, user_id: userId, data: habit };
+        if (supabase && nubeLista) {
+          const payload = { id: habit.id, user_id: userId, perfil_id: perfilId, data: habit };
           void sincronizar(
             { kind: "upsert_habit", payload },
             () => supabase.from("habits").upsert(payload).then((r) => ({ error: r.error })),
@@ -541,11 +548,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       eliminarHabit: (id) => {
         setState((s) => eliminarHabit(s, id));
         const supabase = getSupabase();
-        if (supabase && userId) {
+        if (supabase && nubeLista) {
           // Filtra también por user_id para respetar Row Level Security.
           void sincronizar(
             { kind: "delete_habit", id },
-            () => supabase.from("habits").delete().eq("id", id).eq("user_id", userId).then((r) => ({ error: r.error })),
+            () => supabase.from("habits").delete().eq("id", id).eq("user_id", userId).eq("perfil_id", perfilId).then((r) => ({ error: r.error })),
             "eliminar hábito",
           );
           // D2: borrar también sus completions remotas — si no, quedan huérfanas
@@ -558,12 +565,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 .delete()
                 .eq("habit_id", id)
                 .eq("user_id", userId)
+                .eq("perfil_id", perfilId)
                 .then((r) => ({ error: r.error })),
             "eliminar cumplimientos del hábito",
           );
           // P2.6: tombstone para que el borrado se propague a otros dispositivos
           // (el rehydrate de otro dispositivo ya no lo re-agregará).
-          const tombstone = { user_id: userId, habit_id: id, deleted_at: new Date().toISOString() };
+          const tombstone = { user_id: userId, perfil_id: perfilId, habit_id: id, deleted_at: new Date().toISOString() };
           void sincronizar(
             { kind: "upsert_tombstone", payload: tombstone },
             () => supabase.from("deleted_habits").upsert(tombstone).then((r) => ({ error: r.error })),
@@ -584,8 +592,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         };
         setState((s) => ({ ...s, juego: { ...s.juego, ...parcial, actualizadoEn: nuevo.actualizadoEn } }));
         const supabase = getSupabase();
-        if (supabase && userId) {
-          const payload = { user_id: userId, data: nuevo, updated_at: nuevo.actualizadoEn };
+        if (supabase && nubeLista) {
+          const payload = { user_id: userId, perfil_id: perfilId, data: nuevo, updated_at: nuevo.actualizadoEn };
           void sincronizar(
             { kind: "upsert_game", payload },
             () => supabase.from("game_state").upsert(payload).then((r) => ({ error: r.error })),
@@ -616,10 +624,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (accion) logEvent(accion, "juego", e.dato ?? null, { titulo: e.titulo, detalle: e.detalle });
         }
         const supabase = getSupabase();
-        if (supabase && userId) {
+        if (supabase && nubeLista) {
           const payload = {
             event_id: eventId,
             user_id: userId,
+            perfil_id: perfilId,
             habit_id: habitId,
             moment_id: momentId ?? null,
             fecha,
@@ -631,14 +640,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             "registrar cumplimiento",
           );
           // Juego: subir el progreso (un registro por usuario).
-          const juegoPayload = { user_id: userId, data: nuevo.juego, updated_at: nuevo.juego.actualizadoEn };
+          const juegoPayload = { user_id: userId, perfil_id: perfilId, data: nuevo.juego, updated_at: nuevo.juego.actualizadoEn };
           void sincronizar(
             { kind: "upsert_game", payload: juegoPayload },
             () => supabase.from("game_state").upsert(juegoPayload).then((r) => ({ error: r.error })),
             "guardar progreso de juego",
           );
           // Liga: publicar el XP semanal (no crítico, sin errorSync).
-          void publicarXpLiga(supabase, userId, nuevo.juego);
+          void publicarXpLiga(supabase, userId, perfilId, nuevo.juego);
         }
         logEvent("COMPLETION_REGISTERED", "completion", eventId, { habitId, momentId, fecha, subtareasCompletadas });
       },
@@ -701,10 +710,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
         }
         const supabase = getSupabase();
-        if (supabase && userId) {
+        if (supabase && nubeLista) {
           const payload = {
             event_id: eventId,
             user_id: userId,
+            perfil_id: perfilId,
             habit_id: habitId,
             moment_id: cual,
             fecha,
@@ -719,13 +729,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             () => supabase.from("completions").upsert(payload).then((r) => ({ error: r.error })),
             "registrar sueño",
           );
-          const juegoPayload = { user_id: userId, data: nuevo.juego, updated_at: nuevo.juego.actualizadoEn };
+          const juegoPayload = { user_id: userId, perfil_id: perfilId, data: nuevo.juego, updated_at: nuevo.juego.actualizadoEn };
           void sincronizar(
             { kind: "upsert_game", payload: juegoPayload },
             () => supabase.from("game_state").upsert(juegoPayload).then((r) => ({ error: r.error })),
             "guardar progreso de juego",
           );
-          void publicarXpLiga(supabase, userId, nuevo.juego);
+          void publicarXpLiga(supabase, userId, perfilId, nuevo.juego);
         }
       },
       reclamarLogro: (logroId) => {
@@ -738,16 +748,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             logEvent("LEVEL_UP", "juego", String(res.subioNivel.nivel), { nombre: res.subioNivel.nombre });
           }
           const supabase = getSupabase();
-          if (supabase && userId) {
+          if (supabase && nubeLista) {
             const juego = res.state.juego!;
-            const juegoPayload = { user_id: userId, data: juego, updated_at: juego.actualizadoEn };
+            const juegoPayload = { user_id: userId, perfil_id: perfilId, data: juego, updated_at: juego.actualizadoEn };
             void sincronizar(
               { kind: "upsert_game", payload: juegoPayload },
               () => supabase.from("game_state").upsert(juegoPayload).then((r) => ({ error: r.error })),
               "reclamar premio de logro",
             );
             // Liga: publicar el XP semanal (no crítico, sin errorSync).
-            void publicarXpLiga(supabase, userId, juego);
+            void publicarXpLiga(supabase, userId, perfilId, juego);
           }
         }
         return {
@@ -764,21 +774,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           logEvent("XP_REVERTED", "juego", null, { xp: xpDevuelto, habitId: event.habitId, fecha: event.fecha });
         }
         const supabase = getSupabase();
-        if (supabase && userId) {
+        if (supabase && nubeLista) {
           void sincronizar(
             { kind: "delete_completion", event_id: event.eventId },
-            () => supabase.from("completions").delete().eq("event_id", event.eventId).eq("user_id", userId).then((r) => ({ error: r.error })),
+            () => supabase.from("completions").delete().eq("event_id", event.eventId).eq("user_id", userId).eq("perfil_id", perfilId).then((r) => ({ error: r.error })),
             "deshacer cumplimiento",
           );
           // Juego: subir el progreso revertido (un registro por usuario).
-          const juegoPayload = { user_id: userId, data: nuevo.juego, updated_at: nuevo.juego.actualizadoEn };
+          const juegoPayload = { user_id: userId, perfil_id: perfilId, data: nuevo.juego, updated_at: nuevo.juego.actualizadoEn };
           void sincronizar(
             { kind: "upsert_game", payload: juegoPayload },
             () => supabase.from("game_state").upsert(juegoPayload).then((r) => ({ error: r.error })),
             "guardar progreso de juego",
           );
           // Liga: republicar el XP semanal (pudo haber bajado).
-          void publicarXpLiga(supabase, userId, nuevo.juego);
+          void publicarXpLiga(supabase, userId, perfilId, nuevo.juego);
         }
         logEvent("COMPLETION_UNDONE", "completion", event.eventId, { habitId: event.habitId, fecha: event.fecha });
       },
@@ -788,10 +798,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState((s) => cambiarEstadoTodos(s, estado));
         logEvent(estado === "pausado" ? "HABITS_PAUSED" : "HABITS_RESUMED", "habit", null, { cantidad: afectados.length });
         const supabase = getSupabase();
-        if (supabase && userId) {
+        if (supabase && nubeLista) {
           for (const h of afectados) {
             const habit = { ...h, estado, actualizadoEn: new Date().toISOString() };
-            const payload = { id: habit.id, user_id: userId, data: habit };
+            const payload = { id: habit.id, user_id: userId, perfil_id: perfilId, data: habit };
             void sincronizar(
               { kind: "upsert_habit", payload },
               () => supabase.from("habits").upsert(payload).then((r) => ({ error: r.error })),
@@ -804,9 +814,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // 1. Nube primero (si hay sesión): borra todas las filas del usuario.
         //    Si falla, se aborta sin tocar lo local para no dejar estados a medias.
         const supabase = getSupabase();
-        if (supabase && userId) {
+        if (supabase && nubeLista) {
+          // Acotado al perfil activo: jamás toca los otros perfiles de la cuenta.
           for (const tabla of ["completions", "deleted_habits", "habits", "game_state"] as const) {
-            const { error } = await supabase.from(tabla).delete().eq("user_id", userId);
+            const { error } = await supabase.from(tabla).delete().eq("user_id", userId).eq("perfil_id", perfilId);
             if (error) throw new Error(`No se pudo borrar tus datos en la nube (${tabla}). Revisa tu conexión e inténtalo de nuevo.`);
           }
         }
@@ -852,20 +863,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
     }
     },
-    [userId, sincronizar, rehidratarFn, reenviarPendientes, storageKey, sufijo],
+    [userId, perfilId, nubeLista, sincronizar, rehidratarFn, reenviarPendientes, storageKey, sufijo],
   );
 
   // Rehidratar al iniciar sesión (cambio de usuario) y al volver a estar online.
   useEffect(() => {
-    if (!userId || !estadoCargado) return;
+    if (!userId || !perfilId || !estadoCargado) return;
     // setTimeout corto para que el primer render local no parpadee.
     const t = setTimeout(() => void rehidratar(), 50);
     return () => clearTimeout(t);
-  }, [userId, estadoCargado, rehidratar]);
+  }, [userId, perfilId, estadoCargado, rehidratar]);
 
   // Reenviar cola pendiente cuando vuelve la conexión (y auditar el cambio de red).
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !perfilId) return;
     const onOnline = () => {
       logEvent("ONLINE", "app", null, null);
       void flushLog();
@@ -878,7 +889,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [userId, reenviarPendientes]);
+  }, [userId, perfilId, reenviarPendientes]);
 
   const stateValue = useMemo(() => ({ state, errorSync }), [state, errorSync]);
 

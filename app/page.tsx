@@ -98,7 +98,7 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
 export default function Inicio() {
   const { state } = useStoreState();
   const { registrar, registrarSueno, deshacer, posponerHabit } = useStoreActions();
-  const { user } = useAuth();
+  const { user, perfilId } = useAuth();
   const [mostrarPospuestos, setMostrarPospuestos] = useState(false);
   const [marcando, setMarcando] = useState<string | null>(null);
   const [subtareasTemp, setSubtareasTemp] = useState<Record<string, string[]>>({});
@@ -191,12 +191,21 @@ export default function Inicio() {
   useEffect(() => {
     if (deepLinkProcesado.current) return;
     deepLinkProcesado.current = true;
-    const complete = new URLSearchParams(window.location.search).get("complete");
+    const params = new URLSearchParams(window.location.search);
+    const complete = params.get("complete");
     if (!complete) return;
     window.history.replaceState(null, "", window.location.pathname);
     const [habitId, momentId] = complete.split("|");
     const habit = state.habits.find((h) => h.id === habitId && h.estado === "activo");
-    if (!habit) return;
+    if (!habit) {
+      // El recordatorio era de otro perfil: avisar en vez de registrar en el
+      // perfil equivocado (o de tragar el tap en silencio).
+      const perfilPush = params.get("perfil");
+      if (perfilPush && perfilPush !== perfilId) {
+        window.setTimeout(() => setToast("Ese recordatorio es de otro perfil."), 0);
+      }
+      return;
+    }
     let mensaje: string | null = null;
     if (habit.tipo === "sueno" && (momentId === "levantar" || momentId === "acostar")) {
       // Sueño desde la notificación push: se registra con la hora actual.
@@ -216,7 +225,7 @@ export default function Inicio() {
     }
     // Diferido: react-hooks/set-state-in-effect no permite setState síncrono en el efecto.
     if (mensaje) window.setTimeout(() => setToast(mensaje), 0);
-  }, [state.habits, state.completions, registrar, registrarSueno, hoy]);
+  }, [state.habits, state.completions, registrar, registrarSueno, hoy, perfilId]);
 
   // El toast de confirmación se oculta solo.
   useEffect(() => {

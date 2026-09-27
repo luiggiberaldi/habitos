@@ -15,7 +15,7 @@ if (process.env.TZ !== "America/Caracas") {
 }
 
 import {
-  cargarConfig, crearRpc, cargarLib, cargarEstado, aplicaHoy, DIAS_ES,
+  cargarConfig, crearRpc, cargarLib, cargarEstado, aplicaHoy, DIAS_ES, resolverPerfilId,
 } from "./whatsapp-comun.mjs";
 
 const args = {};
@@ -32,10 +32,12 @@ const out = (obj) => { console.log(JSON.stringify(obj)); process.exit(obj.ok ? 0
 const main = async () => {
   const cfg = cargarConfig(args);
   const rpc = crearRpc(cfg);
+  const PERFIL_ID = await resolverPerfilId(rpc, cfg.USER_ID, args["perfil-id"] || process.env.HABITOS_PERFIL_ID)
+    .catch((e) => { console.log(JSON.stringify({ ok: false, codigo: "sin-perfil", detalle: e.message })); process.exit(1); });
   const lib = cargarLib();
   const { d, g } = lib;
   const N = Math.max(30, Math.min(400, parseInt(args.dias || "90", 10) || 90));
-  const { habits, completions, juego, hoy } = await cargarEstado(rpc, cfg.USER_ID, lib, N);
+  const { habits, completions, juego, hoy } = await cargarEstado(rpc, cfg.USER_ID, PERFIL_ID, lib, N);
   const activos = habits.filter((h) => h.estado === "activo");
   if (activos.length === 0) out({ ok: false, codigo: "sin-habitos", detalle: "no hay hábitos activos" });
   const nivel = g.nivelEfectivo(juego.xpTotal ?? 0, juego.nivelMaximo ?? 1).nivel;

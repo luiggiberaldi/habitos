@@ -1,5 +1,6 @@
 import type { AppState, Habit } from "./types";
 import { getSupabase } from "./supabase";
+import { leerPerfilActivoId } from "./perfiles";
 import { logEvent } from "./logger";
 import { claveNotifEnviadas } from "./ambito";
 
@@ -70,16 +71,20 @@ async function guardarSuscripcion(subscription: PushSubscription): Promise<void>
     const b64 = (buf: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(buf)));
     // P1.8/P1.9: columnas planas según el schema real (0001) + timezone del
     // dispositivo para que el scheduler calcule las fechas por usuario.
+    // El perfil activo distingue las suscripciones: la misma cuenta puede
+    // tener varios perfiles (cada uno con sus hábitos) en un solo dispositivo.
+    const perfilId = leerPerfilActivoId();
     await supabase.from("push_subscriptions").upsert(
       {
         user_id: user.data.user.id,
+        perfil_id: perfilId,
         endpoint: subscription.endpoint,
         p256dh: p256dhKey ? b64(p256dhKey) : "",
         auth: authKey ? b64(authKey) : "",
         user_agent: navigator.userAgent,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
-      { onConflict: "endpoint" },
+      { onConflict: "endpoint,perfil_id" },
     );
   } catch {
     // La suscripción local sigue siendo válida aunque la persistencia remota falle.
@@ -99,7 +104,10 @@ export async function desuscribirPush(): Promise<void> {
       const userId = user?.data?.user?.id;
       if (supabase && userId) {
         // E4: filtrar por user_id — el endpoint solo no basta (RLS y precisión).
-        await supabase.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint).eq("user_id", userId);
+        // Más el perfil activo: no borrar la suscripción de otro perfil.
+        const q = supabase.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint).eq("user_id", userId);
+        const perfilId = leerPerfilActivoId();
+        await (perfilId ? q.eq("perfil_id", perfilId) : q.is("perfil_id", null));
       }
     } catch {
       /* no crítico */
