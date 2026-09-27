@@ -1,6 +1,7 @@
 import type { AppState, CompletionEvent, Habit, Moment, Settings } from "./types";
-import { addDays, todayKey } from "./dates";
+import { addDays, completadosPara, inicioSemana, todayKey } from "./dates";
 import { eventIdCantidad } from "./event-id";
+import { objetivoEnFecha, PUNTOS_OBJETIVO_DIARIO, PUNTOS_POR_REGISTRO } from "./gamificacion";
 import { juegoInicial, normalizarJuego, aplicarRecompensas, type EventoJuego } from "./juego";
 
 export const STORAGE_KEY = "habitos-app-v1";
@@ -85,6 +86,54 @@ export function registrarCumplimiento(
 
 export function deshacerCumplimiento(state: AppState, eventId: string): AppState {
   return { ...state, completions: state.completions.filter((event) => event.eventId !== eventId) };
+}
+
+/**
+ * Deshace un cumplimiento revirtiendo el XP que otorgó (espejo exacto del
+ * bonus en aplicarRecompensas). Sin esto, marcar → desmarcar → marcar
+ * farmeaba XP infinito, incluido el xpSemanal de la liga.
+ *
+ * Los hitos NO se revierten: logros, cofres, desafíos completados y racha
+ * máxima son "para siempre" por diseño; solo se devuelve el XP base, el bonus
+ * de objetivo y el conteo de madrugador.
+ */
+export function deshacerConJuego(state: AppState, eventId: string): AppState {
+  const evento = state.completions.find((e) => e.eventId === eventId);
+  if (!evento) return state;
+  const habit = state.habits.find((h) => h.id === evento.habitId);
+
+  let xp = PUNTOS_POR_REGISTRO;
+  if (habit) {
+    const objetivo = objetivoEnFecha(habit, evento.fecha);
+    const conEvento = completadosPara(habit, evento.fecha, state.completions).size;
+    const sinEvento = completadosPara(
+      habit,
+      evento.fecha,
+      state.completions.filter((e) => e.eventId !== eventId),
+    ).size;
+    // El bonus se otorgó al cruzar el objetivo; se devuelve solo si este
+    // evento era lo que mantenía el día cumplido.
+    if (objetivo > 0 && conEvento >= objetivo && sinEvento < objetivo) {
+      xp += PUNTOS_OBJETIVO_DIARIO;
+    }
+  }
+
+  const juego = normalizarJuego(state.juego);
+  const xpTotal = Math.max(0, juego.xpTotal - xp);
+  // El xpSemanal solo se toca si el evento pertenece a su semana en curso.
+  const xpSemanal =
+    inicioSemana(evento.fecha) === juego.semanaXp ? Math.max(0, juego.xpSemanal - xp) : juego.xpSemanal;
+  // Madrugador: espejo del conteo en aplicarRecompensas (< 8:00 a. m. local).
+  const madrugadas =
+    evento.timestamp && new Date(evento.timestamp).getHours() < 8
+      ? Math.max(0, juego.madrugadas - 1)
+      : juego.madrugadas;
+
+  const sinEvento = deshacerCumplimiento(state, eventId);
+  return {
+    ...sinEvento,
+    juego: { ...juego, xpTotal, xpSemanal, madrugadas, actualizadoEn: new Date().toISOString() },
+  };
 }
 
 export function guardarHabit(state: AppState, habit: Habit): AppState {

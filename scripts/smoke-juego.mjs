@@ -17,6 +17,11 @@
 //   - fusionarJuego converge por máximos/unión.
 //   - reconciliarJuego hace backfill de XP histórico y es idempotente.
 //   - Desafíos semanales: se generan y miden progreso.
+//   - deshacerConJuego revierte el XP otorgado (anti-farmeo): base + bonus
+//     solo si el día deja de cumplir el objetivo; xpSemanal solo si el evento
+//     es de la semana en curso; madrugadas si fue antes de las 8 a. m.
+//   - logrosNuevos: semana-perfecta con día de descanso total, y sin hábitos
+//     no desbloquea.
 //
 // Salida: código 0 si todo pasa, 1 si algo falla.
 
@@ -290,6 +295,79 @@ const mkState = (habits, completions, juegoOver = {}) => ({
   check("racha ≥7 → frase de constancia", typeof f2 === "string" && f2.includes("10"));
   const f3 = g.fraseIdentidad([], j.juegoInicial());
   check("sin datos → sin frase (null)", f3 === null);
+}
+
+// ── deshacerConJuego revierte el XP (anti-farmeo) ──────────────────────────
+{
+  const h1 = mkHabit({ momentos: [{ id: "m1", tipo: "hora", hora: "23:00" }] });
+  const h2 = mkHabit({ id: "h2", nombre: "Otro", momentos: [{ id: "m2", tipo: "hora", hora: "23:00" }] });
+  const st0 = mkState([h1, h2], []);
+  const r1 = s.registrarConJuego(st0, "h1", "m1", hoy);
+  // 10 base + 5 bonus (objetivo 1 cruzado); sin cofre porque h2 sigue pendiente.
+  check("registrar otorga 10+5 de XP", r1.state.juego.xpTotal === 15 && r1.state.juego.xpSemanal === 15);
+  const eid = `h1|m1|${hoy}`;
+  const st1 = s.deshacerConJuego(r1.state, eid);
+  check("deshacer revierte base+bonus y xpSemanal", st1.juego.xpTotal === 0 && st1.juego.xpSemanal === 0);
+  check("deshacer elimina el evento", st1.completions.length === 0);
+  // Ciclo completo marcar→desmarcar→marcar→desmarcar: neto cero, sin farmeo.
+  const r2 = s.registrarConJuego(st1, "h1", "m1", hoy);
+  const st2 = s.deshacerConJuego(r2.state, eid);
+  check("ciclo marcar→desmarcar no farmea XP", st2.juego.xpTotal === 0 && st2.juego.xpSemanal === 0);
+  const nada = s.deshacerConJuego(st2, "inexistente");
+  check("deshacer evento inexistente no cambia nada", nada.juego.xpTotal === 0);
+}
+
+{
+  // El bonus solo se devuelve si el día deja de cumplir el objetivo.
+  const h = mkHabit({ momentos: [{ id: "m1", tipo: "hora", hora: "23:00" }, { id: "m2", tipo: "hora", hora: "23:00" }] });
+  const h2 = mkHabit({ id: "h2", nombre: "Otro", momentos: [{ id: "m2b", tipo: "hora", hora: "23:00" }] });
+  const st0 = mkState([h, h2], []);
+  const r1 = s.registrarConJuego(st0, "h1", "m1", hoy); // +15 (10+5)
+  const r2 = s.registrarConJuego(r1.state, "h1", "m2", hoy); // +10
+  check("dos taps con objetivo 1 dan 25 XP", r2.state.juego.xpTotal === 25);
+  const st1 = s.deshacerConJuego(r2.state, `h1|m1|${hoy}`);
+  check("si otro evento mantiene el objetivo, solo se devuelve la base", st1.juego.xpTotal === 15);
+  const st2 = s.deshacerConJuego(st1, `h1|m2|${hoy}`);
+  check("al caer el objetivo se devuelve base+bonus", st2.juego.xpTotal === 0);
+}
+
+{
+  // xpSemanal solo se toca si el evento es de la semana en curso.
+  const fechaVieja = hace(10);
+  const ev = mkCompletion("h1", "m1", fechaVieja);
+  const st = mkState([mkHabit()], [ev], { xpTotal: 100, xpSemanal: 20, madrugadas: 2 });
+  const st2 = s.deshacerConJuego(st, ev.eventId);
+  check("evento de otra semana: revierte xpTotal sin tocar xpSemanal",
+    st2.juego.xpTotal === 85 && st2.juego.xpSemanal === 20);
+}
+
+{
+  // Madrugador: espejo del conteo (< 8:00 a. m. hora local).
+  const ts = new Date();
+  ts.setHours(6, 30, 0, 0);
+  const ev = { ...mkCompletion("h1", "m1", hoy), timestamp: ts.toISOString() };
+  const st = mkState([mkHabit()], [ev], { xpTotal: 50, madrugadas: 3 });
+  const st2 = s.deshacerConJuego(st, ev.eventId);
+  check("deshacer de madrugada revierte XP y conteo", st2.juego.madrugadas === 2 && st2.juego.xpTotal === 35);
+  const evTarde = { ...mkCompletion("h1", "m1", hoy), timestamp: `${hoy}T18:00:00.000Z` };
+  const st3 = mkState([mkHabit()], [evTarde], { xpTotal: 50, madrugadas: 3 });
+  const st4 = s.deshacerConJuego(st3, evTarde.eventId);
+  check("deshacer de tarde no toca madrugadas", st4.juego.madrugadas === 3 && st4.juego.xpTotal === 35);
+}
+
+// ── semana-perfecta con día de descanso ────────────────────────────────────
+{
+  const h = mkHabit({ dias: [1, 2, 3, 4, 5] }); // Lun–Vie
+  const comps = [];
+  for (let i = 0; i < 7; i++) {
+    const f = hace(i);
+    if (!d.esDescanso(h, f)) comps.push(mkCompletion("h1", "m1", f));
+  }
+  check("la ventana de prueba incluye descanso", comps.length < 7 && comps.length > 0);
+  const nuevos = g.logrosNuevos({ juego: j.juegoInicial(), habits: [h], completions: comps, hoy });
+  check("semana perfecta con día de descanso total desbloquea", nuevos.includes("semana-perfecta"));
+  const vacios = g.logrosNuevos({ juego: j.juegoInicial(), habits: [], completions: [], hoy });
+  check("sin hábitos no hay semana perfecta", !vacios.includes("semana-perfecta"));
 }
 
 // ── normalizarEstado trae juego ────────────────────────────────────────────

@@ -15,6 +15,7 @@ export type LogAction =
   | "SUBTASK_CHECKED"
   // Juego
   | "XP_GAINED"
+  | "XP_REVERTED"
   | "LEVEL_UP"
   | "ACHIEVEMENT_UNLOCKED"
   | "CHEST_OPENED"

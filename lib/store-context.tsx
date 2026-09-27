@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   crearEstadoInicial,
   cambiarEstadoTodos,
-  deshacerCumplimiento,
+  deshacerConJuego,
   guardarHabit,
   normalizarEstado,
   eliminarHabit,
@@ -581,7 +581,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         logEvent("COMPLETION_REGISTERED", "completion", eventId, { habitId, momentId, fecha, subtareasCompletadas });
       },
       deshacer: (event) => {
-        setState((s) => deshacerCumplimiento(s, event.eventId));
+        const xpAntes = stateRef.current.juego?.xpTotal ?? 0;
+        const nuevo = deshacerConJuego(stateRef.current, event.eventId);
+        setState(nuevo);
+        const xpDevuelto = xpAntes - (nuevo.juego?.xpTotal ?? 0);
+        if (xpDevuelto > 0) {
+          logEvent("XP_REVERTED", "juego", null, { xp: xpDevuelto, habitId: event.habitId, fecha: event.fecha });
+        }
         const supabase = getSupabase();
         if (supabase && userId) {
           void sincronizar(
@@ -589,6 +595,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             () => supabase.from("completions").delete().eq("event_id", event.eventId).eq("user_id", userId).then((r) => ({ error: r.error })),
             "deshacer cumplimiento",
           );
+          // Juego: subir el progreso revertido (un registro por usuario).
+          const juegoPayload = { user_id: userId, data: nuevo.juego, updated_at: nuevo.juego.actualizadoEn };
+          void sincronizar(
+            { kind: "upsert_game", payload: juegoPayload },
+            () => supabase.from("game_state").upsert(juegoPayload).then((r) => ({ error: r.error })),
+            "guardar progreso de juego",
+          );
+          // Liga: republicar el XP semanal (pudo haber bajado).
+          void publicarXpLiga(supabase, userId, nuevo.juego);
         }
         logEvent("COMPLETION_UNDONE", "completion", event.eventId, { habitId: event.habitId, fecha: event.fecha });
       },

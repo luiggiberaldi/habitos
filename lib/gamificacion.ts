@@ -341,14 +341,20 @@ export function logrosNuevos(params: {
   chequear("nivel-5", nivelParaXp(juego.xpTotal).nivel >= 5);
 
   let semanaPerfecta = true;
+  let algunProgramado = false;
   for (let i = 0; i < 7; i++) {
     const d = todayKey(addDays(new Date(`${hoy}T12:00:00`), -i));
+    // Día de descanso total (ningún hábito programado): no rompe la semana
+    // perfecta. Antes exigía 7/7 días completos y el logro era inalcanzable
+    // para quien descansa un día entero.
+    if (!habits.some((h) => h.estado === "activo" && !esDescanso(h, d))) continue;
+    algunProgramado = true;
     if (!diaCompleto(habits, d, completions, juego.diasProtegidos)) {
       semanaPerfecta = false;
       break;
     }
   }
-  chequear("semana-perfecta", semanaPerfecta);
+  chequear("semana-perfecta", semanaPerfecta && algunProgramado);
 
   return nuevos;
 }
