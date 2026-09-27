@@ -22,7 +22,7 @@ export function objetivoEnFecha(habit: Habit, fecha: string): number {
   return objetivo;
 }
 
-export function puntosParaFecha(habit: Habit, fecha: string, completions: CompletionEvent[]): number {
+export function puntosParaFecha(habit: Habit, fecha: string, completions: CompletionEvent[], nivel = 1): number {
   if (esDescanso(habit, fecha)) return 0;
   const eventos = completions.filter((c) => c.habitId === habit.id && c.fecha === fecha);
   // Sueño: el puntaje es por puntualidad (puede ser negativo), no +10 fijos.
@@ -36,18 +36,20 @@ export function puntosParaFecha(habit: Habit, fecha: string, completions: Comple
     return pts;
   }
   // Para cantidad cada registro cuenta individualmente; para momentos se cuentan momentos únicos.
+  // El XP por registro escala con el nivel efectivo (10–18); los puntos
+  // mostrados usan el nivel actual como aproximación documentada.
   const ids = new Set(habit.tipo === "cantidad" ? eventos.map((c) => c.eventId) : eventos.map((c) => c.momentId));
   const objetivo = objetivoEnFecha(habit, fecha);
-  return ids.size * PUNTOS_POR_REGISTRO + (objetivo > 0 && ids.size >= objetivo ? PUNTOS_OBJETIVO_DIARIO : 0);
+  return ids.size * xpPorRegistro(nivel) + (objetivo > 0 && ids.size >= objetivo ? PUNTOS_OBJETIVO_DIARIO : 0);
 }
 
-export function puntosTotalesParaFecha(habits: Habit[], fecha: string, completions: CompletionEvent[]): number {
-  return habits.reduce((sum, habit) => sum + puntosParaFecha(habit, fecha, completions), 0);
+export function puntosTotalesParaFecha(habits: Habit[], fecha: string, completions: CompletionEvent[], nivel = 1): number {
+  return habits.reduce((sum, habit) => sum + puntosParaFecha(habit, fecha, completions, nivel), 0);
 }
 
-export function puntosEnRango(habits: Habit[], inicio: string, fin: string, completions: CompletionEvent[]): number {
+export function puntosEnRango(habits: Habit[], inicio: string, fin: string, completions: CompletionEvent[], nivel = 1): number {
   const fechas = new Set(completions.filter((c) => c.fecha >= inicio && c.fecha <= fin).map((c) => c.fecha));
-  return [...fechas].reduce((sum, fecha) => sum + puntosTotalesParaFecha(habits, fecha, completions), 0);
+  return [...fechas].reduce((sum, fecha) => sum + puntosTotalesParaFecha(habits, fecha, completions, nivel), 0);
 }
 
 export function registrosEnRango(habit: Habit, inicio: string, fin: string, completions: CompletionEvent[]): number {
@@ -63,7 +65,7 @@ export function consistenciaEnRango(habit: Habit, inicio: string, fin: string, c
     const key = todayKey(date);
     if (!esDescanso(habit, key)) {
       programados++;
-      if (completadosPara(habit, key, completions).size >= objetivoEnFecha(habit, key)) completos++;
+      if (diaCumplidoHabit(habit, key, completions)) completos++;
     }
     date.setDate(date.getDate() + 1);
   }
@@ -170,7 +172,13 @@ export function rachaActual(
   );
 
   let d = new Date(`${hoy}T12:00:00`);
-  if (unicosPara(hoy) < objetivoEnFecha(habit, hoy) && !hayVencidoHoy) {
+  // Sueño: el "día" se juzga por la noche atribuida a hoy (acostar ayer +
+  // levantar hoy), no por momentos únicos en la fecha.
+  const hoyIncompleto =
+    habit.tipo === "sueno"
+      ? !diaCumplidoHabit(habit, hoy, completions, diasProtegidos)
+      : unicosPara(hoy) < objetivoEnFecha(habit, hoy);
+  if (hoyIncompleto && !hayVencidoHoy) {
     d = new Date(d.getTime() - 86400000);
   }
 
@@ -184,7 +192,11 @@ export function rachaActual(
       d = new Date(d.getTime() - 86400000);
       continue;
     }
-    if (unicosPara(key) >= objetivoEnFecha(habit, key)) {
+    const cumplido =
+      habit.tipo === "sueno"
+        ? diaCumplidoHabit(habit, key, completions, diasProtegidos)
+        : unicosPara(key) >= objetivoEnFecha(habit, key);
+    if (cumplido) {
       racha++;
     } else {
       break;
@@ -203,7 +215,15 @@ export function rachaActual(
  * ========================================================================== */
 
 export const MAX_CONGELADORES = 2;
-export const XP_DESAFIO = 50;
+
+/**
+ * XP por completar un desafío semanal: escala con la meta (25–65).
+ * Una meta de 1 día no debería pagar lo mismo que una de 5.
+ */
+export function xpPorDesafio(meta: number): number {
+  const m = Math.min(5, Math.max(1, Math.floor(meta)));
+  return 15 + 10 * m;
+}
 
 /* ------------------------------- Niveles -------------------------------- */
 
@@ -387,6 +407,11 @@ export function diaCumplidoHabit(
 ): boolean {
   if (diasProtegidos.includes(fecha)) return true;
   if (esDescanso(habit, fecha)) return true; // día no programado: no resta
+  // Sueño: las marcas quedan partidas en dos fechas (acostar la noche N,
+  // levantar el día N+1); la noche se atribuye al día en que te levantas.
+  // Sin esto, el objetivo 2 nunca se cumple en una sola fecha y el sueño
+  // rompe el día completo, la racha y los desafíos.
+  if (habit.tipo === "sueno") return nocheEstaCompleta(habit, completions, moverFecha(fecha, -1));
   return completadosPara(habit, fecha, completions).size >= objetivoEnFecha(habit, fecha);
 }
 
@@ -417,7 +442,10 @@ export function logrosNuevos(params: {
   const nuevos: string[] = [];
   const maxRacha = Math.max(0, ...Object.values(juego.rachaMaxima));
   const activos = habits.filter((h) => h.estado === "activo").length;
-  const nivel = nivelParaXp(juego.xpTotal).nivel;
+  // Los logros de nivel miran el nivel efectivo (irreversible): una
+  // penalización de sueño no debería "desbloquear" de nuevo ni esconder
+  // el nivel ya alcanzado.
+  const nivel = nivelEfectivo(juego.xpTotal, juego.nivelMaximo).nivel;
 
   const chequear = (id: string, condicion: boolean): void => {
     if (condicion && !tiene.has(id)) {
@@ -525,10 +553,6 @@ export interface PremioCofre {
   congelador: boolean;
 }
 
-/**
- * Recompensa variable del cofre del día completo: la incertidumbre sostiene la
- * dopamina mejor que un bonus fijo (que se vuelve aburrido a las ~20 veces).
- */
 /**
  * Cofre del día completo. El XP escala con el nivel efectivo: 15–120 en
  * nivel 1 hasta 55–160 en nivel 9. Generoso al inicio sin duplicar el

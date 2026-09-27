@@ -497,6 +497,74 @@ const sinLogrosNuevos = { logros: TODOS_LOS_LOGROS };
   check("deshacer en nivel 9 revierte 18 (no farmea)", uDes.juego.xpTotal === 6000 && uDes.juego.xpSemanal === 100);
 }
 
+// ── Auditoría 2026-09-27: el sueño participa del día completo ──────────────
+{
+  const mkSueno = (over = {}) =>
+    mkHabit({
+      id: "sueno-1",
+      nombre: "Sueño",
+      tipo: "sueno",
+      objetivo: 2,
+      momentos: [],
+      horaLevantar: "06:00",
+      horaAcostar: "22:00",
+      ...over,
+    });
+  const mkSuenoEv = (momentId, fecha, hhmm) => ({
+    id: `sueno-1|${momentId}|${fecha}`,
+    eventId: `sueno-1|${momentId}|${fecha}`,
+    habitId: "sueno-1",
+    momentId,
+    fecha,
+    timestamp: `${fecha}T${hhmm}:00.000Z`,
+  });
+  const sueno = mkSueno();
+  const ayer = hace(1);
+  const nocheOk = [mkSuenoEv("acostar", ayer, "22:00"), mkSuenoEv("levantar", hoy, "06:00")];
+  check("sueño: noche completa atribuye el día al despertar", g.diaCumplidoHabit(sueno, hoy, nocheOk) === true);
+  check(
+    "sueño: sin levantar no hay día cumplido",
+    g.diaCumplidoHabit(sueno, hoy, [mkSuenoEv("acostar", ayer, "22:00")]) === false,
+  );
+  const comps3 = [];
+  for (let i = 0; i < 3; i++) {
+    comps3.push(mkSuenoEv("acostar", hace(i + 1), "22:00"), mkSuenoEv("levantar", hace(i), "06:00"));
+  }
+  check("sueño: racha de 3 noches = 3", g.rachaActual(sueno, hoy, comps3) === 3);
+  check("sueño: consistencia 100% en 3 noches", g.consistenciaEnRango(sueno, hace(2), hoy, comps3) === 100);
+  const h1 = mkHabit();
+  check("día completo incluye al sueño", g.diaCompleto([sueno, h1], hoy, [...nocheOk, mkCompletion("h1", "m1", hoy)]) === true);
+  check("sueño: día incompleto si falta el hábito diurno", g.diaCompleto([sueno, h1], hoy, nocheOk) === false);
+
+  // Puntos mostrados escalan con el nivel (14 por registro en nivel 5 + 5 bonus).
+  check("puntos nivel 5 = 14 + 5", g.puntosParaFecha(h1, hoy, [mkCompletion("h1", "m1", hoy)], 5) === 19);
+  check("puntos nivel 1 = 10 + 5", g.puntosParaFecha(h1, hoy, [mkCompletion("h1", "m1", hoy)], 1) === 15);
+
+  // Desafío: la recompensa escala con la meta (25–65).
+  check("desafío meta 1 → 25 XP", g.xpPorDesafio(1) === 25);
+  check("desafío meta 5 → 65 XP", g.xpPorDesafio(5) === 65);
+
+  // Deshacer revierte diasCompletos cuando el día deja de estar completo.
+  const stD = mkState([mkHabit()], [], sinLogrosNuevos);
+  const rD = s.registrarConJuego(stD, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
+  check("registrar el único hábito suma un día completo", rD.state.juego.diasCompletos === 1);
+  const uD = s.deshacerConJuego(rD.state, `h1|m1|${hoy}`);
+  check("deshacer revierte diasCompletos", uD.juego.diasCompletos === 0);
+
+  // Cantidad: reintento con el mismo eventId no duplica el registro.
+  const hCant = mkHabit({ id: "hc", tipo: "cantidad", momentos: [] });
+  const eid = `hc|cantidad|${hoy}|abc123`;
+  const stC = mkState([hCant], [], sinLogrosNuevos);
+  const rC1 = s.registrarConJuego(stC, "hc", undefined, hoy, `${hoy}T18:00:00.000Z`, undefined, eid);
+  const rC2 = s.registrarConJuego(rC1.state, "hc", undefined, hoy, `${hoy}T18:00:00.000Z`, undefined, eid);
+  check("cantidad idempotente por eventId", rC2.state.completions.length === 1);
+
+  // logrosNuevos mira el nivel efectivo (irreversible), no el XP actual.
+  const stN = mkState([mkHabit()], [], { xpTotal: 50, nivelMaximo: 5 });
+  const nuevosN = g.logrosNuevos({ juego: stN.juego, habits: stN.habits, completions: stN.completions, hoy });
+  check("logros de nivel usan el nivel efectivo", nuevosN.includes("nivel-5"));
+}
+
 rmSync(outDir, { recursive: true, force: true });
 
 console.log(`\n${ok} OK, ${fail} fallos.`);

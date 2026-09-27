@@ -170,6 +170,7 @@ const main = async () => {
   const lib = cargarLib();
   const { d, g, j } = lib;
   const { habits, completions, juego, hoy } = await cargarEstado(rpc, cfg.USER_ID, lib);
+  const nivel = g.nivelEfectivo(juego.xpTotal ?? 0, juego.nivelMaximo ?? 1).nivel;
 
   if (intencion === "estado") {
     const dow = new Date(`${hoy}T12:00:00`).getDay();
@@ -179,7 +180,7 @@ const main = async () => {
       const objetivo = g.objetivoEnFecha(h, hoy);
       return { nombre: h.nombre, hechos, objetivo, completo: hechos >= objetivo };
     });
-    const puntosHoy = g.puntosTotalesParaFecha(habits, hoy, completions);
+    const puntosHoy = g.puntosTotalesParaFecha(habits, hoy, completions, nivel);
     const pendientes = filas.filter((f) => !f.completo);
     out({
       ok: true, intencion: "estado", fecha: hoy, dia: DIAS_ES[dow],
@@ -197,7 +198,7 @@ const main = async () => {
     for (let i = n - 1; i >= 0; i--) {
       const fecha = d.todayKey(d.addDays(new Date(`${hoy}T12:00:00`), -i));
       const registros = completions.filter((c) => c.fecha === fecha).length;
-      const puntos = g.puntosTotalesParaFecha(habits, fecha, completions);
+      const puntos = g.puntosTotalesParaFecha(habits, fecha, completions, nivel);
       diasArr.push({ fecha, dia: DIAS_ES[new Date(`${fecha}T12:00:00`).getDay()], registros, puntos });
     }
     const totalPuntos = diasArr.reduce((a, x) => a + x.puntos, 0);

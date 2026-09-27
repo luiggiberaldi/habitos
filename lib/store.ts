@@ -1,7 +1,7 @@
 import type { AppState, CompletionEvent, Habit, MarcaSueno, Moment, Settings } from "./types";
 import { addDays, completadosPara, hhmmDeTimestamp, inicioSemana, todayKey } from "./dates";
 import { eventIdCantidad } from "./event-id";
-import { objetivoEnFecha, PUNTOS_OBJETIVO_DIARIO, minutosDeRetraso, nivelEfectivo, xpPorPuntualidad, xpPorRegistro, xpSuenoDeEvento } from "./gamificacion";
+import { diaCompleto, objetivoEnFecha, PUNTOS_OBJETIVO_DIARIO, minutosDeRetraso, nivelEfectivo, xpPorPuntualidad, xpPorRegistro, xpSuenoDeEvento } from "./gamificacion";
 import { juegoInicial, normalizarJuego, aplicarRecompensas, type EventoJuego } from "./juego";
 
 export const STORAGE_KEY = "habitos-app-v1";
@@ -107,8 +107,10 @@ export function registrarCumplimiento(
   }
 
   // Hábito de cantidad: cada marca es un registro único con timestamp exacto.
+  // Idempotente por eventId: un reintento con el mismo id no duplica.
   if (habit.tipo === "cantidad") {
     const eid = eventId ?? eventIdCantidad(habitId, fecha);
+    if (state.completions.some((event) => event.eventId === eid)) return state;
     const event: CompletionEvent = {
       id: eid,
       eventId: eid,
@@ -179,9 +181,15 @@ export function deshacerConJuego(state: AppState, eventId: string): AppState {
       : juego.madrugadas;
 
   const sinEvento = deshacerCumplimiento(state, eventId);
+  // Si este evento era lo que mantenía el día completo, el contador baja.
+  // El cofre ya abierto no se "desabre" (diseño), pero el contador no miente.
+  const diaEraCompleto = diaCompleto(state.habits, evento.fecha, state.completions, juego.diasProtegidos);
+  const diaSigueCompleto = diaCompleto(sinEvento.habits, evento.fecha, sinEvento.completions, juego.diasProtegidos);
+  const diasCompletos =
+    diaEraCompleto && !diaSigueCompleto ? Math.max(0, juego.diasCompletos - 1) : juego.diasCompletos;
   return {
     ...sinEvento,
-    juego: { ...juego, xpTotal, xpSemanal, madrugadas, actualizadoEn: new Date().toISOString() },
+    juego: { ...juego, xpTotal, xpSemanal, madrugadas, diasCompletos, actualizadoEn: new Date().toISOString() },
   };
 }
 

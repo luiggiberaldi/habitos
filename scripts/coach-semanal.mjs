@@ -38,6 +38,7 @@ const main = async () => {
   const { habits, completions, juego, hoy } = await cargarEstado(rpc, cfg.USER_ID, lib, N);
   const activos = habits.filter((h) => h.estado === "activo");
   if (activos.length === 0) out({ ok: false, codigo: "sin-habitos", detalle: "no hay hábitos activos" });
+  const nivel = g.nivelEfectivo(juego.xpTotal ?? 0, juego.nivelMaximo ?? 1).nivel;
 
   const fechasAtras = (n) => {
     const arr = [];
@@ -106,8 +107,8 @@ const main = async () => {
     }
   }
 
-  const puntos7 = ultimos14.slice(7).reduce((a, f) => a + g.puntosTotalesParaFecha(activos, f, completions), 0);
-  const puntosPrev7 = ultimos14.slice(0, 7).reduce((a, f) => a + g.puntosTotalesParaFecha(activos, f, completions), 0);
+  const puntos7 = ultimos14.slice(7).reduce((a, f) => a + g.puntosTotalesParaFecha(activos, f, completions, nivel), 0);
+  const puntosPrev7 = ultimos14.slice(0, 7).reduce((a, f) => a + g.puntosTotalesParaFecha(activos, f, completions, nivel), 0);
 
   // ── Acciones (reglas deterministas) ───────────────────────────────────────
   const acciones = [];

@@ -13,7 +13,6 @@ import {
   PUNTOS_OBJETIVO_DIARIO,
   PUNTOS_POR_REGISTRO,
   MAX_CONGELADORES,
-  XP_DESAFIO,
   SUENO_FALLO_XP,
   asegurarDesafios,
   congeladorAutomatico,
@@ -27,6 +26,7 @@ import {
   objetivoEnFecha,
   rachaActual,
   tirarCofre,
+  xpPorDesafio,
   xpPorRegistro,
   xpSuenoDeEvento,
 } from "./gamificacion";
@@ -235,11 +235,12 @@ export function aplicarRecompensas(
       const prog = diasCumplidosEnSemana(h, semana, hoy, despues.completions, juego.diasProtegidos);
       if (prog >= d.meta) {
         hubo = true;
-        xpGanado += XP_DESAFIO;
+        const xpDesafio = xpPorDesafio(d.meta);
+        xpGanado += xpDesafio;
         eventos.push({
           tipo: "desafio",
           titulo: "¡Desafío completado!",
-          detalle: `${h.nombre}: ${d.meta} días esta semana (+${XP_DESAFIO} XP).`,
+          detalle: `${h.nombre}: ${d.meta} días esta semana (+${xpDesafio} XP).`,
         });
         return { ...d, completado: true };
       }
@@ -370,33 +371,42 @@ export function reconciliarJuego(state: AppState): AppState {
     cambió = true;
   };
 
-  // XP histórico: 10 por registro + 5 por cada día-hábito con objetivo cumplido.
+  // XP histórico: base por registro (escalada por nivel) + 5 por cada
+  // día-hábito con objetivo cumplido. Dos pasadas: la primera con base 10
+  // estima el nivel, la segunda reescala con ese nivel (aproximación
+  // documentada: el nivel real de cada registro histórico no se guarda).
   if (juego.xpTotal === 0 && state.completions.length > 0) {
-    let xp = 0;
-    let xpSem = 0;
-    const porDia = new Map<string, { habit: Habit; ids: Set<string> }>();
-    for (const c of state.completions) {
-      const habit = state.habits.find((h) => h.id === c.habitId);
-      if (!habit) continue;
-      // Sueño: el XP histórico respeta la puntualidad (puede ser negativo).
-      const pts = habit.tipo === "sueno" ? xpSuenoDeEvento(habit, c) : PUNTOS_POR_REGISTRO;
-      xp += pts;
-      if (c.fecha >= semana) xpSem += pts;
-      const key = `${c.habitId}|${c.fecha}`;
-      let grupo = porDia.get(key);
-      if (!grupo) {
-        grupo = { habit, ids: new Set() };
-        porDia.set(key, grupo);
+    const calcular = (nivel: number): { xp: number; xpSem: number } => {
+      let xp = 0;
+      let xpSem = 0;
+      const porDia = new Map<string, { habit: Habit; ids: Set<string> }>();
+      for (const c of state.completions) {
+        const habit = state.habits.find((h) => h.id === c.habitId);
+        if (!habit) continue;
+        // Sueño: el XP histórico respeta la puntualidad (puede ser negativo).
+        const pts = habit.tipo === "sueno" ? xpSuenoDeEvento(habit, c) : xpPorRegistro(nivel);
+        xp += pts;
+        if (c.fecha >= semana) xpSem += pts;
+        const key = `${c.habitId}|${c.fecha}`;
+        let grupo = porDia.get(key);
+        if (!grupo) {
+          grupo = { habit, ids: new Set() };
+          porDia.set(key, grupo);
+        }
+        grupo.ids.add(habit.tipo === "cantidad" ? c.eventId : (c.momentId ?? c.eventId));
       }
-      grupo.ids.add(habit.tipo === "cantidad" ? c.eventId : (c.momentId ?? c.eventId));
-    }
-    for (const [key, grupo] of porDia) {
-      const fecha = key.split("|").slice(-1)[0];
-      if (grupo.ids.size >= objetivoEnFecha(grupo.habit, fecha)) {
-        xp += PUNTOS_OBJETIVO_DIARIO;
-        if (fecha >= semana) xpSem += PUNTOS_OBJETIVO_DIARIO;
+      for (const [key, grupo] of porDia) {
+        const fecha = key.split("|").slice(-1)[0];
+        if (grupo.ids.size >= objetivoEnFecha(grupo.habit, fecha)) {
+          xp += PUNTOS_OBJETIVO_DIARIO;
+          if (fecha >= semana) xpSem += PUNTOS_OBJETIVO_DIARIO;
+        }
       }
-    }
+      return { xp, xpSem };
+    };
+    const plano = calcular(1);
+    const nivelEst = nivelParaXp(plano.xp).nivel;
+    const { xp, xpSem } = nivelEst > 1 ? calcular(nivelEst) : plano;
     juego = { ...juego, xpTotal: Math.max(0, xp), xpSemanal: Math.max(0, xpSem), semanaXp: semana };
     marcar();
   }

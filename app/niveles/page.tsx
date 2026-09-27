@@ -142,7 +142,7 @@ export default function Niveles() {
           </li>
           <li className="flex items-baseline justify-between gap-3">
             <span className="text-muted">Desafío semanal</span>
-            <span className="shrink-0 font-bold">+50</span>
+            <span className="shrink-0 font-bold">+25–65 según la meta</span>
           </li>
           <li className="flex items-baseline justify-between gap-3">
             <span className="text-muted">Logros (se reclaman tocándolos)</span>

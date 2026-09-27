@@ -6,7 +6,7 @@ import PerfilCard from "./PerfilCard";
 import Onboarding, { type DatosOnboarding } from "./Onboarding";
 import Logo from "./Logo";
 import { logEvent } from "../lib/logger";
-import { AVATARES } from "../lib/avatares";
+import SelectorAvatar from "./SelectorAvatar";
 import { crearEstadoInicial, crearHabitoSueno } from "../lib/store";
 import type { AppState } from "../lib/types";
 import { habitoDesdePlantilla } from "../lib/plantillas";
@@ -61,14 +61,15 @@ export default function SelectorPerfiles() {
     nombre: string,
     color: string,
     avatar: string | null,
+    foto: string | null,
     pin: string | null,
     editando: Perfil | null,
   ) => {
     if (editando) {
-      const p = actualizarPerfil(editando.id, { nombre, color, avatar, pin });
+      const p = actualizarPerfil(editando.id, { nombre, color, avatar, foto, pin });
       if (p) logEvent("PERFIL_ACTUALIZADO", "perfil", p.id, { nombre: p.nombre, pin: p.pin ? "si" : "no" }, `perfil:${p.id}`);
     } else {
-      const p = crearPerfil(nombre, color, avatar, pin);
+      const p = crearPerfil(nombre, color, avatar, pin, foto);
       if (p) logEvent("PERFIL_CREATED", "perfil", p.id, { nombre: p.nombre, pin: p.pin ? "si" : "no" }, `perfil:${p.id}`);
     }
     setModal(null);
@@ -77,7 +78,7 @@ export default function SelectorPerfiles() {
 
   /** Crea el perfil desde el onboarding con los hábitos elegidos (sin demos). */
   const completarOnboarding = (datos: DatosOnboarding) => {
-    const p = crearPerfil(datos.nombre, datos.color, datos.avatar, null);
+    const p = crearPerfil(datos.nombre, datos.color, datos.avatar, null, datos.foto);
     if (!p) return;
     const base = crearEstadoInicial();
     const sueno = crearHabitoSueno(Math.random().toString(36).slice(2, 10));
@@ -174,14 +175,14 @@ export default function SelectorPerfiles() {
       </button>
 
       {modal?.tipo === "crear" && (
-        <ModalPerfil key="crear" onCerrar={() => setModal(null)} onGuardar={(n, c, a, pin) => guardar(n, c, a, pin, null)} />
+        <ModalPerfil key="crear" onCerrar={() => setModal(null)} onGuardar={(n, c, a, f, pin) => guardar(n, c, a, f, pin, null)} />
       )}
       {modal?.tipo === "editar" && (
         <ModalPerfil
           key={modal.perfil.id}
           perfil={modal.perfil}
           onCerrar={() => setModal(null)}
-          onGuardar={(n, c, a, pin) => guardar(n, c, a, pin, modal.perfil)}
+          onGuardar={(n, c, a, f, pin) => guardar(n, c, a, f, pin, modal.perfil)}
         />
       )}
       {modal?.tipo === "pin" && (
@@ -212,15 +213,18 @@ function ModalPerfil({
 }: {
   perfil?: Perfil;
   onCerrar: () => void;
-  onGuardar: (nombre: string, color: string, avatar: string | null, pin: string | null) => void;
+  onGuardar: (nombre: string, color: string, avatar: string | null, foto: string | null, pin: string | null) => void;
 }) {
   const [nombre, setNombre] = useState(perfil?.nombre ?? "");
   const [color, setColor] = useState(perfil?.color ?? COLORES_PERFIL[0]);
   const [avatar, setAvatar] = useState<string | null>(perfil?.avatar ?? null);
+  const [foto, setFoto] = useState<string | null>(perfil?.foto ?? null);
   const [pinInput, setPinInput] = useState("");
   const [pinConfirmar, setPinConfirmar] = useState("");
   const [quitarPin, setQuitarPin] = useState(false);
   const [editandoPin, setEditandoPin] = useState(false);
+  /** PIN actual: se exige para cambiar o quitar un PIN existente. */
+  const [pinActual, setPinActual] = useState("");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -233,10 +237,15 @@ function ModalPerfil({
   const tienePin = !!perfil?.pin && !quitarPin;
   const pinLimpio = pinInput.replace(/\D/g, "").slice(0, 4);
   const pinConfirmarLimpio = pinConfirmar.replace(/\D/g, "").slice(0, 4);
+  const pinActualLimpio = pinActual.replace(/\D/g, "").slice(0, 4);
   const pinValido = pinLimpio === "" || /^\d{4}$/.test(pinLimpio);
   // Si se escribe un PIN nuevo hay que confirmarlo: debe coincidir.
   const pinConfirmado = pinLimpio === "" || pinConfirmarLimpio === pinLimpio;
-  const valido = nombre.trim().length > 0 && pinValido && pinConfirmado;
+  // Cambiar o quitar un PIN existente exige el PIN actual (seguridad:
+  // cualquiera con el teléfono abierto no debería poder desactivarlo).
+  const requierePinActual = !!perfil?.pin && (quitarPin || /^\d{4}$/.test(pinLimpio));
+  const pinActualOk = !requierePinActual || (perfil ? verificarPin(perfil, pinActualLimpio) : false);
+  const valido = nombre.trim().length > 0 && pinValido && pinConfirmado && pinActualOk;
   const inicial = (nombre.trim()[0] ?? "?").toUpperCase();
 
   /** PIN final al guardar: null = quitar/sin PIN, 4 dígitos = nuevo, o el existente. */
@@ -245,6 +254,28 @@ function ModalPerfil({
     if (/^\d{4}$/.test(pinLimpio)) return pinLimpio;
     return perfil?.pin ?? null;
   };
+
+  /** Campo "PIN actual": se muestra al cambiar o quitar un PIN existente. */
+  const pinActualField = requierePinActual ? (
+    <div className="mt-3">
+      <input
+        type="password"
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={4}
+        value={pinActualLimpio}
+        onChange={(e) => setPinActual(e.target.value)}
+        placeholder="PIN actual"
+        aria-label="PIN actual"
+        className="input-field text-center text-xl tracking-[0.75em]"
+      />
+      {pinActualLimpio.length === 4 && !pinActualOk && (
+        <p role="alert" className="mt-1 text-xs font-medium text-red-500">
+          El PIN actual no coincide.
+        </p>
+      )}
+    </div>
+  ) : null;
 
   return (
     <div
@@ -284,41 +315,14 @@ function ModalPerfil({
         </label>
 
         <p className="mb-2 mt-5 text-sm font-medium">Avatar</p>
-        <div className="grid grid-cols-5 gap-2.5" role="radiogroup" aria-label="Avatar del perfil">
-          <button
-            key="inicial"
-            type="button"
-            role="radio"
-            aria-checked={avatar === null}
-            aria-label="Inicial del nombre"
-            title="Inicial"
-            onClick={() => setAvatar(null)}
-            className={`flex h-14 w-14 items-center justify-center rounded-full text-xl font-bold text-white transition-transform ${
-              avatar === null ? "scale-105 ring-2 ring-accent ring-offset-2 ring-offset-surface" : "hover:scale-105"
-            }`}
-            style={{ backgroundColor: color }}
-          >
-            {inicial}
-          </button>
-          {AVATARES.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              role="radio"
-              aria-checked={avatar === a.id}
-              aria-label={a.nombre}
-              title={a.nombre}
-              onClick={() => setAvatar(a.id)}
-              className={`h-14 w-14 overflow-hidden rounded-full transition-transform ${
-                avatar === a.id
-                  ? "scale-105 ring-2 ring-accent ring-offset-2 ring-offset-surface"
-                  : "hover:scale-105"
-              }`}
-            >
-              <img src={a.src} alt="" className="h-full w-full object-cover" loading="lazy" />
-            </button>
-          ))}
-        </div>
+        <SelectorAvatar
+          avatar={avatar}
+          foto={foto}
+          color={color}
+          inicial={inicial}
+          onAvatar={setAvatar}
+          onFoto={setFoto}
+        />
 
         <p className="mb-2 mt-5 text-sm font-medium">Color del avatar</p>
         <div className="flex flex-wrap gap-3" role="radiogroup" aria-label="Color del avatar">
@@ -361,19 +365,26 @@ function ModalPerfil({
             </button>
           </div>
         ) : quitarPin ? (
-          <div className="flex items-center gap-2 rounded-2xl bg-surface-2 p-3">
-            <IconCandado className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
-            <span className="flex-1 text-sm text-muted">Se quitará el PIN al guardar</span>
-            <button
-              type="button"
-              onClick={() => setQuitarPin(false)}
-              className="min-h-9 rounded-full px-3 text-sm font-semibold text-accent hover:bg-accent-soft"
-            >
-              Deshacer
-            </button>
-          </div>
+          <>
+            <div className="flex items-center gap-2 rounded-2xl bg-surface-2 p-3">
+              <IconCandado className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+              <span className="flex-1 text-sm text-muted">Se quitará el PIN al guardar</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuitarPin(false);
+                  setPinActual("");
+                }}
+                className="min-h-9 rounded-full px-3 text-sm font-semibold text-accent hover:bg-accent-soft"
+              >
+                Deshacer
+              </button>
+            </div>
+            {pinActualField}
+          </>
         ) : (
           <>
+            {pinActualField}
             <input
               type="password"
               inputMode="numeric"
@@ -425,7 +436,7 @@ function ModalPerfil({
           <button
             type="button"
             disabled={!valido}
-            onClick={() => valido && onGuardar(nombre.trim(), color, avatar, pinFinal())}
+            onClick={() => valido && onGuardar(nombre.trim(), color, avatar, foto, pinFinal())}
             className="btn-primary min-h-11 flex-1 disabled:opacity-50"
           >
             Guardar

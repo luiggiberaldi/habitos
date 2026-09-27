@@ -242,16 +242,16 @@ export default function Inicio() {
     setCelebraciones((prev) => prev.slice(1));
   };
 
-  const puntosDia = useMemo(
-    () => puntosTotalesParaFecha(state.habits, hoy, state.completions),
-    [state.habits, hoy, state.completions],
-  );
-
   // Juego: nivel efectivo (nunca baja del máximo alcanzado), frase de
   // identidad y desafíos vigentes.
   const nivel = useMemo(
     () => nivelEfectivo(state.juego?.xpTotal ?? 0, state.juego?.nivelMaximo ?? 1),
     [state.juego],
+  );
+
+  const puntosDia = useMemo(
+    () => puntosTotalesParaFecha(state.habits, hoy, state.completions, nivel.nivel),
+    [state.habits, hoy, state.completions, nivel],
   );
   const frase = useMemo(
     () => (state.juego ? fraseIdentidad(state.habits, state.juego) : null),

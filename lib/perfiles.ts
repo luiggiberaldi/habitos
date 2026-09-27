@@ -15,6 +15,11 @@ export interface Perfil {
   /** Id de la galería de avatares (lib/avatares.ts); null = inicial con color. */
   avatar: string | null;
   /**
+   * Foto personalizada (dataURL JPEG 256px, ver lib/foto.ts); null = sin foto.
+   * Tiene prioridad sobre `avatar`: si hay foto, se muestra la foto.
+   */
+  foto: string | null;
+  /**
    * PIN de 4 dígitos (bloqueo casual tipo Netflix, solo en este dispositivo).
    * null = sin PIN. No es seguridad real: cualquiera con el dispositivo puede
    * leer el localStorage; es una cerradura doméstica, no una caja fuerte.
@@ -66,8 +71,8 @@ function escribir(clave: string, valor: unknown): void {
 export function leerPerfiles(): Perfil[] {
   const lista = leer<Perfil[]>(PERFILES_KEY, []);
   if (!Array.isArray(lista)) return [];
-  // Normaliza perfiles creados antes de los campos `avatar` y `pin`.
-  return lista.map((p) => ({ ...p, avatar: p.avatar ?? null, pin: p.pin ?? null }));
+  // Normaliza perfiles creados antes de los campos `avatar`, `foto` y `pin`.
+  return lista.map((p) => ({ ...p, avatar: p.avatar ?? null, foto: p.foto ?? null, pin: p.pin ?? null }));
 }
 
 function guardarPerfiles(perfiles: Perfil[]): void {
@@ -140,6 +145,7 @@ export function crearPerfil(
   color: string,
   avatar: string | null = null,
   pin: string | null = null,
+  foto: string | null = null,
 ): Perfil | null {
   const limpio = nombre.trim().slice(0, 24);
   if (!limpio) return null;
@@ -151,6 +157,7 @@ export function crearPerfil(
     nombre: limpio,
     color,
     avatar,
+    foto,
     pin: esPinValido(pin) ? pin : null,
     creadoEn: ahora,
     ultimoUso: ahora,
@@ -161,7 +168,7 @@ export function crearPerfil(
 
 export function actualizarPerfil(
   id: string,
-  cambios: { nombre?: string; color?: string; avatar?: string | null; pin?: string | null },
+  cambios: { nombre?: string; color?: string; avatar?: string | null; foto?: string | null; pin?: string | null },
 ): Perfil | null {
   const perfiles = leerPerfiles();
   const i = perfiles.findIndex((p) => p.id === id);
@@ -172,6 +179,7 @@ export function actualizarPerfil(
     nombre: nombre || perfiles[i].nombre,
     color: cambios.color ?? perfiles[i].color,
     avatar: cambios.avatar !== undefined ? cambios.avatar : perfiles[i].avatar,
+    foto: cambios.foto !== undefined ? cambios.foto : perfiles[i].foto,
     pin: cambios.pin !== undefined ? (esPinValido(cambios.pin) ? cambios.pin : null) : perfiles[i].pin,
   };
   perfiles[i] = actualizado;

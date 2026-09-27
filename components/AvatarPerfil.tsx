@@ -9,10 +9,20 @@ interface Props {
 }
 
 /**
- * Avatar circular de un perfil: la imagen elegida de la galería, o la
- * inicial con el color del perfil si no eligió ninguna.
+ * Avatar circular de un perfil: la foto personalizada si la hay, la imagen
+ * elegida de la galería, o la inicial con el color del perfil.
  */
 export default function AvatarPerfil({ perfil, className = "" }: Props) {
+  if (perfil.foto) {
+    return (
+      <img
+        src={perfil.foto}
+        alt={`Foto de ${perfil.nombre}`}
+        className={`rounded-full object-cover ${className}`}
+        loading="lazy"
+      />
+    );
+  }
   const avatar = avatarPorId(perfil.avatar);
   if (avatar) {
     return (

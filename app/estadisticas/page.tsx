@@ -6,6 +6,7 @@ import {
   consistenciaEnRango,
   diasActivosEnRango,
   estadisticasPorHabit,
+  nivelEfectivo,
   objetivoEnFecha,
   puntosEnRango,
   puntosTotalesParaFecha,
@@ -116,15 +117,16 @@ export default function Estadisticas() {
     const habits = state.habits;
     const completions = state.completions;
     const activos = habits.filter((h) => h.estado === "activo");
+    const nivel = nivelEfectivo(state.juego?.xpTotal ?? 0, state.juego?.nivelMaximo ?? 1).nivel;
     const finAnterior = todayKey(addDays(new Date(`${inicio}T12:00:00`), -1));
     const totalRegistros = completions.filter((c) => c.fecha >= inicio && c.fecha <= hoy).length;
-    const puntos = puntosEnRango(habits, inicio, hoy, completions);
+    const puntos = puntosEnRango(habits, inicio, hoy, completions, nivel);
     const actividad = diasActivosEnRango(habits, inicio, hoy, completions);
     const consistencia = activos.length
       ? Math.round(activos.reduce((sum, h) => sum + consistenciaEnRango(h, inicio, hoy, completions), 0) / activos.length)
       : 0;
     const totalRegistrosPrev = completions.filter((c) => c.fecha >= inicioAnterior && c.fecha <= finAnterior).length;
-    const puntosPrev = puntosEnRango(habits, inicioAnterior, finAnterior, completions);
+    const puntosPrev = puntosEnRango(habits, inicioAnterior, finAnterior, completions, nivel);
     const actividadPrev = diasActivosEnRango(habits, inicioAnterior, finAnterior, completions);
     const consistenciaPrev = activos.length
       ? Math.round(activos.reduce((sum, h) => sum + consistenciaEnRango(h, inicioAnterior, finAnterior, completions), 0) / activos.length)
@@ -142,13 +144,14 @@ export default function Estadisticas() {
         consistencia: deltaVs(consistencia, consistenciaPrev, "pp"),
       },
     };
-  }, [state.habits, state.completions, inicio, inicioAnterior, hoy]);
+  }, [state.habits, state.completions, state.juego, inicio, inicioAnterior, hoy]);
 
   /** Serie diaria del período: base de sparklines, calendario y ritmo. */
   const serie = useMemo(() => {
     const habits = state.habits;
     const completions = state.completions;
     const activos = habits.filter((h) => h.estado === "activo");
+    const nivel = nivelEfectivo(state.juego?.xpTotal ?? 0, state.juego?.nivelMaximo ?? 1).nivel;
     const porDia = new Map<string, number>();
     for (const c of completions) {
       if (c.fecha >= inicio && c.fecha <= hoy) porDia.set(c.fecha, (porDia.get(c.fecha) ?? 0) + 1);
@@ -168,14 +171,14 @@ export default function Estadisticas() {
       }
       dias.push({
         fecha: key,
-        puntos: puntosTotalesParaFecha(habits, key, completions),
+        puntos: puntosTotalesParaFecha(habits, key, completions, nivel),
         registros,
         consistencia: programados ? Math.round(suma / programados) : null,
       });
       d.setDate(d.getDate() + 1);
     }
     return dias;
-  }, [state.habits, state.completions, inicio, hoy]);
+  }, [state.habits, state.completions, state.juego, inicio, hoy]);
 
   const maxConteo = useMemo(() => Math.max(1, ...serie.map((d) => d.registros)), [serie]);
 

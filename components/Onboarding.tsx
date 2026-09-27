@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Logo from "./Logo";
-import { AVATARES } from "../lib/avatares";
+import SelectorAvatar from "./SelectorAvatar";
 import { COLORES_PERFIL } from "../lib/perfiles";
 import { PLANTILLAS, type Plantilla } from "../lib/plantillas";
 import { IconCategoria, IconCheck, IconFlechaAtras } from "../lib/icons";
@@ -11,6 +11,7 @@ export interface DatosOnboarding {
   nombre: string;
   color: string;
   avatar: string | null;
+  foto: string | null;
   plantillas: Plantilla[];
 }
 
@@ -28,6 +29,7 @@ export default function Onboarding({
 }) {
   const [paso, setPaso] = useState(0);
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [foto, setFoto] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
   const [color, setColor] = useState(COLORES_PERFIL[0]);
   const [elegidas, setElegidas] = useState<string[]>(PRESELECCIONADAS);
@@ -49,6 +51,7 @@ export default function Onboarding({
         nombre: nombre.trim(),
         color,
         avatar,
+        foto,
         plantillas: PLANTILLAS.filter((p) => elegidas.includes(p.nombre)),
       });
   };
@@ -97,43 +100,15 @@ export default function Onboarding({
         </p>
 
         {paso === 0 && (
-          <div className="grid grid-cols-5 gap-3" role="radiogroup" aria-label="Avatar del perfil">
-            <button
-              key="inicial"
-              type="button"
-              role="radio"
-              aria-checked={avatar === null}
-              aria-label="Inicial del nombre"
-              title="Inicial"
-              onClick={() => setAvatar(null)}
-              className={`flex h-16 w-16 items-center justify-center rounded-full text-2xl font-bold text-white transition-transform ${
-                avatar === null
-                  ? "scale-105 ring-2 ring-accent ring-offset-2 ring-offset-surface"
-                  : "hover:scale-105"
-              }`}
-              style={{ backgroundColor: color }}
-            >
-              {inicial}
-            </button>
-            {AVATARES.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                role="radio"
-                aria-checked={avatar === a.id}
-                aria-label={a.nombre}
-                title={a.nombre}
-                onClick={() => setAvatar(a.id)}
-                className={`h-16 w-16 overflow-hidden rounded-full transition-transform ${
-                  avatar === a.id
-                    ? "scale-105 ring-2 ring-accent ring-offset-2 ring-offset-surface"
-                    : "hover:scale-105"
-                }`}
-              >
-                <img src={a.src} alt="" className="h-full w-full object-cover" loading="lazy" />
-              </button>
-            ))}
-          </div>
+          <SelectorAvatar
+            avatar={avatar}
+            foto={foto}
+            color={color}
+            inicial={inicial}
+            onAvatar={setAvatar}
+            onFoto={setFoto}
+            tamano="lg"
+          />
         )}
 
         {paso === 1 && (
