@@ -13,7 +13,8 @@ Colores: petróleo `#0C3544` (primario), menta `#4CBF9A` (acento).
 - La suite se llama **Senda**. El repo actual (`habitos`) se renombra en Fase 0.
 - **Una sola PWA**, módulos adentro (Hábitos, Finanzas, Mercado…). Nada de apps separadas.
 - **Finanzas compartidas**: entidad `hogar`; luigi crea el hogar e invita a su novia. Los hábitos siguen por usuario.
-- **XP y niveles globales** para toda la suite; logros por módulo. El dinero es compartido, el juego es personal (`creado_por` en cada registro).
+- **Gamificación SOLO en Hábitos** (decisión 2026-09-27, por ahora). Finanzas y Mercado
+  sin juego: tono serio, sin XP por acciones financieras. El dinero es compartido.
 - **Tasas**: BCV + paralelo + USDT. Fuente: DolarAPI vía proxy servidor (patrón PreciosAlDía) + Binance P2P para USDT. Historial con tasa de la fecha, refresco al abrir + job horario, fallback a última guardada → manual.
 - **Factura por WhatsApp**: SIEMPRE resumen antes de ejecutar; luigi confirma. Nunca registro directo.
 - **Productos**: un solo esquema de creación (factura o manual). Obligatorios: nombre, unidad (kg/g/L/ml/und), categoría, cantidad. Opcional: precio de referencia.
@@ -88,7 +89,7 @@ Objetivo: que el dinero se maneje solo por defecto.
 - **Presupuestos por categoría** con alertas 80%/100% (el de mercado se prellena con el cálculo de Fase 2).
 - **Movimientos recurrentes** (sueldo, alquiler).
 - **Deudas por cobrar/pagar** con recordatorios; al saldar genera el movimiento.
-- **Metas de ahorro compartidas** con progreso visible (+XP por aporte).
+- **Metas de ahorro compartidas** con progreso visible para los dos (sin XP: finanzas sin gamificación).
 - **Cierre de mes**: resumen, comparativa, archivo, reinicio de presupuestos. Coach mensual automático.
 - Salida: un mes cerrado con presupuestos, recordatorios y deudas sin intervención manual salvo confirmar.
   Verificación: recordatorio del 27 disparó push a tiempo; al marcar "pagado" se creó
@@ -129,8 +130,8 @@ recordatorios(id, hogar_id, modulo, titulo, cuerpo, programado_para, regla_recur
               datos_json, estado, creado_por)   ← motor genérico (Fase 0)
 ```
 
-Notas: `creado_por` siempre (dos personas). XP personal por acción aunque el dinero sea compartido.
-Saldos y stock se **calculan**, no se almacenan (anti-descuadre).
+Notas: `creado_por` siempre (dos personas). La gamificación vive solo en Hábitos;
+en Finanzas y Mercado no hay XP ni logros. Saldos y stock se **calculan**, no se almacenan (anti-descuadre).
 
 ## 5. Lo que NO se hace (por ahora)
 

@@ -46,7 +46,8 @@ grep -rnE "[^a-zA-Z](alert|confirm|prompt)\(" app lib modules --include="*.tsx" 
   se corrigen con ajustes de conciliación, nunca editando el saldo a mano.
 - Conversiones de moneda usan la **tasa histórica de la fecha** del movimiento, no la actual.
 - Transferir entre cuentas no es gastar: existe el tipo `transferencia`.
-- El dinero es compartido; el **XP/juego es personal**.
+- El dinero es compartido. La gamificación (XP, niveles, logros) vive **solo en Hábitos**
+  por ahora; Finanzas y Mercado sin juego, tono serio.
 
 ## 5. Deploys y riesgo
 

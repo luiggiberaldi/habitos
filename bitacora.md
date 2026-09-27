@@ -175,3 +175,11 @@
 **Por qué:** luigi pidió que todo vaya documentado cumpliendo las reglas y quiso mis opiniones antes de empezar. Opiniones aplicadas: bitácora cronológica + READMEs de dominio por módulo; toda entrada cierra con "cómo se verificó"; reglas antes dispersas en 4 lugares ahora en un solo checklist; commits con prefijo de módulo; renombre del repo local diferido (solo GitHub/branding en Fase 0); fases con salida verificable y "verificado en teléfono" explícito.
 
 **Verificación:** solo documentación, sin código: no requiere typecheck. Contenido revisado contra `agent.md`, `docs/reglas-ui.md` y las reglas dictadas por luigi el 2026-09-27.
+
+## 2026-09-27 — Sin gamificación en Finanzas
+
+**Qué cambió:** `ROADMAP-SENDA.md` y `docs/REGLAS.md` actualizados: la gamificación (XP, niveles, logros) queda solo en Hábitos por ahora. Finanzas y Mercado sin juego, tono serio.
+
+**Por qué:** decisión de luigi. Se revierte la idea de "XP global de la suite": el juego no cruza a dinero.
+
+**Verificación:** solo documentación, sin código.
