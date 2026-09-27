@@ -2,7 +2,7 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
-## 2026-09-27 ("Salir" vuelve al selector de perfiles — SIN commitear)
+## 2026-09-27 ("Salir" vuelve al selector de perfiles — DESPLEGADO a producción)
 
 - luigi: en móvil, "Salir" debe llevar al login de usuarios (selector de
   perfiles estilo Netflix), no al login de la nube.
@@ -13,7 +13,8 @@
   unificada a "Salir"). El cierre real de la nube sigue en
   Ajustes → Cuenta → "Cerrar sesión".
 - Validación: tsc limpio; eslint 0 errores; smokes 200/200.
-- SIN commitear: pendiente autorización de luigi.
+- Commit `055bc5b3`, pusheado a master y desplegado a producción
+  (https://habitos-amber.vercel.app, 200 ok).
 
 ## 2026-09-27 (motivo al posponer — DESPLEGADO a producción)
 
@@ -143,6 +144,7 @@
 - Puente WhatsApp Nivel 2 + asistente conversacional (`estado`, `resumen`, `racha`, `crear`) y coach semanal; actualización instantánea de la PWA.
 - Regla permanente: programando, todo lo que se haga debe documentarse en el repo — ningún commit sin su entrada en `bitacora.md`; quedó como regla obligatoria en `agent.md`.
 - Icono de notificación en la barra de estado: el `badge` usaba el SVG a color y Android lo mostraba como un cuadrado blanco. Nuevo `public/badge.png` (silueta blanca de la flama, 96×96) usado como `badge` en el SW y en `lib/notifications.ts`; el `icon` grande ahora es `/icon-192.png` (PNG, más compatible que el SVG).
+- Revisión de notificaciones: la Edge Function ignoraba los momentos anclados al sueño ("Al levantarme"/"Al acostarme") — ahora los resuelve (hora real marcada hoy o la objetivo) y los notifica con la app cerrada; tags alineados entre chequeo local y push (ya no se duplican con la app abierta); `reproducirSonido()` ahora es un chime de 3 notas en vez del pitido; comentario de timezone corregido. Modo vacaciones y descanso ya estaban bien.
 
 ## 2026-09-26
 - Añadido soporte de hábitos por cantidad en la aplicación, con su contador diario, registro de eventos, deshacer y estadísticas.

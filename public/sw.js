@@ -50,7 +50,10 @@ self.addEventListener("push", (event) => {
       body: data.body || "Tu recordatorio de hábito está listo.",
       icon: "/icon-192.png",
       badge: "/badge.png",
-      tag: `habito-${habitId}-${momentId}-${new Date().toISOString().slice(0, 16)}`,
+      // Mismo formato que el chequeo local (revisarRecordatorios): si la app
+      // está abierta y ya mostró este recordatorio, la push lo reemplaza en
+      // vez de duplicarlo.
+      tag: `habito-${habitId}-${momentId}-${data.data?.fecha || new Date().toISOString().slice(0, 10)}`,
       data: data.data || { url: "/" },
       actions: data.actions || [],
       vibrate: [120, 80, 120],

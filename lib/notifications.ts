@@ -162,19 +162,28 @@ export function reproducirSonido(): void {
     const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
     const context = new AudioContextClass();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(880, context.currentTime);
-    oscillator.frequency.setValueAtTime(660, context.currentTime + 0.12);
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.3);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.31);
-    oscillator.onended = () => void context.close();
+    // Chime de 3 notas (arpegio de Do mayor, onda triangular con decaimiento
+    // suave): cálido y corto, sin el pitido agresivo del aviso anterior.
+    // Nota: esto solo suena con la app abierta; la notificación push en
+    // segundo plano usa el sonido del sistema (Android no permite otro).
+    const notas = [784.0, 1046.5, 1318.5]; // G5, C6, E6
+    const t0 = context.currentTime + 0.02;
+    notas.forEach((freq, i) => {
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      const inicio = t0 + i * 0.1;
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, inicio);
+      gain.gain.setValueAtTime(0.0001, inicio);
+      gain.gain.exponentialRampToValueAtTime(0.22, inicio + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.45);
+      osc.connect(gain);
+      gain.connect(context.destination);
+      osc.start(inicio);
+      osc.stop(inicio + 0.5);
+    });
+    const ms = (t0 + notas.length * 0.1 + 0.5 - context.currentTime) * 1000 + 100;
+    window.setTimeout(() => void context.close(), ms);
   } catch {
     // Los navegadores pueden bloquear audio si no procede de una interacción del usuario.
   }

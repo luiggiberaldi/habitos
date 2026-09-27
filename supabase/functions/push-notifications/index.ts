@@ -7,10 +7,16 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 //   VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY,
 //   CRON_SECRET (compartida entre el scheduler y esta función)
-//   DEFAULT_TIMEZONE (p. ej. "America/Mexico_City"); cada usuario puede sobrescribir
-//   con su propia zona en "data.settings.timezone" de su primer row en habbits (habits).
+//   DEFAULT_TIMEZONE (p. ej. "America/Caracas"); la zona real de cada usuario
+//   sale de la columna push_subscriptions.timezone (la escribe el cliente).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+
+/**
+ * NOTA DE ZONAS HORARIAS: cada usuario puede sobrescribir su zona con la
+ * columna push_subscriptions.timezone (la escribe el cliente al suscribirse).
+ * DEFAULT_TIMEZONE es solo el fallback.
+ */
 
 /** Lee una variable de entorno obligatoria; falla en frío con mensaje claro
  *  en vez de propagar un `undefined` que rompería llamadas más tarde. */
@@ -80,6 +86,30 @@ function dentroDeDescanso(horas: { inicio: string; fin: string }, hhmm: string):
   return hhmm >= horas.inicio || hhmm < horas.fin;
 }
 
+/** "HH:mm" de un timestamptz en la zona del usuario. */
+function hhmmEnZona(iso: string, tz: string): string {
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+  let hour = Number(parts.hour);
+  if (hour === 24) hour = 0;
+  return `${String(hour).padStart(2, "0")}:${parts.minute}`;
+}
+
+type Debido = {
+  habitId: string;
+  momentId: string;
+  userId: string;
+  perfilId: string | null;
+  nombre: string;
+  sueno?: boolean;
+  ancla?: "levantar" | "acostar";
+};
+
 function eventId(habitId: string, momentId: string, fecha: string): string {
   return `${habitId}|${momentId}|${fecha}`;
 }
@@ -133,7 +163,26 @@ async function calcularDebidos(): Promise<
     if (!data || data.length < 1000) break;
   }
 
-  const debidos: { habitId: string; momentId: string; userId: string; perfilId: string | null; nombre: string; sueno?: boolean }[] = [];
+  const debidos: Debido[] = [];
+  const clavePerfil = (userId: string, perfilId: string | null) => `${userId}:${perfilId ?? ""}`;
+
+  // 1b. Indexar hábitos Sueño por (usuario, perfil): los momentos anclados
+  // ("Al levantarme"/"Al acostarme") resuelven su hora desde aquí.
+  const suenoPorClave = new Map<string, { id: string; horaAcostar: string; horaLevantar: string }>();
+  for (const row of habits) {
+    const h = row.data as { id?: string; tipo?: string; estado?: string; horaAcostar?: string; horaLevantar?: string };
+    if (h?.tipo === "sueno" && h.estado === "activo" && h.id === row.id) {
+      suenoPorClave.set(clavePerfil(row.user_id, row.perfil_id), {
+        id: h.id,
+        horaAcostar: h.horaAcostar ?? "22:00",
+        horaLevantar: h.horaLevantar ?? "06:00",
+      });
+    }
+  }
+
+  // Momentos anclados pendientes de resolver (su hora efectiva sale de la
+  // marca real de sueño de hoy, o de la hora objetivo si aún no se marcó).
+  const pendientesAncla: (Debido & { ancla: "levantar" | "acostar"; tz: string; fecha: string; hhmm: string })[] = [];
 
   // 2. Para cada usuario calcular su hora local y evaluar sus hábitos.
   for (const row of habits ?? []) {
@@ -145,38 +194,90 @@ async function calcularDebidos(): Promise<
       tipo?: string;
       horaAcostar?: string;
       horaLevantar?: string;
-      momentos?: { id: string; tipo?: string; hora?: string; ventana?: string }[];
+      momentos?: { id: string; tipo?: string; hora?: string; ventana?: string; ancla?: "levantar" | "acostar" }[];
       settings?: { horasDescanso?: { inicio: string; fin: string } };
     };
     if (!habit || habit.id !== row.id) continue;
     if (habit.estado !== "activo") continue;
 
     const tz = tzPorUsuario.get(row.user_id) ?? DEFAULT_TIMEZONE;
-    const { hhmm, dia } = ahoraLocal(tz);
+    const { hhmm, dia, fecha } = ahoraLocal(tz);
 
     const descanso = habit.settings?.horasDescanso ?? DESCANSOS_DEFAULT;
-    // Sueño: sus horas (22:00/6:00) suelen caer en descanso → se exime.
+    // Sueño y momentos anclados se eximen del descanso (igual que el cliente:
+    // acostarse/levantarse suele caer dentro de él).
     const esSueno = habit.tipo === "sueno";
-    if (!esSueno && dentroDeDescanso(descanso, hhmm)) continue;
+    const enDescanso = !esSueno && dentroDeDescanso(descanso, hhmm);
     if (!habit.dias?.includes(dia)) continue;
 
     // Sueño: dos momentos virtuales con sus horas objetivo.
-    const momentos: { id: string; tipo?: string; hora?: string }[] = esSueno
+    const momentos: { id: string; tipo?: string; hora?: string; ancla?: "levantar" | "acostar" }[] = esSueno
       ? [
           { id: "acostar", tipo: "hora", hora: habit.horaAcostar ?? "22:00" },
           { id: "levantar", tipo: "hora", hora: habit.horaLevantar ?? "06:00" },
         ]
       : (habit.momentos ?? []);
     for (const moment of momentos) {
-      if (moment.tipo !== "hora" || moment.hora !== hhmm) continue;
-      debidos.push({
-        habitId: habit.id,
-        momentId: moment.id,
-        userId: row.user_id,
-        perfilId: row.perfil_id,
-        nombre: habit.nombre,
-        sueno: esSueno || undefined,
-      });
+      const esAncla = moment.tipo === "ancla" && (moment.ancla === "levantar" || moment.ancla === "acostar");
+      if (enDescanso && !esAncla) continue;
+      if (moment.tipo === "hora") {
+        if (moment.hora !== hhmm) continue;
+        debidos.push({
+          habitId: habit.id,
+          momentId: moment.id,
+          userId: row.user_id,
+          perfilId: row.perfil_id,
+          nombre: habit.nombre,
+          sueno: esSueno || undefined,
+        });
+      } else if (esAncla) {
+        pendientesAncla.push({
+          habitId: habit.id,
+          momentId: moment.id,
+          userId: row.user_id,
+          perfilId: row.perfil_id,
+          nombre: habit.nombre,
+          ancla: moment.ancla as "levantar" | "acostar",
+          tz,
+          fecha,
+          hhmm,
+        });
+      }
+    }
+  }
+
+  // 2b. Resolver momentos anclados: hora real marcada hoy (created_at de la
+  // marca de sueño en la zona del usuario) o la hora objetivo como fallback.
+  if (pendientesAncla.length > 0) {
+    const porMarca = new Map<string, typeof pendientesAncla>();
+    for (const p of pendientesAncla) {
+      const sueno = suenoPorClave.get(clavePerfil(p.userId, p.perfilId));
+      if (!sueno) continue; // sin Sueño activo no hay a qué anclar
+      const eid = `${sueno.id}|${p.ancla}|${p.fecha}`;
+      const lista = porMarca.get(eid) ?? [];
+      lista.push(p);
+      porMarca.set(eid, lista);
+    }
+    const marcas = new Map<string, string>();
+    if (porMarca.size > 0) {
+      const { data: rowsMarcas, error: marcasError } = await supabase
+        .from("completions")
+        .select("event_id, created_at")
+        .in("event_id", [...porMarca.keys()]);
+      if (marcasError) console.error("Error leyendo marcas de sueño:", marcasError.message);
+      for (const r of rowsMarcas ?? []) marcas.set(r.event_id as string, r.created_at as string);
+    }
+    for (const [eid, lista] of porMarca) {
+      for (const p of lista) {
+        const sueno = suenoPorClave.get(clavePerfil(p.userId, p.perfilId))!;
+        const creada = marcas.get(eid);
+        const horaEfectiva = creada
+          ? hhmmEnZona(creada, p.tz)
+          : p.ancla === "levantar"
+            ? sueno.horaLevantar
+            : sueno.horaAcostar;
+        if (horaEfectiva === p.hhmm) debidos.push(p);
+      }
     }
   }
 
@@ -228,7 +329,11 @@ async function calcularDebidos(): Promise<
         ? d.momentId === "levantar"
           ? "Hora de levantarte"
           : "Hora de acostarte"
-        : "Recordatorio de hábito",
+        : d.ancla
+          ? d.ancla === "levantar"
+            ? `Al levantarte: ${d.nombre}`
+            : `Al acostarte: ${d.nombre}`
+          : "Recordatorio de hábito",
       body: d.sueno
         ? "Toca Listo al hacerlo: a tiempo ganas +10 XP."
         : `Es momento de "${d.nombre}". ¡A por ello!`,
@@ -236,13 +341,18 @@ async function calcularDebidos(): Promise<
       // la app y registra el momento sin más taps (ver notificationclick en sw.js).
       // El perfil viaja en la URL: si no es el activo, la app no auto-registra.
       url: `/?complete=${d.habitId}|${d.momentId}${d.perfilId ? `&perfil=${d.perfilId}` : ""}`,
-      fecha, // P1.9: fecha en la zona del usuario (para push_log).
+      fecha, // P1.9: fecha en la zona del usuario (para push_log y el tag).
     }));
 }
 
 async function enviarPush(
   row: { endpoint: string; user_id: string; perfil_id: string | null; p256dh?: string | null; auth?: string | null },
-  payload: { title: string; body: string; actions?: { action: string; title: string }[]; data: { habitId: string; momentId: string; perfilId: string | null; url: string } },
+  payload: {
+    title: string;
+    body: string;
+    actions?: { action: string; title: string }[];
+    data: { habitId: string; momentId: string; perfilId: string | null; url: string; fecha: string };
+  },
 ): Promise<boolean> {
   try {
     // Schema real (0001): p256dh/auth son columnas planas, no JSONB "keys".
@@ -314,7 +424,7 @@ async function run(req: Request): Promise<Response> {
       title: d.title,
       body: d.body,
       actions: [{ action: "hecho", title: "Listo" }],
-      data: { habitId: d.habitId, momentId: d.momentId, perfilId: d.perfilId, url: d.url },
+      data: { habitId: d.habitId, momentId: d.momentId, perfilId: d.perfilId, url: d.url, fecha: d.fecha },
     };
 
     let exito = false;
