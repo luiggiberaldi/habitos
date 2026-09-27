@@ -40,6 +40,7 @@ export type LogAction =
   | "SETTINGS_UPDATED"
   | "APP_OPENED"
   | "APP_RESET"
+  | "APP_UPDATED"
   | "ONLINE"
   | "OFFLINE"
   // Navegación
