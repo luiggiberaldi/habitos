@@ -14,6 +14,7 @@ import {
   IconPlus,
   IconX,
 } from "../lib/icons";
+import { TimeField } from "./TimeField";
 
 const PASOS = [
   { id: "que", titulo: "¿Qué hábito?" },
@@ -539,14 +540,12 @@ export function WizardHabito({
                             </div>
                             <div className="mt-2 flex items-center gap-2">
                               {sel === "hora" ? (
-                                <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted">
-                                  Hora
-                                  <input
-                                    type="time"
-                                    aria-label="Hora del momento"
+                                <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted">
+                                  <span>Hora</span>
+                                  <TimeField
+                                    ariaLabel="Hora del momento"
                                     value={moment.hora ?? "09:00"}
-                                    onChange={(e) => {
-                                      const hora = e.target.value;
+                                    onChange={(hora) => {
                                       setDraft((prev) => ({
                                         ...prev,
                                         momentos: prev.momentos.map((m) =>
@@ -558,7 +557,7 @@ export function WizardHabito({
                                     }}
                                     className="input-field min-h-10 min-w-0 flex-1"
                                   />
-                                </label>
+                                </div>
                               ) : (
                                 <p className="min-w-0 flex-1 text-sm text-muted">
                                   Se sugiere {ETIQUETA_VENTANA[sel]?.toLowerCase() === "flexible" ? "a cualquier hora" : `en la ${ETIQUETA_VENTANA[sel]?.toLowerCase()}`}.

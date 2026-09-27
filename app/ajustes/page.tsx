@@ -7,6 +7,7 @@ import { useAuth } from "../../components/AuthGate";
 import AvatarPerfil from "../../components/AvatarPerfil";
 import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/notifications";
 import { IconAlerta, IconCampana, IconCandado, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/icons";
+import { TimeField } from "../../components/TimeField";
 
 export default function Ajustes() {
   const { state, errorSync } = useStoreState();
@@ -186,34 +187,34 @@ export default function Ajustes() {
           </div>
         </div>
         <div className="flex flex-col gap-3 min-[380px]:flex-row">
-          <label className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-sm text-muted">Inicio</span>
-            <input
-              type="time"
+            <TimeField
               value={settings.horasDescanso.inicio}
-              onChange={(e) =>
+              onChange={(inicio) =>
                 guardarSettings({
                   ...settings,
-                  horasDescanso: { ...settings.horasDescanso, inicio: e.target.value },
+                  horasDescanso: { ...settings.horasDescanso, inicio },
                 })
               }
+              ariaLabel="Hora de inicio del descanso"
               className="input-field"
             />
-          </label>
-          <label className="flex min-w-0 flex-1 flex-col gap-1">
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-sm text-muted">Fin</span>
-            <input
-              type="time"
+            <TimeField
               value={settings.horasDescanso.fin}
-              onChange={(e) =>
+              onChange={(fin) =>
                 guardarSettings({
                   ...settings,
-                  horasDescanso: { ...settings.horasDescanso, fin: e.target.value },
+                  horasDescanso: { ...settings.horasDescanso, fin },
                 })
               }
+              ariaLabel="Hora de fin del descanso"
               className="input-field"
             />
-          </label>
+          </div>
         </div>
       </section>
 

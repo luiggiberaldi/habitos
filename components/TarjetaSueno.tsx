@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatHoraA12, hhmmDeFecha, hhmmDeTimestamp, moverFecha, todayKey } from "../lib/dates";
 import { horaSugeridaSueno, nochesSueno } from "../lib/gamificacion";
 import { IconAjustes, IconCheck, IconLuna, IconSol, IconX } from "../lib/icons";
+import { TimeField } from "./TimeField";
 import { useStoreActions, useStoreState } from "../lib/store-context";
 import type { Habit, MarcaSueno } from "../lib/types";
 
@@ -65,12 +66,11 @@ function ModalHora({ modal, onClose }: { modal: ModalHoraState; onClose: () => v
         <p className="mt-1 text-sm text-muted">
           ¿A qué hora {esLevantar ? "te levantaste" : "te acostaste"}? ({etiquetaFecha.toLowerCase()})
         </p>
-        <input
-          type="time"
+        <TimeField
           value={hora}
-          onChange={(e) => setHora(e.target.value)}
+          onChange={setHora}
           className="mt-4 w-full rounded-2xl border border-border bg-surface-2 px-4 py-3 text-xl text-fg"
-          aria-label={esLevantar ? "Hora en que te levantaste" : "Hora en que te acostaste"}
+          ariaLabel={esLevantar ? "Hora en que te levantaste" : "Hora en que te acostaste"}
         />
         <p className="mt-3 text-xs text-muted">
           {modal.existe
@@ -150,20 +150,20 @@ function ModalConfig({ habit, onClose }: { habit: Habit; onClose: () => void }) 
         </div>
         <div className="mt-4 space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-fg">Acostarme a las</label>
-            <input
-              type="time"
+            <p className="mb-1 text-sm font-medium text-fg">Acostarme a las</p>
+            <TimeField
               value={horaAcostar}
-              onChange={(e) => setHoraAcostar(e.target.value)}
+              onChange={setHoraAcostar}
+              ariaLabel="Hora de acostarse"
               className="w-full rounded-2xl border border-border bg-surface-2 px-4 py-2.5 text-fg"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-fg">Levantarme a las</label>
-            <input
-              type="time"
+            <p className="mb-1 text-sm font-medium text-fg">Levantarme a las</p>
+            <TimeField
               value={horaLevantar}
-              onChange={(e) => setHoraLevantar(e.target.value)}
+              onChange={setHoraLevantar}
+              ariaLabel="Hora de levantarse"
               className="w-full rounded-2xl border border-border bg-surface-2 px-4 py-2.5 text-fg"
             />
           </div>
