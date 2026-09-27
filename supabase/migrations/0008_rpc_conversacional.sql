@@ -13,12 +13,12 @@
 -- repo. Se invoca vía POST /rest/v1/rpc/<nombre> con los headers `apikey` +
 -- `x-habitos-rpc-secret` — compatible con el conector actual.
 --
--- ═══ PASO PREVIO OBLIGATORIO (una vez, en el SQL Editor del dashboard) ═══
---   ALTER DATABASE postgres SET app.habitos_rpc_secret = '<SECRETO_LARGO_ALEATORIO>';
--- El secreto lo genera el dueño (p. ej. `openssl rand -hex 32`) y NO va en este
--- archivo ni en el repo. Sin él (o con valor incorrecto), todas las funciones
--- fallan con 'unauthorized'.
--- ═══════════════════════════════════════════════════════════════════════
+-- NOTA (2026-09-27): el mecanismo del secreto cambió. En vez de
+-- `ALTER DATABASE ... SET app.habitos_rpc_secret` (requiere superusuario),
+-- el secreto vive en la tabla public.habitos_rpc_secrets y
+-- rpc_habitos_secret_ok() lo lee de ahí (ver migración 0012). La función
+-- incluida abajo es la versión original; la 0012 la reemplaza con
+-- CREATE OR REPLACE.
 --
 -- Defensa en profundidad:
 --  - p_user_id se valida contra el FK a auth.users (un UUID inexistente da 23503).
