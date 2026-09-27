@@ -77,6 +77,27 @@ export function idiomaDeVentana(ventana?: string): string {  switch (ventana) {
   }
 }
 
+/**
+ * Ventanas flexibles: inicio/fin y a qué hora avisar (1h antes del fin,
+ * como "última llamada" del día para ese hábito).
+ */
+export const VENTANAS: Record<string, { inicio: string; fin: string; aviso: string; articulo: string }> = {
+  manana: { inicio: "06:00", fin: "12:00", aviso: "11:00", articulo: "la mañana" },
+  tarde: { inicio: "12:00", fin: "18:00", aviso: "17:00", articulo: "la tarde" },
+  noche: { inicio: "18:00", fin: "22:00", aviso: "21:00", articulo: "la noche" },
+  cualquier: { inicio: "06:00", fin: "22:00", aviso: "21:00", articulo: "el día" },
+};
+
+/** "HH:mm" a la que avisar un momento por ventana (1h antes del fin). */
+export function avisoDeVentana(ventana?: string): string | undefined {
+  return ventana ? VENTANAS[ventana]?.aviso : undefined;
+}
+
+/** "la mañana" / "la tarde" / "la noche" / "el día" para los textos. */
+export function articuloDeVentana(ventana?: string): string {
+  return (ventana && VENTANAS[ventana]?.articulo) || "el día";
+}
+
 export function formatHoraA12(hora: string): string {
   const [h, m] = hora.split(":").map(Number);
   const suffix = h >= 12 ? "p. m." : "a. m.";

@@ -1,6 +1,7 @@
 // Edge Function push-notifications — Scheduler + envío (Fases 4 y 5 del plan)
 // Se ejecuta cada minuto vía pg_cron (o invocación programada). Consulta hábitos con
-// momento "hora" pendiente hoy, excluye descanso y ya completados, y envía web push.
+// momento pendiente hoy ("hora" exacta, "ventana" 1h antes del fin, o "ancla" al
+// sueño resuelta), excluye descanso y ya completados, y envía web push.
 // Dedupe idempotente con push_log.
 //
 // Requiere variables de entorno:
@@ -108,6 +109,7 @@ type Debido = {
   nombre: string;
   sueno?: boolean;
   ancla?: "levantar" | "acostar";
+  ventana?: string;
 };
 
 function eventId(habitId: string, momentId: string, fecha: string): string {
@@ -116,6 +118,17 @@ function eventId(habitId: string, momentId: string, fecha: string): string {
 
 /** Descanso por defecto (22:00–08:00); los usuarios pueden sobrescribirlo en data.settings. */
 const DESCANSOS_DEFAULT = { inicio: "22:00", fin: "08:00" };
+
+/**
+ * Ventanas flexibles: a qué hora avisar (1h antes del fin, "última llamada").
+ * Espejo de VENTANAS en lib/dates.ts (la función es autocontenida).
+ */
+const AVISOS_VENTANA: Record<string, { aviso: string; articulo: string }> = {
+  manana: { aviso: "11:00", articulo: "la mañana" },
+  tarde: { aviso: "17:00", articulo: "la tarde" },
+  noche: { aviso: "21:00", articulo: "la noche" },
+  cualquier: { aviso: "21:00", articulo: "el día" },
+};
 
 async function calcularDebidos(): Promise<
   { userId: string; perfilId: string | null; habitId: string; momentId: string; nombre: string; body: string; url: string; fecha: string }[]
@@ -242,6 +255,19 @@ async function calcularDebidos(): Promise<
           fecha,
           hhmm,
         });
+      } else if (moment.tipo === "ventana") {
+        // Ventana flexible: "última llamada" 1h antes de que termine.
+        const info = moment.ventana ? AVISOS_VENTANA[moment.ventana] : undefined;
+        if (info && info.aviso === hhmm) {
+          debidos.push({
+            habitId: habit.id,
+            momentId: moment.id,
+            userId: row.user_id,
+            perfilId: row.perfil_id,
+            nombre: habit.nombre,
+            ventana: moment.ventana,
+          });
+        }
       }
     }
   }
@@ -333,10 +359,14 @@ async function calcularDebidos(): Promise<
           ? d.ancla === "levantar"
             ? `Al levantarte: ${d.nombre}`
             : `Al acostarte: ${d.nombre}`
-          : "Recordatorio de hábito",
+          : d.ventana
+            ? `Se acaba ${AVISOS_VENTANA[d.ventana]?.articulo ?? "el día"}: ${d.nombre}`
+            : "Recordatorio de hábito",
       body: d.sueno
         ? "Toca Listo al hacerlo: a tiempo ganas +10 XP."
-        : `Es momento de "${d.nombre}". ¡A por ello!`,
+        : d.ventana
+          ? "Te queda 1 hora para completarlo hoy. ¡A por ello!"
+          : `Es momento de "${d.nombre}". ¡A por ello!`,
       // Deep link de auto-registro: el botón "Listo" de la notificación abre
       // la app y registra el momento sin más taps (ver notificationclick en sw.js).
       // El perfil viaja en la URL: si no es el activo, la app no auto-registra.

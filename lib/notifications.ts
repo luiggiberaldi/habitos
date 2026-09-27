@@ -1,5 +1,6 @@
 import type { AnclaSueno, AppState, Habit } from "./types";
 import { habitoSueno } from "./anclas";
+import { articuloDeVentana, avisoDeVentana } from "./dates";
 import { getSupabase } from "./supabase";
 import { leerPerfilActivoId } from "./perfiles";
 import { logEvent } from "./logger";
@@ -221,11 +222,11 @@ export async function revisarRecordatorios(state: AppState): Promise<number> {
   const done = new Set(state.completions.filter((item) => item.fecha === fecha).map((item) => `${item.habitId}|${item.momentId}`));
   const sent = obtenerEnviadas();
   const sueno = habitoSueno(state.habits);
-  const due: { key: string; habit: Habit; momentId: string; ancla?: AnclaSueno }[] = [];
+  const due: { key: string; habit: Habit; momentId: string; ancla?: AnclaSueno; ventana?: string }[] = [];
   for (const habit of state.habits) {
     if (habit.estado !== "activo" || !habit.dias.includes(weekDay)) continue;
     // Sueño: dos momentos virtuales con sus horas objetivo (no tiene `momentos`).
-    const momentos: { id: string; hora?: string; ancla?: AnclaSueno }[] =
+    const momentos: { id: string; hora?: string; ancla?: AnclaSueno; tipo?: string; ventana?: string }[] =
       habit.tipo === "sueno"
         ? [
             { id: "acostar", hora: habit.horaAcostar ?? "22:00" },
@@ -235,18 +236,28 @@ export async function revisarRecordatorios(state: AppState): Promise<number> {
     for (const moment of momentos) {
       // Momento anclado: se programa con la hora objetivo del sueño (la hora
       // real solo se conoce después de marcar, y para entonces ya sobra).
+      // Momento por ventana: se avisa 1h antes de que termine la ventana.
       const hora =
         moment.hora ??
         (moment.ancla
           ? (moment.ancla === "levantar" ? (sueno?.horaLevantar ?? "06:00") : (sueno?.horaAcostar ?? "22:00"))
-          : undefined);
+          : undefined) ??
+        avisoDeVentana(moment.tipo === "ventana" ? moment.ventana : undefined);
       // La rutina de sueño (incluidos los momentos anclados) se avisa incluso
       // en horario de descanso: acostarse suele caer dentro de él.
       if (enDescanso && habit.tipo !== "sueno" && !moment.ancla) continue;
       if (!hora || hora !== hhmm || done.has(`${habit.id}|${moment.id}`)) continue;
       // El identificador por minuto evita reenvíos al reabrir/refrescar la app.
       const stableKey = `${fecha}|${habit.id}|${moment.id}|${Math.floor(now.getTime() / MINUTE) * MINUTE}`;
-      if (!sent.has(stableKey)) due.push({ key: stableKey, habit, momentId: moment.id, ancla: moment.ancla });
+      if (!sent.has(stableKey)) {
+        due.push({
+          key: stableKey,
+          habit,
+          momentId: moment.id,
+          ancla: moment.ancla,
+          ventana: moment.tipo === "ventana" ? moment.ventana : undefined,
+        });
+      }
     }
   }
   if (due.length === 0) { guardarEnviadas(sent, now.getTime()); return 0; }
@@ -259,12 +270,16 @@ export async function revisarRecordatorios(state: AppState): Promise<number> {
         : "Hora de acostarte"
       : item.ancla
         ? `${item.ancla === "levantar" ? "Al levantarte" : "Al acostarte"}: ${item.habit.nombre}`
-        : `Momento de ${item.habit.nombre}`;
+        : item.ventana
+          ? `Se acaba ${articuloDeVentana(item.ventana)}: ${item.habit.nombre}`
+          : `Momento de ${item.habit.nombre}`;
     const cuerpo = esSueno
       ? item.momentId === "levantar"
         ? "Márcalo en la app: a tiempo ganas +10 XP."
         : "Márcalo en la app antes de dormir: a tiempo ganas +10 XP."
-      : "Tu recordatorio de hábito está listo. Tómate un momento para hacerlo.";
+      : item.ventana
+        ? "Te queda 1 hora para completarlo hoy. ¡A por ello!"
+        : "Tu recordatorio de hábito está listo. Tómate un momento para hacerlo.";
     await registration.showNotification(titulo, {
       body: cuerpo,
       tag: `habito-${item.habit.id}-${item.momentId}-${fecha}`,

@@ -150,3 +150,14 @@
 - Añadido soporte de hábitos por cantidad en la aplicación, con su contador diario, registro de eventos, deshacer y estadísticas.
 - Ajustado el modelo, el estado y las vistas para distinguir hábitos por momento de hábitos por cantidad.
 - Creado `memoria.md` y archivos de contexto Vibe System para documentar el proyecto.
+
+## 2026-09-27 — Avisos de ventanas (mañana/tarde/noche)
+
+**Qué cambió:** los momentos por ventana (`manana`/`tarde`/`noche`/`cualquier`) ahora generan notificación "última llamada" 1h antes de que termine su ventana, en cliente y Edge Function.
+
+**Por qué:** luigi lo pidió: antes las ventanas no notificaban en ningún lado. Regla: si falta 1h para que termine la ventana, recordar.
+
+- `lib/dates.ts`: nueva tabla `VENTANAS` (manana 06–12 aviso 11:00, tarde 12–18 aviso 17:00, noche 18–22 aviso 21:00, cualquier 06–22 aviso 21:00) + helpers `avisoDeVentana()` y `articuloDeVentana()`.
+- `lib/notifications.ts`: `revisarRecordatorios` resuelve la hora de aviso de los momentos `tipo === "ventana"`; título "Se acaba la mañana: X" y cuerpo "Te queda 1 hora…".
+- Edge `push-notifications` (v9): tabla espejo `AVISOS_VENTANA`; la rama `ventana` notifica cuando `aviso === hhmm`; títulos/cuerpo alineados con el cliente.
+- Sin cambios en dedupe ni en exclusión de completados (reusan el mismo momentId).
