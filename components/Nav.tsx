@@ -21,7 +21,7 @@ const items = [
 
 export default function Nav() {
   const pathname = usePathname();
-  const { user, perfil, cerrarSesion } = useAuth();
+  const { user, perfil, salirAPerfil } = useAuth();
   const { sincronizarAhora } = useStoreActions();
   const { state } = useStoreState();
   // Premios de logros desbloqueados sin reclamar (tap en la sala de trofeos).
@@ -29,11 +29,13 @@ export default function Nav() {
 
   // E3: reenviar la cola pendiente antes de salir — si no, quedaba huérfana
   // bajo la clave del usuario anterior.
+  // "Salir" vuelve al selector de perfiles (login de usuarios), no cierra la
+  // sesión de la nube (eso sigue en Ajustes → Cuenta).
   const salir = async () => {
     try {
       await sincronizarAhora();
     } finally {
-      await cerrarSesion();
+      salirAPerfil();
     }
   };
 
@@ -88,7 +90,7 @@ export default function Nav() {
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-all hover:bg-surface-2 hover:text-foreground"
           >
             <IconCerrarSesion className="h-5 w-5" />
-            Cerrar sesión
+            Salir
           </button>
           {perfil ? (
             <Link

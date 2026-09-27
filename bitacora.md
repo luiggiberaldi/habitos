@@ -2,7 +2,20 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
-## 2026-09-27 (motivo al posponer — SIN commitear)
+## 2026-09-27 ("Salir" vuelve al selector de perfiles — SIN commitear)
+
+- luigi: en móvil, "Salir" debe llevar al login de usuarios (selector de
+  perfiles estilo Netflix), no al login de la nube.
+- `components/Nav.tsx`: `salir()` ahora usa `salirAPerfil()` (ya existía en
+  AuthGate: limpia el perfil activo sin cerrar la sesión de Supabase) en vez
+  de `cerrarSesion()`; se mantiene el flush de la cola pendiente antes de
+  salir. Aplica a la bottom nav móvil y al sidebar desktop (etiqueta
+  unificada a "Salir"). El cierre real de la nube sigue en
+  Ajustes → Cuenta → "Cerrar sesión".
+- Validación: tsc limpio; eslint 0 errores; smokes 200/200.
+- SIN commitear: pendiente autorización de luigi.
+
+## 2026-09-27 (motivo al posponer — DESPLEGADO a producción)
 
 - luigi pidió que al posponer un hábito se pueda indicar el motivo
   (enfermedad, período, etc.).
@@ -15,7 +28,8 @@
 - La sección "Pospuestos para mañana" muestra el motivo
   ("Enfermedad · vuelve mañana").
 - Validación: tsc limpio; eslint 0 errores; smokes 200/200; build exit 0.
-- SIN commitear: pendiente autorización de luigi.
+- Commit `206dc39e`, pusheado a master y desplegado a producción
+  (https://habitos-amber.vercel.app, 200 ok).
 
 ## 2026-09-27 (momentos anclados al sueño — DESPLEGADO a producción)
 
