@@ -258,16 +258,20 @@ function ModalPerfil({
   /** Campo "PIN actual": se muestra al cambiar o quitar un PIN existente. */
   const pinActualField = requierePinActual ? (
     <div className="mt-3">
+      <label className="mb-1 block text-xs font-medium text-muted" htmlFor="pin-actual">
+        PIN actual
+      </label>
       <input
+        id="pin-actual"
         type="password"
         inputMode="numeric"
         autoComplete="off"
         maxLength={4}
         value={pinActualLimpio}
         onChange={(e) => setPinActual(e.target.value)}
-        placeholder="PIN actual"
+        placeholder="••••"
         aria-label="PIN actual"
-        className="input-field text-center text-xl tracking-[0.75em]"
+        className="input-field text-center text-xl tracking-[0.75em] placeholder:text-muted/60"
       />
       {pinActualLimpio.length === 4 && !pinActualOk && (
         <p role="alert" className="mt-1 text-xs font-medium text-red-500">
@@ -385,17 +389,21 @@ function ModalPerfil({
         ) : (
           <>
             {pinActualField}
+            <label className="mb-1 block text-xs font-medium text-muted" htmlFor="pin-nuevo">
+              {perfil?.pin ? "Nuevo PIN" : "PIN"}
+            </label>
             <input
+              id="pin-nuevo"
               type="password"
               inputMode="numeric"
               autoComplete="off"
               maxLength={4}
               value={pinLimpio}
               onChange={(e) => setPinInput(e.target.value)}
-              placeholder="4 dígitos"
+              placeholder="••••"
               aria-label="PIN de 4 dígitos"
               aria-invalid={!pinValido}
-              className="input-field text-center text-xl tracking-[0.75em]"
+              className="input-field text-center text-xl tracking-[0.75em] placeholder:text-muted/60"
             />
             <p className="mt-1.5 text-xs text-muted">
               {perfil?.pin ? "Escribe el nuevo PIN (déjalo vacío para no cambiarlo)." : "Se pedirá al entrar a este perfil. Déjalo vacío para no usar PIN."}
@@ -407,17 +415,21 @@ function ModalPerfil({
             )}
             {pinLimpio !== "" && (
               <>
+                <label className="mb-1 mt-3 block text-xs font-medium text-muted" htmlFor="pin-confirmar">
+                  Confirmar PIN
+                </label>
                 <input
+                  id="pin-confirmar"
                   type="password"
                   inputMode="numeric"
                   autoComplete="off"
                   maxLength={4}
                   value={pinConfirmarLimpio}
                   onChange={(e) => setPinConfirmar(e.target.value)}
-                  placeholder="Confirma los 4 dígitos"
+                  placeholder="••••"
                   aria-label="Confirmar PIN de 4 dígitos"
                   aria-invalid={!pinConfirmado}
-                  className="input-field mt-3 text-center text-xl tracking-[0.75em]"
+                  className="input-field text-center text-xl tracking-[0.75em] placeholder:text-muted/60"
                 />
                 {!pinConfirmado && pinConfirmarLimpio !== "" && (
                   <p role="alert" className="mt-1 text-xs font-medium text-red-500">
