@@ -2,6 +2,17 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-27 (correo fuera del sidebar — DESPLEGADO a producción)
+
+- luigi: quitar el correo de la sección de perfil en el sidebar (screenshot).
+- `components/Nav.tsx`: eliminadas las dos líneas que mostraban
+  `user.email` (debajo del nombre del perfil y el fallback cuando no hay
+  perfil); el sidebar ahora muestra solo el avatar y el nombre.
+  El correo sigue disponible donde corresponde (Ajustes → Cuenta).
+- Validación: tsc limpio; eslint 0 errores; build exit 0.
+- Commit `dccbe8a2`, pusheado a master y desplegado a producción
+  (https://habitos-amber.vercel.app, 200 ok).
+
 ## 2026-09-27 (push + deploy del núcleo lib/core/ — DESPLEGADO a producción)
 
 - luigi autorizó: "Revisado, pushea y despliega".

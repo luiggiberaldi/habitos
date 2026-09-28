@@ -37,7 +37,7 @@ function estaActivo(item: NavItem, pathname: string): boolean {
 
 export default function Nav() {
   const pathname = usePathname();
-  const { user, perfil, salirAPerfil } = useAuth();
+  const { perfil, salirAPerfil } = useAuth();
   const { sincronizarAhora } = useStoreActions();
   const { state } = useStoreState();
   // Premios de logros desbloqueados sin reclamar (tap en la sala de trofeos).
@@ -150,12 +150,9 @@ export default function Nav() {
               <AvatarPerfil perfil={perfil} className="h-7 w-7 text-xs" />
               <span className="min-w-0">
                 <span className="block truncate text-xs font-semibold">{perfil.nombre}</span>
-                {user && <span className="block truncate text-[11px] text-muted">{user.email}</span>}
               </span>
             </Link>
-          ) : (
-            user && <p className="mt-1 truncate px-3 text-xs text-muted">{user.email}</p>
-          )}
+          ) : null}
         </div>
       </aside>
 
