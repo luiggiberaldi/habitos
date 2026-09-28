@@ -1,19 +1,18 @@
 "use client";
 
-import { Suspense } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthGate";
 import AvatarPerfil from "./AvatarPerfil";
 import Logo from "./Logo";
 import { useStoreActions, useStoreState } from "../lib/habitos/store-context";
 import { premiosPendientes } from "../lib/habitos/juego";
-import { IconAjustes, IconCaja, IconEstadisticas, IconInicio, IconLista, IconMaletin, IconMas, IconMedalla, IconCerrarSesion, IconTrofeo } from "../lib/core/ui/icons";
+import { IconAjustes, IconCaja, IconInicio, IconLista, IconMaletin, IconMas, IconCerrarSesion } from "../lib/core/ui/icons";
 // import { IconUsuarios } from "../lib/core/ui/icons"; // Liga oculta por ahora
 
 type NavItem = { href: string; label: string; icon: (p: { className?: string }) => React.JSX.Element; match?: string[] };
 
-/** Pestañas de la suite (barra inferior en móvil). */
+/** Pestañas de la suite (barra inferior en móvil, sidebar en desktop). */
 const tabs: NavItem[] = [
   { href: "/", label: "Inicio", icon: IconInicio },
   { href: "/habitos", label: "Hábitos", icon: IconLista },
@@ -23,31 +22,13 @@ const tabs: NavItem[] = [
   { href: "/mas", label: "Más", icon: IconMas, match: ["/mas", "/ajustes", "/control", "/coach"] },
 ];
 
-/** Sección Hábitos (solo sidebar desktop): pestañas internas de /habitos. */
-const seccionHabitos: (NavItem & { tab: string })[] = [
-  { href: "/habitos?tab=logros", label: "Logros", icon: IconTrofeo, tab: "logros" },
-  { href: "/habitos?tab=niveles", label: "Niveles", icon: IconMedalla, tab: "niveles" },
-  // { href: "/liga", label: "Liga", icon: IconUsuarios }, // ← pestaña oculta por ahora
-  { href: "/habitos?tab=datos", label: "Datos", icon: IconEstadisticas, tab: "datos" },
-];
-
 function estaActivo(item: NavItem, pathname: string): boolean {
   if (item.match) return item.match.some((m) => pathname === m || pathname.startsWith(m + "/"));
   return item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 }
 
 export default function Nav() {
-  return (
-    <Suspense>
-      <Navegacion />
-    </Suspense>
-  );
-}
-
-function Navegacion() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const tabHabitos = pathname === "/habitos" ? (searchParams.get("tab") ?? "hoy") : null;
   const { perfil, salirAPerfil } = useAuth();
   const { sincronizarAhora } = useStoreActions();
   const { state } = useStoreState();
@@ -85,33 +66,13 @@ function Navegacion() {
           {tabs.filter((t) => t.href !== "/mas").map((item) => {
             const activo = estaActivo(item, pathname);
             const Icon = item.icon;
+            const conPremios = item.href === "/habitos" && pendientes > 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={activo ? "page" : undefined}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-                  activo
-                    ? "bg-accent-soft text-accent"
-                    : "text-muted hover:bg-surface-2 hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {item.label}
-              </Link>
-            );
-          })}
-          <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wide text-muted">Hábitos</p>
-          {seccionHabitos.map((item) => {
-            const activo = tabHabitos === item.tab;
-            const Icon = item.icon;
-            const conPremios = item.tab === "logros" && pendientes > 0;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={activo ? "page" : undefined}
-                aria-label={conPremios ? `Logros, ${pendientes} premios por reclamar` : undefined}
+                aria-label={conPremios ? `Hábitos, ${pendientes} premios por reclamar en Logros` : undefined}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                   activo
                     ? "bg-accent-soft text-accent"
@@ -210,4 +171,3 @@ function Navegacion() {
     </>
   );
 }
-

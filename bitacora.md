@@ -2,6 +2,12 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-28 (Sidebar desktop sin redundancia — PENDIENTE despliegue)
+
+- luigi (viendo captura): "hay redundancias" — el sidebar desktop repetía Logros/Niveles/Datos que ya son pestañas dentro de /habitos.
+- components/Nav.tsx: eliminada la sección "HÁBITOS" del sidebar desktop; el badge de premios por reclamar se movió al ítem "Hábitos". Sin useSearchParams/Suspense (ya no hacen falta).
+- Validación: tsc limpio; eslint 0 errores; build exit 0.
+
 ## 2026-09-28 (Reorganización: cada módulo dueño de sus datos — DESPLEGADO a producción)
 
 - luigi: "¿Es buena idea llevar lo de hábitos a la pestaña de hábito? …quiero estadísticas de Finanzas y de mercado, ¿qué propones?" → propuesta aprobada: Logros/Niveles/Estadísticas se mudan a pestañas internas de Hábitos; Finanzas y Mercado ganan su propia vista "Datos"; "Más" queda solo con Ajustes + accesos a Control y Coach.
