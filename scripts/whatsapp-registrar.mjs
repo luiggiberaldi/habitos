@@ -21,7 +21,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { resolverPerfilId } from "./whatsapp-comun.mjs";
+import { cargarLib, resolverPerfilId } from "./whatsapp-comun.mjs";
 
 // ── 0. Forzar zona horaria de luigi (madrugadas y todayKey dependen de hora local) ──
 if (process.env.TZ !== "America/Caracas") {
@@ -114,37 +114,9 @@ function mockRpc(fn) {
   throw new Error(`mock sin datos para ${fn}`);
 }
 
-// ── 3. Compilar lib (caché) ──────────────────────────────────────────────────
-const cacheDir = join(root, ".cache", "whatsapp-lib");
-const fuentes = ["types.ts", "dates.ts", "event-id.ts", "gamificacion.ts", "juego.ts", "store.ts"];
-const marcador = join(cacheDir, ".built-at");
-let recompilar = !existsSync(marcador);
-if (!recompilar) {
-  const builtAt = statSync(marcador).mtimeMs;
-  recompilar = fuentes.some((f) => statSync(join(root, "lib", f)).mtimeMs > builtAt);
-}
-if (recompilar) {
-  mkdirSync(cacheDir, { recursive: true });
-  try {
-    execFileSync(join(root, "node_modules", ".bin", "tsc"), [
-      ...fuentes.map((f) => join(root, "lib", f)),
-      "--outDir", cacheDir,
-      "--module", "commonjs",
-      "--target", "es2020",
-      "--moduleResolution", "node",
-      "--skipLibCheck",
-    ], { stdio: "pipe" });
-    writeFileSync(marcador, String(Date.now()));
-  } catch (e) {
-    fail("tsc", String(e.stderr || e.message).slice(0, 500));
-  }
-}
-const req = createRequire(join(cacheDir, "cargador.cjs"));
-const d = req(join(cacheDir, "dates.js"));
-const e = req(join(cacheDir, "event-id.js"));
-const g = req(join(cacheDir, "gamificacion.js"));
-const j = req(join(cacheDir, "juego.js"));
-const s = req(join(cacheDir, "store.js"));
+// ── 3. Compilar lib (caché; usa el módulo común con las rutas post-extracción
+// lib/core + lib/habitos) ────────────────────────────────────────────────────
+const { d, e, g, j, s } = cargarLib();
 
 // ── 4. Match difuso del hábito ───────────────────────────────────────────────
 const norm = (str) =>

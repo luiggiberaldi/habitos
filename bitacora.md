@@ -325,3 +325,14 @@
 **Por qué:** Fase 0.5 del roadmap: Finanzas y Mercado necesitan programar avisos sin hardcodear cada módulo en la función.
 
 **Verificación:** `tsc` + `eslint` limpios. E2E real: recordatorio de prueba insertado para luigi con `programado_para` +1 min → el cron lo tomó a los 37s (`estado='enviado'`, `enviado_en` seteado; el pase solo marca enviado si webpush aceptó en alguna de sus 6 suscripciones). Runs del cron `push-notifications-minuto` en `succeeded`.
+
+## 2026-09-28 — Fase 0.6: router de WhatsApp por módulo (+ fix del registrador)
+
+**Qué cambió:**
+- Nuevo `scripts/whatsapp-router.mjs`: recibe el texto crudo (`--q`), detecta módulo por prefijo (`finanzas|fin`, `mercado|merca`; sin prefijo = hábitos) y delega al script del módulo como subproceso aislado. En hábitos conserva el comportamiento actual: comandos (`crea…`, `cómo voy`/`estado`, `resumen`, `racha`) → intenciones del asistente; lo demás → `registrar`. El JSON de salida lleva `modulo` añadido.
+- Stubs `scripts/whatsapp-finanzas.mjs` y `scripts/whatsapp-mercado.mjs`: responden `codigo: "proximamente"` (Fase 1 y 2 los implementarán); el router sin resto tras el prefijo responde `codigo: "ayuda"`.
+- **Fix:** `whatsapp-registrar.mjs` estaba roto desde la extracción Fase 0.2 (buscaba `lib/*.ts`, movidos a `lib/habitos/` y `lib/core/` → ENOENT). Ahora usa `cargarLib()` de `whatsapp-comun.mjs`. Regla de WhatsApp en `~/AGENTS.md` actualizada al router.
+
+**Por qué:** Fase 0.6 del roadmap: el punto de entrada único por módulo, con hábitos por defecto intacto.
+
+**Verificación:** router → `finanzas …`/`mercado …`/`finanzas` (ayuda) responden `proximamente`/`ayuda` con el módulo correcto; `crea un hábito…`, `cómo voy` → intenciones ok; `tomé agua` en `HABITOS_MOCK=1` → `{"ok":true,"habito":"Tomar agua",…}` tras el fix (caché `.cache/whatsapp-lib` regenerada).
