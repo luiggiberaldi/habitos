@@ -2,6 +2,27 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-27 (resumen del día contaba 0 momentos con Tomar agua activo — fix)
+
+- luigi reportó con screenshot: "Tomar agua está activo y sigue diciendo 0".
+- Causa: el resumen del día (`app/habitos/page.tsx`) calculaba
+  `totalMomentos` como suma de `h.momentos.length`. Los hábitos de tipo
+  `cantidad` (Tomar agua, objetivo 8) tienen `momentos: []`, así que el
+  resumen decía "0 de 0 momentos" mientras su propia tarjeta decía
+  "Te faltan 8 momentos". Cada tarjeta usa `objetivo` como denominador
+  ("X/Y momentos hoy").
+- Fix: `totalMomentos` ahora suma `h.objetivo` por hábito (para cantidad,
+  cada registro = un momento de 10 pts, coherente con el subtítulo
+  "10 pts por momento"); `progreso` se limita a 100 porque cantidad
+  permite registrar más allá del objetivo. Esto también reactiva el
+  recordatorio in-app "Te quedan N momentos por completar hoy", que
+  depende de `pendientes`.
+- Validación: tsc limpio; eslint 0 errores; build exit 0; lógica
+  replicada con datos reales de la nube para hoy (2026-09-27): solo
+  Tomar agua en `habitosHoy` → total nuevo 8 (antes 0).
+- Corrección documental: la entrada del correo en el sidebar citaba el
+  commit `dccbe8a2`; el commit real fue `9c80113`.
+
 ## 2026-09-27 (correo fuera del sidebar — DESPLEGADO a producción)
 
 - luigi: quitar el correo de la sección de perfil en el sidebar (screenshot).

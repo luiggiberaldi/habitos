@@ -316,12 +316,16 @@ export default function Inicio() {
     return f.charAt(0).toUpperCase() + f.slice(1);
   })();
 
-  const totalMomentos = habitosHoy.reduce((sum, h) => sum + h.momentos.length, 0);
+  // D7: el "momento" del resumen es la unidad que cuentan las tarjetas:
+  // para cantidad, cada registro vale un momento (objetivo registros);
+  // para momento/sueño, el objetivo del día. momentos.length dejaba en 0
+  // a los hábitos de cantidad (p. ej. Tomar agua 0/8 mostraba "0 de 0").
+  const totalMomentos = habitosHoy.reduce((sum, h) => sum + h.objetivo, 0);
   const completadosHoy = habitosHoy.reduce(
     (sum, h) => sum + completadosPara(h, hoy, state.completions).size,
     0,
   );
-  const progreso = totalMomentos ? Math.round((completadosHoy / totalMomentos) * 100) : 0;
+  const progreso = totalMomentos ? Math.min(100, Math.round((completadosHoy / totalMomentos) * 100)) : 0;
   const pendientes = totalMomentos - completadosHoy;
 
   // Resumen semanal: últimos 7 días hasta hoy, con rango de fechas explícito
