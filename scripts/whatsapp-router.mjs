@@ -32,6 +32,7 @@ if (!texto) out({ ok: false, codigo: "args", modulo: "ninguno", detalle: "se req
 const PREFIJOS = [
   { modulo: "finanzas", script: "whatsapp-finanzas.mjs", rx: /^(finanzas|fin)\b[\s:,]*/i },
   { modulo: "mercado", script: "whatsapp-mercado.mjs", rx: /^(mercado|merca)\b[\s:,]*/i },
+  { modulo: "control", script: "whatsapp-control.mjs", rx: /^(control|ctrl)\b[\s:,]*/i },
 ];
 
 let modulo = "habitos";

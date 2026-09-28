@@ -14,6 +14,7 @@ import Logo from "../components/Logo";
 import TarjetaTasas from "../components/TarjetaTasas";
 import {
   IconCaja,
+  IconCampana,
   IconChevronDerecha,
   IconFuego,
   IconMaletin,
@@ -211,6 +212,27 @@ export default function Hub() {
               </span>
               <span className="block truncate text-xs text-muted">
                 {mercadoResumen ?? "Inventario, lista de compras y precios"}
+              </span>
+            </span>
+            <IconChevronDerecha className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+          </Link>
+
+          <Link
+            href="/control"
+            className="flex items-center gap-4 rounded-3xl bg-surface p-4 shadow-sm transition-transform active:scale-[.99]"
+          >
+            <span
+              className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl p-3"
+              style={{ background: "#EDE9F7" }}
+            >
+              <IconCampana className="h-7 w-7 text-[#5B4BB5]" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-bold text-foreground">
+                Control
+              </span>
+              <span className="block truncate text-xs text-muted">
+                Pagos, presupuestos, deudas, metas y cierre
               </span>
             </span>
             <IconChevronDerecha className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />

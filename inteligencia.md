@@ -44,3 +44,12 @@
 - **CREATE OR REPLACE con firma distinta crea una sobrecarga**, no reemplaza. PostgREST devuelve PGRST203 (ambigüedad) si quedan dos firmas. Añadir `DROP FUNCTION` explícito de la firma vieja en la migración.
 - **PostgreSQL no admite `unique (user_id, lower(nombre))`** en la definición de tabla; usar índice de expresión `create unique index ... on t (user_id, lower(nombre))`.
 - **`returning *, (xmax = 0) into v_prod, v_nuevo` no compila** ("record variable cannot be part of multiple-item INTO list"). Para detectar insert-vs-update, hacer select-then-insert/update separados.
+
+## 2026-09-28 — Supabase JS: `.neq()` no matchea NULL
+En la Edge Function de push, `.neq("ultimo_aviso", hoy)` nunca actualizaba filas con `ultimo_aviso` NULL porque en SQL `NULL != valor` es NULL (no TRUE). La primera notificación de cada recordatorio nunca se marcaba como enviada. Fix: `.or("ultimo_aviso.neq.HOY,ultimo_aviso.is.null")`. Regla: toda condición de "distinto de" sobre una columna anulable necesita la rama `.is.null` explícita.
+
+## 2026-09-28 — El cierre de mes se calcula en el cliente, no en un RPC
+`rpc_fin_cierre_mes` existe en la migración 0024 como opción server-side, pero `lib/finanzas/control.ts` calcula el cierre en el cliente desde `fin_movimientos` (saldos calculados, no almacenados — decisión de la suite). No hay duplicación de lógica: el RPC quedó como respaldo; la UI usa el cálculo local.
+
+## 2026-09-28 — Pagos/abonos/aportes de Control van por RPC con clave estable
+El primer borrador del cliente hacía movimiento + update como pasos sueltos (no atómico, clave aleatoria). La versión final llama a los RPC transaccionales (`rpc_fin_recordatorio_pagar`, `rpc_fin_deuda_abonar`, `rpc_fin_meta_aportar`) con `clave_evento` determinista: reintentar no duplica el movimiento ni el abonado. Patrón a repetir en todo módulo nuevo con efectos financieros.

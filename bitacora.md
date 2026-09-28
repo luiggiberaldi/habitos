@@ -473,3 +473,30 @@
 - tsc limpio, ESLint limpio, build limpio, grep de reglas UI limpio (sin `rounded-none`, `<select>`, `alert`).
 
 **Pendiente (no verificado):** verificación visual de `/mercado` en el teléfono de luigi; compra real en USDT nunca probada.
+
+## 2026-09-28 — Fase 3 Control: recordatorios, presupuestos, deudas, metas, cierre + UI + WhatsApp
+
+**Qué cambió:**
+- `supabase/migrations/0024_control.sql` (aplicada 2026-09-28, HTTP 201 vía Management API): tablas `fin_recordatorios`, `fin_presupuestos`, `fin_deudas`, `fin_metas`, `fin_metas_aportes`; helpers `fin_convertir`, `fin_proximo_vencimiento` (incluye último día del mes); RPCs con alcance de hogar + idempotencia por `clave_evento`:
+  - recordatorios: `rpc_fin_recordatorio_upsert/eliminar`, `rpc_fin_recordatorios` (listado con próximo vencimiento y estado), `rpc_fin_recordatorio_pagar` (crea egreso/ingreso idempotente + reprograma), `rpc_fin_recordatorio_pausar`;
+  - presupuestos: `rpc_fin_presupuesto_upsert/eliminar`, `rpc_fin_presupuestos` (gastado, pct, alerta ok/aviso/limite), `rpc_fin_presupuesto_copiar`;
+  - deudas: `rpc_fin_deuda_upsert/eliminar`, `rpc_fin_deudas` (pendiente), `rpc_fin_deuda_abonar` (egreso o ingreso según tipo, marca saldada);
+  - metas: `rpc_fin_meta_upsert/eliminar`, `rpc_fin_metas` (aportado, pct), `rpc_fin_meta_aportar` (egreso de ahorro opcional con cuenta);
+  - `rpc_fin_cierre_mes` (totales USD, por categoría, mes anterior).
+- `supabase/migrations/0025_fin_recordatorios_push.sql` (aplicada, HTTP 201): `fin_recordatorios.ultimo_aviso` para dedupe diario de pushes.
+- `supabase/functions/push-notifications/index.ts` (v13 desplegada): pase financiero — avisa N días antes del vencimiento, insiste diariamente si vence, distingue "Pago próximo"/"Cobro próximo", abre `/control`, sin emojis. Bug corregido: el dedupe usaba `.neq("ultimo_aviso", hoy)` y en SQL `NULL != fecha` es NULL → la primera notificación nunca se marcaba; ahora `.or("ultimo_aviso.neq.HOY,ultimo_aviso.is.null")`.
+- `lib/finanzas/control.ts` (nuevo): cliente RLS + transacciones — pagar/abonar/aportar llaman al RPC con clave estable (idempotente), NO movimiento+update sueltos desde el navegador (eso habría sido no atómico).
+- `app/control/page.tsx` (nuevo, ~1500 líneas): 5 pestañas (Pagos, Presupuestos, Deudas, Metas, Cierre), modales propios redondeados, Select propio, foco de una sola línea, iconos SVG propios, sin `alert/confirm/prompt`; formulario y listado de cada entidad, marcar pagado/cobrado, copiar presupuesto al mes siguiente, barras de progreso, cierre con comparativa vs mes anterior.
+- Tarjeta "Control" en el hub (`app/page.tsx`) con IconCampana.
+- `scripts/whatsapp-control.mjs` (nuevo) + prefijo `control|ctrl` en `whatsapp-router.mjs`: intenciones `pagar <nombre>` (fuzzy, pregunta si hay varios), `estado`, `deudas`, `presupuestos`, `ayuda`. Regla de nunca confirmar sin ejecutar.
+
+**Por qué:** Fase 3 del roadmap — el dinero se maneja solo por defecto.
+
+**Verificación (real, 2026-09-28):**
+- Migraciones 0024/0025 verificadas en PostgreSQL remoto: 5 tablas existen, `ultimo_aviso` existe, RPCs `rpc_fin_recordatorio_pagar`, `rpc_fin_deuda_abonar`, `rpc_fin_meta_aportar`, `rpc_fin_presupuesto_copiar`, `rpc_fin_cierre_mes` existen.
+- Push real: recordatorio de prueba venciendo hoy (día 27) → invocación de la función devolvió `financieros:1`; `ultimo_aviso` marcado 2026-09-27; segunda invocación → `financieros:0` (dedupe OK). Entrega física en el teléfono de luigi: NO confirmada (pendiente).
+- WhatsApp real: `control pagué internet` → `pagado`, egreso USD 30 creado, reprogramado al 2026-10-27; `control estado` → OK.
+- tsc limpio, ESLint limpio, `npm run build` limpio con ruta `/control` generada, grep de reglas UI limpio (sin `rounded-none`, `<select>` nativo, `alert`).
+- Datos de prueba eliminados (verificado: 0 recordatorios, 0 cuentas, 0 movimientos para el UUID de luigi).
+
+**Pendiente (no verificado):** verificación visual de `/control` en el teléfono de luigi; entrega física del push financiero; compra real en USDT nunca probada.

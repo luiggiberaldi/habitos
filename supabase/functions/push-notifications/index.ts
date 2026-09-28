@@ -540,6 +540,185 @@ async function enviarPush(
   }
 }
 
+/* ── Fase 3 (Control): avisos de recordatorios de pago ────────────────────────
+ * Replica de public.fin_proximo_vencimiento en JS. Para cada recordatorio
+ * activo: si el próximo vencimiento cae dentro de la ventana de aviso
+ * (dias_aviso) o ya venció, y no se avisó hoy (ultimo_aviso), se envía push.
+ * Al enviar se marca ultimo_aviso = hoy → máximo un aviso por día.
+ */
+interface FinRecordatorioDebido {
+  id: string;
+  user_id: string;
+  nombre: string;
+  tipo: string;
+  monto: number;
+  moneda: string;
+  proximo: string;
+  diasRestantes: number;
+  hoy: string;
+}
+
+function proximoVencimientoFin(diaMes: number, ultimoPago: string | null, hoy: string): string {
+  const diasEnMes = (ymd: string) => {
+    const [y, m] = ymd.split("-").map(Number);
+    return new Date(Date.UTC(y, m, 0)).getUTCDate();
+  };
+  const candDe = (ymd: string) => {
+    const dim = diasEnMes(ymd);
+    const d = Math.min(diaMes, dim);
+    return `${ymd.slice(0, 8)}${String(d).padStart(2, "0")}`;
+  };
+  let cand = candDe(hoy);
+  if (ultimoPago && ultimoPago >= cand) {
+    const [y, m] = hoy.split("-").map(Number);
+    const nm = m === 12 ? 1 : m + 1;
+    const ny = m === 12 ? y + 1 : y;
+    cand = candDe(`${ny}-${String(nm).padStart(2, "0")}-01`);
+  }
+  return cand;
+}
+
+function diasEntre(a: string, b: string): number {
+  return Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 86_400_000);
+}
+
+async function calcularFinancierosDebidos(): Promise<FinRecordatorioDebido[]> {
+  const tzPorUsuario = new Map<string, string>();
+  for (let from = 0; ; from += 1000) {
+    const { data: tzRows, error: tzError } = await supabase
+      .from("push_subscriptions")
+      .select("user_id, timezone")
+      .order("user_id")
+      .range(from, from + 999);
+    if (tzError) {
+      console.error("Error leyendo timezones (financieros):", tzError.message);
+      break;
+    }
+    for (const r of tzRows ?? []) {
+      const row = r as { user_id: string; timezone?: string | null };
+      if (row.user_id && !tzPorUsuario.has(row.user_id)) {
+        tzPorUsuario.set(row.user_id, row.timezone || DEFAULT_TIMEZONE);
+      }
+    }
+    if (!tzRows || tzRows.length < 1000) break;
+  }
+
+  const debidos: FinRecordatorioDebido[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("fin_recordatorios")
+      .select("id, user_id, nombre, tipo, monto, moneda, dia_mes, dias_aviso, ultimo_pago, ultimo_aviso")
+      .eq("activo", true)
+      .order("user_id")
+      .range(from, from + 999);
+    if (error) {
+      console.error("Error leyendo fin_recordatorios:", error.message);
+      break;
+    }
+    for (const r of data ?? []) {
+      const row = r as {
+        id: string; user_id: string; nombre: string; tipo: string;
+        monto: number; moneda: string; dia_mes: number; dias_aviso: number;
+        ultimo_pago: string | null; ultimo_aviso: string | null;
+      };
+      const hoy = ahoraLocal(tzPorUsuario.get(row.user_id) || DEFAULT_TIMEZONE).fecha;
+      const proximo = proximoVencimientoFin(row.dia_mes, row.ultimo_pago, hoy);
+      const diasRestantes = diasEntre(hoy, proximo);
+      if (diasRestantes <= row.dias_aviso && row.ultimo_aviso !== hoy) {
+        debidos.push({
+          id: row.id, user_id: row.user_id, nombre: row.nombre, tipo: row.tipo,
+          monto: Number(row.monto), moneda: row.moneda, proximo, diasRestantes, hoy,
+        });
+      }
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return debidos;
+}
+
+function formatearMontoFin(monto: number, moneda: string): string {
+  try {
+    return new Intl.NumberFormat("es-VE", {
+      style: "currency", currency: moneda, maximumFractionDigits: 2,
+    }).format(monto);
+  } catch {
+    return `${monto} ${moneda}`;
+  }
+}
+
+async function enviarFinancieros(debidos: FinRecordatorioDebido[]): Promise<number> {
+  if (debidos.length === 0) return 0;
+  const userIds = [...new Set(debidos.map((d) => d.user_id))];
+  const { data: subs, error: subError } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, user_id, p256dh, auth")
+    .in("user_id", userIds);
+  if (subError) {
+    console.error("Error leyendo suscripciones (financieros):", subError.message);
+    return 0;
+  }
+  const porUsuario = new Map<string, typeof subs>();
+  for (const s of subs ?? []) {
+    const list = porUsuario.get(s.user_id) ?? [];
+    list.push(s);
+    porUsuario.set(s.user_id, list);
+  }
+
+  let enviados = 0;
+  for (const d of debidos) {
+    const userSubs = porUsuario.get(d.user_id) ?? [];
+    if (userSubs.length === 0) continue;
+    const cuando = d.diasRestantes < 0
+      ? `Venció el ${d.proximo}. Márcalo como pagado en la app.`
+      : d.diasRestantes === 0
+        ? `Vence hoy (${formatearMontoFin(d.monto, d.moneda)}).`
+        : `Vence en ${d.diasRestantes} día${d.diasRestantes === 1 ? "" : "s"} (${formatearMontoFin(d.monto, d.moneda)}).`;
+    const payload = {
+      title: `${d.tipo === "ingreso" ? "Cobro" : "Pago"} próximo: ${d.nombre}`,
+      body: cuando,
+      data: {
+        habitId: "",
+        momentId: "",
+        perfilId: null,
+        url: "/control",
+        fecha: "",
+        modulo: "finanzas",
+        recordatorioId: d.id,
+      },
+    };
+    let exito = false;
+    for (const sub of userSubs) {
+      if (
+        await enviarPush(
+          {
+            endpoint: sub.endpoint,
+            user_id: sub.user_id,
+            perfil_id: null,
+            p256dh: (sub as { p256dh?: string | null }).p256dh ?? null,
+            auth: (sub as { auth?: string | null }).auth ?? null,
+          },
+          payload,
+        )
+      ) {
+        exito = true;
+        break;
+      }
+    }
+    if (!exito) continue;
+    enviados++;
+    // Dedupe diario: marca ultimo_aviso = hoy (zona del usuario) solo si sigue
+    // sin marcar (otro run del mismo minuto no lo pisa). OJO: ultimo_aviso
+    // puede ser NULL y `null != fecha` es NULL en SQL → hay que incluirlo.
+    const { error: upErr } = await supabase
+      .from("fin_recordatorios")
+      .update({ ultimo_aviso: d.hoy })
+      .eq("id", d.id)
+      .or(`ultimo_aviso.neq.${d.hoy},ultimo_aviso.is.null`);
+    if (upErr) console.error("Error marcando ultimo_aviso:", upErr.message);
+  }
+  return enviados;
+}
+
 async function run(req: Request): Promise<Response> {
   // P1.1: fail-closed. Solo se acepta x-cron-secret; sin CRON_SECRET
   // configurado se rechaza todo (la función nunca corre abierta).
@@ -614,8 +793,12 @@ async function run(req: Request): Promise<Response> {
   const genericosDebidos = await calcularGenericosDebidos();
   const sentGenericos = await enviarGenericos(genericosDebidos);
 
+  // Pase Fase 3: avisos de recordatorios de pago (fin_recordatorios).
+  const financierosDebidos = await calcularFinancierosDebidos();
+  const sentFinancieros = await enviarFinancieros(financierosDebidos);
+
   return new Response(
-    JSON.stringify({ ok: true, sent, genericos: sentGenericos }),
+    JSON.stringify({ ok: true, sent, genericos: sentGenericos, financieros: sentFinancieros }),
     { headers: { "Content-Type": "application/json" } },
   );
 }

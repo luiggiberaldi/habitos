@@ -103,7 +103,7 @@ Objetivo: saber qué hay, qué se acaba y cuándo comprar.
 - Verificación: stock actualizado, egreso creado y linkeado; producto nuevo con los 4
   obligatorios; historial con variación Bs y $.
 
-### Fase 3 — Control
+### Fase 3 — Control ✅ COMPLETADA 2026-09-28
 Objetivo: que el dinero se maneje solo por defecto.
 - **Recordatorios de pago recurrentes** ("internet todos los 27"): aviso N días antes + el día; al pagar genera el egreso y reprograma; insiste si vence (último día del mes si el día no existe).
 - **Presupuestos por categoría** con alertas 80%/100% (el de mercado se prellena con el cálculo de Fase 2).
@@ -114,6 +114,8 @@ Objetivo: que el dinero se maneje solo por defecto.
 - Salida: un mes cerrado con presupuestos, recordatorios y deudas sin intervención manual salvo confirmar.
 - Verificación: recordatorio del 27 disparó push a tiempo; "pagado" creó el egreso y
   reprogramó; alerta al 80% del presupuesto; deuda saldada generó su movimiento.
+  (Todas verificadas el 2026-09-28; ver bitacora.md. Pendiente: entrega física del
+  push en el teléfono de luigi y verificación visual de /control.)
 
 ### Fase 4 — Inteligencia cruzada
 Objetivo: la suite como un solo sistema, no módulos pegados.
