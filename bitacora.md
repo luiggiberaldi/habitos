@@ -853,3 +853,8 @@ luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en
 - `lib/core/ui/icons.tsx`: `IconTendenciaSube`, `IconTendenciaBaja` (estilo feather, stroke 1.8).
 - `components/TarjetaTasas.tsx`: botón "Ver historial de tasas" que despliega la sección.
 - tsc/eslint limpios, `npm run build` OK. Pendiente: autorización de luigi para commit+push+deploy.
+
+## 2026-09-28 — Deploy historial de tasas + fix arroz fantasma
+- Commits 407d3b41 (historial + fix coach) y 314cae95 (tasas visibles: BCV/Euro/USDT, sin paralelo) pusheados a master y desplegados con `vercel --prod`.
+- https://habitos-amber.vercel.app/ → 200.
+- Regla confirmada por luigi: el paralelo es interno (Finanzas lo usa para VES→USD) y no se muestra en UI; visibles: BCV, Euro, USDT.
