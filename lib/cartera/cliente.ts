@@ -186,6 +186,36 @@ export async function desactivarProducto(id: string): Promise<void> {
   lanzarSiHayError(error, "No se pudo desactivar el producto");
 }
 
+export async function actualizarProducto(id: string, input: NuevoProducto): Promise<void> {
+  const supabase = supabaseOk();
+  const userId = await usuario();
+  const nombre = input.nombre.trim();
+  if (!nombre) throw new Error("El producto necesita un nombre");
+  if (!(input.precioVenta > 0)) throw new Error("El precio de venta debe ser mayor a 0");
+  const { error } = await supabase.rpc("rpc_cat_producto_actualizar", {
+    p_user_id: userId,
+    p_id: id,
+    p_nombre: nombre,
+    p_unidad: input.unidad,
+    p_categoria: input.categoria.trim() || "General",
+    p_precio_venta: input.precioVenta,
+    p_moneda: input.moneda,
+    p_costo: input.costo && input.costo > 0 ? input.costo : null,
+    p_notas: input.notas.trim() || null,
+  });
+  lanzarSiHayError(error, "No se pudo actualizar el producto");
+}
+
+export async function eliminarProducto(id: string): Promise<void> {
+  const supabase = supabaseOk();
+  const userId = await usuario();
+  const { error } = await supabase.rpc("rpc_cat_producto_eliminar", {
+    p_user_id: userId,
+    p_id: id,
+  });
+  lanzarSiHayError(error, "No se pudo borrar el producto");
+}
+
 /* ── Clientes ── */
 
 export async function listarClientes(): Promise<ClienteCartera[]> {

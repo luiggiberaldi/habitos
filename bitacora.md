@@ -2,6 +2,14 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-28 (Catálogo: editar y borrar productos — DESPLEGADO a producción)
+
+- luigi (viendo captura del Catálogo): "añade aca un boton para editar y borrar productos del catalogo".
+- **Migración 0033_catalogo_editar_borrar.sql** (aplicada en Supabase, RPC probados en vivo): `rpc_cat_producto_actualizar` (por id: nombre/unidad/categoría/precio/moneda/costo/notas; mismas validaciones que el upsert) y `rpc_cat_producto_eliminar` (borrado duro; sin FKs hacia cat_productos, los recibos guardan su propia copia). Ambos con el mismo control de propiedad que desactivar (propio o miembro del hogar) y grants anon/authenticated.
+- lib/cartera/cliente.ts: `actualizarProducto(id, datos)`, `eliminarProducto(id)`.
+- components/cartera/CatalogoTab.tsx: `FormProducto` ahora acepta `producto?` (modo edición: campos precargados con formato es-VE, título "Editar producto", guarda vía `actualizarProducto`); `FilaProducto` muestra **Editar** (abre el formulario inline), **Borrar** (confirmación en dos pasos "¿Borrar X? No se puede deshacer") y **Desactivar producto** (como antes).
+- Validación: tsc limpio; E2E en vivo con producto temporal (crear → editar → borrar, verificado en tabla); push a GitHub ok; deploy a habitos-amber.
+
 ## 2026-09-28 (Rango de fechas en tarjeta Sueño + fixes del puente WhatsApp — DESPLEGADO a producción)
 
 - luigi (viendo captura de la tarjeta): "añade aca el periodo de fecha que esta activo en el sueño".

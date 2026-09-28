@@ -6,7 +6,9 @@ import { IconPlus, IconX, IconCheck, IconAlerta } from "../../lib/core/ui/icons"
 import {
   listarProductos,
   guardarProducto,
+  actualizarProducto,
   desactivarProducto,
+  eliminarProducto,
   formatoMonto,
   UNIDADES_CATALOGO,
   MONEDAS_CARTERA,
@@ -24,16 +26,20 @@ function parseNum(v: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/* ════════════════ Formulario nuevo producto ════════════════ */
+/* ════════════════ Formulario nuevo/editar producto ════════════════ */
 
-function FormProducto({ onListo, onCancelar }: { onListo: () => void; onCancelar: () => void }) {
-  const [nombre, setNombre] = useState("");
-  const [unidad, setUnidad] = useState<string>("und");
-  const [categoria, setCategoria] = useState("");
-  const [precio, setPrecio] = useState("");
-  const [moneda, setMoneda] = useState<MonedaCartera>("USD");
-  const [costo, setCosto] = useState("");
-  const [notas, setNotas] = useState("");
+const numAEntrada = (n: number) =>
+  n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function FormProducto({ producto, onListo, onCancelar }: { producto?: ProductoCatalogo; onListo: () => void; onCancelar: () => void }) {
+  const editando = !!producto;
+  const [nombre, setNombre] = useState(producto?.nombre ?? "");
+  const [unidad, setUnidad] = useState<string>(producto?.unidad ?? "und");
+  const [categoria, setCategoria] = useState(producto?.categoria ?? "");
+  const [precio, setPrecio] = useState(producto ? numAEntrada(Number(producto.precio_venta)) : "");
+  const [moneda, setMoneda] = useState<MonedaCartera>(producto?.moneda ?? "USD");
+  const [costo, setCosto] = useState(producto?.costo != null ? numAEntrada(Number(producto.costo)) : "");
+  const [notas, setNotas] = useState(producto?.notas ?? "");
   const [paso, setPaso] = useState<"form" | "confirmar">("form");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +51,7 @@ function FormProducto({ onListo, onCancelar }: { onListo: () => void; onCancelar
     setError(null);
     setGuardando(true);
     try {
-      await guardarProducto({
+      const datos = {
         nombre,
         unidad,
         categoria: categoria || "General",
@@ -53,7 +59,9 @@ function FormProducto({ onListo, onCancelar }: { onListo: () => void; onCancelar
         moneda,
         costo: costoNum > 0 ? costoNum : null,
         notas,
-      });
+      };
+      if (editando) await actualizarProducto(producto.id, datos);
+      else await guardarProducto(datos);
       onListo();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar");
@@ -111,7 +119,7 @@ function FormProducto({ onListo, onCancelar }: { onListo: () => void; onCancelar
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-foreground">Nuevo producto</h3>
+        <h3 className="text-sm font-bold text-foreground">{editando ? "Editar producto" : "Nuevo producto"}</h3>
         <button type="button" aria-label="Cerrar" onClick={onCancelar} className="rounded-full p-1.5 text-muted hover:text-foreground">
           <IconX className="h-4 w-4" />
         </button>
@@ -169,7 +177,9 @@ function FormProducto({ onListo, onCancelar }: { onListo: () => void; onCancelar
 
 function FilaProducto({ producto, onCambio }: { producto: ProductoCatalogo; onCambio: () => void }) {
   const [expandido, setExpandido] = useState(false);
+  const [editando, setEditando] = useState(false);
   const [confirmarDesactivar, setConfirmarDesactivar] = useState(false);
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -182,6 +192,20 @@ function FilaProducto({ producto, onCambio }: { producto: ProductoCatalogo; onCa
       onCambio();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo desactivar");
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
+  const eliminar = async () => {
+    setError(null);
+    setTrabajando(true);
+    try {
+      await eliminarProducto(producto.id);
+      setConfirmarEliminar(false);
+      onCambio();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo borrar");
     } finally {
       setTrabajando(false);
     }
@@ -233,25 +257,58 @@ function FilaProducto({ producto, onCambio }: { producto: ProductoCatalogo; onCa
           {error && (
             <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700 dark:bg-red-900/30 dark:text-red-300">{error}</p>
           )}
-          <div className="mt-2">
-            {confirmarDesactivar ? (
-              <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 dark:bg-red-900/20">
-                <p className="flex-1 text-xs font-bold text-red-700 dark:text-red-300">
-                  ¿Desactivar {producto.nombre}?
-                </p>
-                <button type="button" disabled={trabajando} onClick={desactivar} className="rounded-xl bg-red-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60">
-                  Sí
-                </button>
-                <button type="button" onClick={() => setConfirmarDesactivar(false)} className="rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-bold text-foreground">
-                  No
-                </button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setConfirmarDesactivar(true)} className="text-xs font-bold text-muted hover:text-red-600">
-                Desactivar producto
+          {editando ? (
+            <div className="mt-2">
+              <FormProducto
+                producto={producto}
+                onListo={() => {
+                  setEditando(false);
+                  onCambio();
+                }}
+                onCancelar={() => setEditando(false)}
+              />
+            </div>
+          ) : (
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <button type="button" onClick={() => setEditando(true)} className="text-xs font-bold text-accent hover:opacity-80">
+                Editar
               </button>
-            )}
-          </div>
+              {confirmarEliminar ? (
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 dark:bg-red-900/20">
+                  <p className="text-xs font-bold text-red-700 dark:text-red-300">
+                    ¿Borrar {producto.nombre}? No se puede deshacer.
+                  </p>
+                  <button type="button" disabled={trabajando} onClick={eliminar} className="rounded-xl bg-red-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60">
+                    Sí, borrar
+                  </button>
+                  <button type="button" onClick={() => setConfirmarEliminar(false)} className="rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-bold text-foreground">
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setConfirmarEliminar(true)} className="text-xs font-bold text-muted hover:text-red-600">
+                  Borrar
+                </button>
+              )}
+              {confirmarDesactivar ? (
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 dark:bg-red-900/20">
+                  <p className="flex-1 text-xs font-bold text-red-700 dark:text-red-300">
+                    ¿Desactivar {producto.nombre}?
+                  </p>
+                  <button type="button" disabled={trabajando} onClick={desactivar} className="rounded-xl bg-red-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60">
+                    Sí
+                  </button>
+                  <button type="button" onClick={() => setConfirmarDesactivar(false)} className="rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-bold text-foreground">
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setConfirmarDesactivar(true)} className="text-xs font-bold text-muted hover:text-red-600">
+                  Desactivar producto
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </li>
