@@ -17,8 +17,10 @@
 ## 2. UI (obligatorias — ver `docs/reglas-ui.md`)
 
 1. **Todo redondeado.** `rounded-none` / `border-radius: 0` prohibidos.
-2. **Solo iconos SVG propios** (`lib/icons.tsx`). Cero emojis como iconos, ni en pushes.
+2. **Solo iconos SVG propios** (`lib/core/ui/icons`). Cero emojis como iconos, ni en pushes.
 3. **Nada de `alert()` / `confirm()` / `prompt()`** del navegador. Componentes propios, en español.
+4. **Sin `<select>` nativos.** Siempre el componente Select propio (botón+listbox redondeado dibujado por la app); el desplegable nativo lo dibuja el SO y sale cuadrado.
+5. **Inputs de una sola línea.** El foco se indica con una sola línea (el borde cambia de color), nunca borde + outline/anillo superpuestos.
 
 Verificación:
 ```bash

@@ -218,10 +218,10 @@ body {
 }
 .input-field:focus {
   border-color: var(--accent);
-  /* Anillo pegado al borde: una sola línea ancha en vez de borde + outline. */
-  box-shadow: 0 0 0 2px var(--accent);
+  /* Sin box-shadow: el foco es UNA sola línea (el borde), nunca borde + anillo. */
+  box-shadow: none;
 }
-/* El anillo propio ya indica el foco; el outline global queda desactivado aquí. */
+/* El borde propio ya indica el foco; el outline global queda desactivado aquí. */
 .input-field:focus-visible { outline: none; }
 
 /* Foco visible por teclado en toda la app (P2.10). Se declara después de
@@ -229,6 +229,14 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Los campos de formulario indican el foco con su propio borde o anillo
+   (una sola línea): el anillo global NO se les suma encima. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
 }
 
 /* Mantiene contraste y colores del tema en campos autocompletados por Chromium. */

@@ -15,6 +15,7 @@ import {
   IconCheck,
   IconPlus,
 } from "../lib/core/ui/icons";
+import { Select } from "./core/ui/Select";
 
 function formatoFechaHora(iso: string): string {
   const d = new Date(iso);
@@ -172,17 +173,16 @@ export default function GestionRecordatorios() {
           </label>
           <label className="block">
             <span className="text-xs font-bold text-muted">Repetición</span>
-            <select
+            <Select
               value={recurrencia}
-              onChange={(e) => setRecurrencia(e.target.value as "" | ReglaRecurrencia)}
-              className="mt-1 w-full rounded-xl border border-transparent bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-            >
-              {RECURRENCIAS.map((r) => (
-                <option key={r.etiqueta} value={r.valor}>
-                  {r.etiqueta}
-                </option>
-              ))}
-            </select>
+              options={RECURRENCIAS.map((r) => ({
+                value: r.valor,
+                label: r.etiqueta,
+              }))}
+              onChange={(v) => setRecurrencia(v as "" | ReglaRecurrencia)}
+              ariaLabel="Repetición"
+              className="mt-1"
+            />
           </label>
         </div>
         <button

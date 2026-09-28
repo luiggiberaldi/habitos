@@ -347,3 +347,14 @@
 **Por qué:** pedido de luigi (screenshot de la tarjeta).
 
 **Verificación:** tsc/eslint limpios; endpoint de DolarAPI verificado por curl (`promedio` 972.64…); función v3 desplegada (201 ACTIVE); E2E pendiente vía `/api/tasas?refresh=1` en producción tras el deploy.
+
+## 2026-09-28 — Reglas UI: sin dropdowns nativos ni doble línea en inputs
+
+**Qué cambió:**
+- `docs/reglas-ui.md` reescrito (estaba desactualizado y aún bendecía el `<select>` nativo): regla 2 "Sin dropdowns nativos" (siempre el Select propio) y regla 3 "Inputs de una sola línea" (el foco es una sola línea, nunca borde + outline/anillo superpuestos). `docs/REGLAS.md` §2 ahora lista las 5 reglas.
+- `components/GestionRecordatorios.tsx`: el `<select>` de Repetición → componente `Select` propio (era el único nativo que quedaba en app/components).
+- `app/globals.css`: `.input-field:focus` sin box-shadow (solo el borde cambia de color); el anillo global `:focus-visible` ya no se aplica a `input/textarea/select` (esos campos indican el foco con su borde; antes el anillo se sumaba al `focus:border-accent` y se veía la "doble línea" del screenshot).
+
+**Por qué:** pedido de luigi con screenshot del dropdown cuadrado de Repetición.
+
+**Verificación:** `grep "<select"` en app/components → vacío; tsc limpio; eslint limpio en el componente.
