@@ -644,3 +644,23 @@
 **Por qué:** luigi pidió respaldo de la carpeta de Senda en Drive y que se actualice cada vez que cambie algo. Además del cron, yo mismo lo refresco al final de cada sesión donde toquemos Senda.
 
 **Verificación (real, 2026-09-27):** primera subida OK — `senda-respaldo.zip`, 1.5 MB, verificado en Drive con fecha de modificación actual. Cron creado, próxima corrida en ~6h.
+
+## 2026-09-27 — Recibos: corrección de luigi (registro en app + diseño PDF de recibera)
+
+**Pedido de luigi:** cuando pida un recibo por WhatsApp debe quedar registrado en la app, el PDF debe sacarse de la app, y el PDF debe tener el mismo diseño del repo recibera.
+
+**Verificación E2E real (2026-09-27, vía router como el agente del chat):**
+- `recibo para Cliente Prueba WA: servicio de prueba 100, emisor: Taller Prueba` → resumen → `sí` → creado `SEN-202609-003` (id e85e937e-…).
+- El recibo aparece en `rpc_recibo_listar` (la misma RPC que usa la pestaña Recibos de la app): queda registrado en la app. ✅
+- `recibo pdf SEN-202609-003` → PDF generado desde la fila de la app (`rpc_recibo_ver` + motor real), base64 válido (`%PDF-`, 47 KB). ✅
+
+**Bugs encontrados y corregidos en `scripts/whatsapp-recibos.mjs`:**
+1. La coma antes de `emisor:` rompía el precio: "servicio de prueba 100," no matcheaba el regex de concepto (exige terminar en número) y quedaba sin precio. Fix: se recorta puntuación final (`[,;:]`) de cada concepto antes de parsear.
+2. Al continuar un borrador, los ítems se duplicaban en cada mensaje (merge sin dedupe). Fix: no se agrega un ítem idéntico (misma descripción normalizada + precio + cantidad) al que ya está.
+3. Borrador fantasma: `~/.config/habitos/recibo-borrador.json` tenía un borrador viejo de las pruebas mock de la sesión anterior (con un ítem "ayuda") que contaminaba los parseos nuevos. Eliminado.
+
+**Diseño del PDF (`lib/recibos/pdf/builder.ts`):** el port era fiel línea por línea (los 7 temas originales están byte-idénticos en `shared.ts`), pero el tema por defecto se había inventado como `"senda"`. Vuelto al `"navy"` de recibera (banda azul marino #1A237E + dorado), que es el diseño del repositorio. El tema `senda` (flama) queda disponible como opción. Verificado visualmente renderizando el PDF con pdftoppm: banda superior navy, tabla de conceptos, paneles de pagos/resumen, footer — igual que recibera, con marca SENDA.
+
+**Limpieza:** recibo de prueba `SEN-202609-003` eliminado con SQL directo (número 003 de 202609 consumido por la prueba, documentado). tsc sin errores en archivos de recibos (los 6 errores restantes son de `components/cartera/`, Fase 6 en curso).
+
+**Pendiente (no verificado):** que el agente del chat de WhatsApp enrute el "sí" sin prefijo al script de recibos cuando hay borrador pendiente (el router lo mandaría a hábitos); verificación visual del PDF en el teléfono de luigi.

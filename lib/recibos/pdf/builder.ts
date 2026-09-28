@@ -65,7 +65,7 @@ export function buildReceiptPdf(
   const totals = computeTotals(receipt);
   const cursor: Cursor = { y: 0 };
   const bsRate = options.bsRate ?? null;
-  const theme = options.theme ?? "senda";
+  const theme = options.theme ?? "navy";
   const layout = options.layout ?? "classic";
 
   const themeColors = getThemeColors(theme);

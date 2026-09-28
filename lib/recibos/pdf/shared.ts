@@ -66,12 +66,12 @@ export const THEME_PALETTES: Record<PdfThemeName, ThemeColors> = {
     badgeBg: [241, 245, 249],     // Slate 100 (#F1F5F9)
   },
   senda: {
-    primary: [12, 53, 68],        // Petróleo Senda (#0C3544)
-    primaryDeep: [7, 34, 44],     // Petróleo profundo
-    primaryLight: [224, 238, 242],// Tinte petróleo suave
-    accent: [76, 191, 154],       // Menta Senda (#4CBF9A)
-    accentLight: [220, 245, 236], // Tinte menta suave
-    badgeBg: [220, 245, 236],
+    primary: [206, 63, 20],       // Flama ember-600 (#CE3F14)
+    primaryDeep: [154, 44, 12],   // Flama profunda
+    primaryLight: [254, 237, 227],// Tinte flama suave
+    accent: [248, 136, 8],        // Flama blaze (#F88808)
+    accentLight: [255, 244, 214], // Tinte dorado suave (#FFF4D6)
+    badgeBg: [255, 244, 214],
   },
   software: {
     primary: [15, 16, 38],        // Dark violet-indigo (#0F1026)

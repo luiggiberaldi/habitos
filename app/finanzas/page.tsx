@@ -30,6 +30,8 @@ import {
 import { Select } from "../../components/core/ui/Select";
 import { DatosFinanzas } from "../../components/finanzas/DatosFinanzas";
 import { RecibosTab } from "../../components/recibos/RecibosTab";
+import { CarteraTab } from "../../components/cartera/CarteraTab";
+import { CatalogoTab } from "../../components/cartera/CatalogoTab";
 import { flameGradient } from "../../lib/core/ui/design-tokens";
 import {
   IconAlerta,
@@ -730,7 +732,7 @@ export default function Finanzas() {
   const [semana, setSemana] = useState<FinResumenDia[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"resumen" | "recibos" | "datos">("resumen");
+  const [tab, setTab] = useState<"resumen" | "recibos" | "cartera" | "catalogo" | "datos">("resumen");
 
   const recargar = useCallback(async () => {
     setError(null);
@@ -797,11 +799,13 @@ export default function Finanzas() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <Encabezado patrimonio={patrimonio} cuentas={cuentas} cargando={cargando} />
 
-      <div className="grid grid-cols-3 gap-2 rounded-2xl bg-surface p-1.5" role="tablist" aria-label="Secciones de Finanzas">
+      <div className="grid grid-cols-5 gap-1.5 rounded-2xl bg-surface p-1.5" role="tablist" aria-label="Secciones de Finanzas">
         {(
           [
             { id: "resumen", etiqueta: "Resumen" },
             { id: "recibos", etiqueta: "Recibos" },
+            { id: "cartera", etiqueta: "Cartera" },
+            { id: "catalogo", etiqueta: "Catálogo" },
             { id: "datos", etiqueta: "Datos" },
           ] as const
         ).map((t) => (
@@ -811,7 +815,7 @@ export default function Finanzas() {
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`min-w-0 rounded-xl px-2 py-2 text-center text-sm font-bold transition-colors ${
+            className={`min-w-0 rounded-xl px-1 py-2 text-center text-xs font-bold transition-colors sm:text-sm ${
               tab === t.id ? "bg-accent text-white" : "text-muted hover:text-foreground"
             }`}
           >
@@ -877,6 +881,10 @@ export default function Finanzas() {
         </>
         ) : tab === "recibos" ? (
         <RecibosTab />
+        ) : tab === "cartera" ? (
+        <CarteraTab />
+        ) : tab === "catalogo" ? (
+        <CatalogoTab />
         ) : (
         <DatosFinanzas patrimonio={patrimonio} />
       )}

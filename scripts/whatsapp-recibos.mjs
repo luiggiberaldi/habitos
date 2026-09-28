@@ -214,6 +214,7 @@ function parseCrear(texto) {
     const limpio = t
       .replace(/^(recibo|crea|crear|haz|nuevo)\s+/i, "")
       .replace(/^[:\-–—,]+\s*/, "")
+      .replace(/\s*[,;:]+$/, "")
       .trim();
     if (!limpio || /^(para|cliente|emisor)\b/i.test(limpio)) continue;
     let it = null;
@@ -748,7 +749,10 @@ try {
         sinPrecio.precio = it.precio;
         sinPrecio.cantidad = it.cantidad || sinPrecio.cantidad;
       } else if (it.precio > 0 || it.descripcion.length >= 3) {
-        d.items.push(it);
+        const duplicado = d.items.some(
+          (x) => norm(x.descripcion) === norm(it.descripcion) && (x.precio || 0) === (it.precio || 0) && (x.cantidad || 0) === (it.cantidad || 0)
+        );
+        if (!duplicado) d.items.push(it);
       }
     }
     if (parseado.notas && !d.notas) d.notas = parseado.notas;

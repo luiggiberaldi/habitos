@@ -4,7 +4,7 @@
 Estado: brainstorm cerrado el 2026-09-27 · reformulado el 2026-09-27 con decisiones de método. Nada construido todavía.
 
 Marca: `public/senda/logo.png` (wordmark) y `public/senda/icono.png` (icono app).
-Colores: petróleo `#0C3544` (primario), menta `#4CBF9A` (acento).
+Colores: paleta flama — ember `#F84818`, blaze `#F88808`, gold `#F8B808`, ember-600 `#CE3F14` (corrección de luigi 2026-09-28; el petróleo/menta quedó descartado).
 
 ---
 
@@ -59,7 +59,7 @@ senda/  (repo; directorio local conserva el nombre habitos por ahora)
 Objetivo: el núcleo compartido sobre el que se montan los módulos. Hábitos no cambia visualmente.
 
 1. **Rebrand + shell** (riesgo bajo): nombre Senda, iconos PWA desde `public/senda/`,
-   tokens `#0C3544`/`#4CBF9A`, hub "Hoy en Senda" + barra inferior. Rename del repo en GitHub.
+   tokens flama (`#F84818`/`#F88808`/`#F8B808`/`#CE3F14`), hub "Hoy en Senda" + barra inferior. Rename del repo en GitHub.
 2. **Extracción de `lib/core/`** (mecánica): sync, AuthGate, UI kit, logger, juego → núcleo
    compartido. Sin cambios de comportamiento; se verifica con smokes y en el teléfono de luigi.
    ✅ Completada 2026-09-28 (commit `c9a4b86`, desplegado a producción).
@@ -136,7 +136,7 @@ Objetivo: comprobantes de pago/cobro en PDF con el diseño de recibera
   + secuencia mensual atómica + RPCs (crear, listar, obtener, abonar, anular, duplicar).
   RLS dueño-o-hogar.
 - Motor PDF portado de recibera a `lib/recibos/pdf/` (builder + shared + cálculos + formato):
-  tema `senda` (petróleo #0C3544 + menta #4CBF9A), textos 100% configurables
+  tema `senda` (paleta flama: ember #F84818 + blaze #F88808, corrección de luigi 2026-09-28), textos 100% configurables
   (nada de SYNAPTICA quemado), logo Senda en base64. Deps: jspdf + jspdf-autotable.
 - Conversión a Bs con `fin_tasas` (BCV/paralelo) en vez del módulo rates de recibera.
 
@@ -171,6 +171,44 @@ Objetivo: comprobantes de pago/cobro en PDF con el diseño de recibera
    (reenviar "sí" no duplica el recibo).
 9. Diseño del PDF: se mantiene el de recibera; solo cambian marca, colores y textos.
 
+### Fase 6 — Catálogo comercial y cartera de clientes ✅ COMPLETADA 2026-09-28
+Objetivo (pedido de luigi 2026-09-28): catálogo de sus productos + registro de clientes,
+cada uno con su cartera para saber cuánto le deben o cuánto debe él.
+
+**Fase 6.1 — Fundación**
+- Migración 0031: `cat_productos` (id, user_id, hogar_id, nombre, unidad, categoria,
+  precio_venta, moneda, costo opcional, notas, activo, creado_por) — catálogo comercial,
+  separado de `mer_productos` (inventario de cocina de Fase 2).
+- `car_clientes` (id, user_id, hogar_id, nombre, tipo[cliente|proveedor|ambos], telefono,
+  email, notas, activo, creado_por).
+- `car_movimientos` (id, cliente_id, tipo[cargo|abono], concepto, monto, moneda, fecha,
+  recibo_id opcional → `fin_recibos`, creado_por). Sin soft-delete: la cartera es un libro
+  contable, los movimientos no se borran (se corrigen con movimiento inverso).
+- RPCs con auth dual (secreto o JWT): producto upsert/listar, cliente upsert/listar,
+  movimiento registrar, cartera resumen (saldos por moneda = cargos − abonos), cliente
+  desactivar. RLS dueño-o-hogar.
+
+**Fase 6.2 — Web**
+- Pestañas "Cartera" y "Catálogo" en /finanzas (Resumen | Recibos | Cartera | Catálogo | Datos).
+- Cartera: lista de clientes con saldo por moneda (verde = me deben, rojo = les debo),
+  detalle con movimientos y registrar cargo/abono con confirmación.
+- Catálogo: CRUD de productos con precio de venta y moneda, filtro por categoría, activar/desactivar.
+
+**Fase 6.3 — WhatsApp**
+- `scripts/whatsapp-cartera.mjs` + prefijos `cartera|cliente|producto` en el router.
+- Intenciones: `producto añadir <nombre> <precio>`, `productos`, `cliente añadir <nombre>`,
+  `clientes`, `cartera <cliente>` (saldo), `cartera cargo <cliente> <monto> <concepto>`,
+  `cartera abono <cliente> <monto>`, `cartera movimientos <cliente>`.
+- Resumen + confirmación explícita antes de crear cliente/producto o registrar movimiento.
+
+**Guardarraíles de Cartera**
+1. Nada se escribe sin resumen + confirmación explícita (web y WhatsApp).
+2. Monto > 0 siempre; moneda en USD/VES/COP/USDT.
+3. Los saldos se **calculan** (cargos − abonos por moneda), nunca se almacenan.
+4. Un cliente con movimientos no se elimina: se desactiva (el historial queda intacto).
+5. Positivo = me deben, negativo = les debo; el signo se muestra explícito, nunca ambiguo.
+6. Sin gamificación: Finanzas es serio, sin XP.
+
 ## 4. Modelo de datos (resumen)
 
 ```
@@ -188,6 +226,12 @@ fin_metas(id, hogar_id, nombre, objetivo, moneda, creada_por)
 fin_presupuestos(id, hogar_id, categoria_id, mes, monto, moneda)
 fin_recibos(id, hogar_id, numero[SEN-AAAAMM-XXX], estado, moneda, cliente_nombre,
             snapshot JSONB, total, total_pagado, saldo, creado_por)   ← Fase 5
+cat_productos(id, hogar_id, nombre, unidad, categoria, precio_venta, moneda,
+              costo?, notas, activo, creado_por)                     ← Fase 6 (catálogo comercial)
+car_clientes(id, hogar_id, nombre, tipo[cliente|proveedor|ambos], telefono,
+             email, notas, activo, creado_por)                        ← Fase 6
+car_movimientos(id, cliente_id, tipo[cargo|abono], concepto, monto, moneda,
+                fecha, recibo_id?, creado_por)                        ← Fase 6 (saldos calculados)
 
 mer_productos(id, hogar_id, nombre, unidad, categoria, precio_ref, creado_por)
 mer_lotes(id, producto_id, cantidad, unidad, fecha_compra, precio_total, moneda,
