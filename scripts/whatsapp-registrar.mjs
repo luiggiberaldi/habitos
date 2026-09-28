@@ -16,11 +16,9 @@
 // y NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local o env.
 // El usuario: --user-id o HABITOS_USER_ID.
 
-import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
 import { cargarLib, resolverPerfilId } from "./whatsapp-comun.mjs";
 
 // ── 0. Forzar zona horaria de luigi (madrugadas y todayKey dependen de hora local) ──
