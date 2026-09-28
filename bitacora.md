@@ -808,3 +808,7 @@ luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en
 - UI: sección "Historial de XP" en la pestaña Niveles con tarjetas Ganado/Perdido y lista con icono por motivo, fecha relativa y delta coloreado.
 - Verificado: tsc limpio, eslint 0 errores (1 warning preexistente), smoke-juego 122/122 (12 tests nuevos), smoke-sueno 59/59, smoke-p0 5/5, build OK.
 - Pendiente: commit, push y deploy (sin autorización).
+
+## 2026-09-28 — Deploy historial de XP
+- Commit 612503d3 pusheado a master y desplegado con `vercel --prod`.
+- https://habitos-amber.vercel.app/ → 200.
