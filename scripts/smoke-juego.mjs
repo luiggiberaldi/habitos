@@ -565,6 +565,65 @@ const sinLogrosNuevos = { logros: TODOS_LOS_LOGROS };
   check("logros de nivel usan el nivel efectivo", nuevosN.includes("nivel-5"));
 }
 
+// ── Historial de XP ──────────────────────────────────────────────────────
+{
+  const habit = mkHabit({ objetivo: 1 });
+  const st = mkState([habit], [], sinLogrosNuevos);
+  const r1 = s.registrarConJuego(st, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
+  const hist1 = r1.state.juego.historialXp;
+  check(
+    "registrar deja movimientos de registro + objetivo + cofre",
+    hist1.some((m) => m.motivo === "registro" && m.delta === 10 && m.detalle === "Leer") &&
+      hist1.some((m) => m.motivo === "objetivo" && m.delta === 5) &&
+      hist1.some((m) => m.motivo === "cofre" && m.delta > 0),
+  );
+  const suma = hist1.reduce((a, m) => a + m.delta, 0);
+  check("la suma del historial cuadra con el XP ganado", suma === r1.state.juego.xpTotal);
+  // Tap duplicado: sin movimientos nuevos.
+  const r2 = s.registrarConJuego(r1.state, "h1", "m1", hoy, `${hoy}T18:00:00.000Z`);
+  check("tap duplicado no agrega movimientos", r2.state.juego.historialXp.length === hist1.length);
+  // Deshacer: movimiento de revertido con el XP devuelto.
+  const u = s.deshacerConJuego(r1.state, `h1|m1|${hoy}`);
+  const rev = u.juego.historialXp.find((m) => m.motivo === "revertido");
+  check("deshacer deja movimiento revertido", !!rev && rev.delta === -15 && rev.detalle === "Leer");
+  // Reclamar logro: movimiento de logro.
+  const c = j.reclamarLogro(r1.state, "primer-habito");
+  check(
+    "reclamar logro deja movimiento",
+    c.state.juego.historialXp.some((m) => m.motivo === "logro" && m.delta === 10),
+  );
+  // Totales: ganado vs perdido.
+  const t = j.totalesHistorialXp(u.juego);
+  check("totales separan ganado y perdido", t.ganado > 0 && t.perdido === 15);
+  // Fusión: unión por id sin duplicados.
+  const f = j.fusionarJuego(r1.state.juego, u.juego);
+  const ids = f.historialXp.map((m) => m.id);
+  check("fusión une historiales sin duplicar ids", ids.length === new Set(ids).size);
+  check("fusión conserva el revertido del otro dispositivo", f.historialXp.some((m) => m.motivo === "revertido"));
+  // Backfill: el pasado queda como entrada "historial" (estimado).
+  const comps = [hace(2), hace(1)].map((f2) => mkCompletion("h1", "m1", f2));
+  const rb = j.reconciliarJuego(mkState([mkHabit()], comps, { xpTotal: 0, ...sinLogrosNuevos }));
+  const back = rb.juego.historialXp.find((m) => m.motivo === "historial");
+  check("backfill deja entrada de saldo anterior", !!back && back.delta === rb.juego.xpTotal);
+  const rb2 = j.reconciliarJuego(rb);
+  check("reconciliar dos veces no duplica el backfill", rb2 === rb);
+  // Sueño: marca puntual deja movimiento; olvido deja −10 con motivo.
+  const hSueno = mkHabit({ id: "hs", nombre: "Sueño", tipo: "sueno", momentos: [], horaLevantar: "06:00", horaAcostar: "22:00", objetivo: 2 });
+  const stS = mkState([hSueno], [], sinLogrosNuevos);
+  const rs = s.registrarSuenoConJuego(stS, "hs", "levantar", hoy, `${hoy}T06:05:00.000Z`);
+  check(
+    "sueño puntual deja movimiento de sueño",
+    rs.state.juego.historialXp.some((m) => m.motivo === "sueno" && m.detalle.includes("Me levanté")),
+  );
+  // Siembra de fallos antiguos: suenoFallos previos aparecen como movimientos.
+  const stF = mkState([hSueno], [], { ...sinLogrosNuevos, suenoFallos: [`levantar|${hace(1)}`], xpTotal: 0 });
+  const rf = j.reconciliarJuego(stF);
+  check(
+    "fallo de sueño antiguo se siembra en el historial",
+    rf.juego.historialXp.some((m) => m.motivo === "sueno-olvido" && m.delta === -10),
+  );
+}
+
 rmSync(outDir, { recursive: true, force: true });
 
 console.log(`\n${ok} OK, ${fail} fallos.`);

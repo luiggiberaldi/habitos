@@ -108,6 +108,34 @@ export interface DesafioSemanal {
  * merge entre dispositivos (game_state) converja sin conflictos: los
  * contadores usan máximo y las colecciones usan unión.
  */
+
+/** Motivo de un movimiento de XP en el historial. */
+export type MotivoXp =
+  | "registro" // marcar un hábito (+XP base)
+  | "objetivo" // bonus por cumplir el objetivo del día (+5)
+  | "desafio" // desafío semanal completado
+  | "cofre" // cofre del día completo
+  | "logro" // premio de logro reclamado
+  | "sueno" // marca de sueño por puntualidad (puede restar)
+  | "sueno-olvido" // −10 por marca de sueño sin hacer
+  | "revertido" // XP devuelto al deshacer un registro
+  | "historial"; // saldo estimado anterior al inicio del historial
+
+/** Un movimiento del historial de XP: cuánto, cuándo y por qué. */
+export interface MovimientoXp {
+  /** Id determinista para idempotencia entre dispositivos (p. ej. "reg:<eventId>"). */
+  id: string;
+  /** Epoch ms del movimiento. */
+  ts: number;
+  /** Fecha del movimiento (YYYY-MM-DD). */
+  fecha: string;
+  /** Positivo = ganado, negativo = perdido. */
+  delta: number;
+  motivo: MotivoXp;
+  /** Texto humano corto (p. ej. el nombre del hábito). */
+  detalle: string;
+}
+
 export interface JuegoState {
   /** XP acumulado de por vida (10 por registro + 5 bonus por objetivo). */
   xpTotal: number;
@@ -150,6 +178,13 @@ export interface JuegoState {
   diasCompletos: number;
   /** Nombre visible en la liga. */
   nombreLiga: string;
+  /**
+   * Historial de movimientos de XP (ganado/perdido + motivo), ordenado del
+   * más reciente al más antiguo, tope 200. Se fusiona por unión de ids
+   * entre dispositivos. El pasado anterior a este historial queda como una
+   * única entrada de motivo "historial" (estimado).
+   */
+  historialXp: MovimientoXp[];
   /** Marca ISO para last-write-wins de game_state en Supabase. */
   actualizadoEn: string;
 }

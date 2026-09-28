@@ -2,7 +2,7 @@ import type { AppState, CompletionEvent, Habit, MarcaSueno, Moment, Settings } f
 import { addDays, completadosPara, hhmmDeTimestamp, inicioSemana, todayKey } from "./dates";
 import { eventIdCantidad } from "../core/event-id";
 import { diaCompleto, objetivoEnFecha, PUNTOS_OBJETIVO_DIARIO, minutosDeRetraso, nivelEfectivo, xpPorPuntualidad, xpPorRegistro, xpSuenoDeEvento } from "./gamificacion";
-import { juegoInicial, normalizarJuego, aplicarRecompensas, type EventoJuego } from "./juego";
+import { juegoInicial, normalizarJuego, aplicarRecompensas, conMovimientosXp, type EventoJuego } from "./juego";
 
 export const STORAGE_KEY = "habitos-app-v1";
 
@@ -187,9 +187,23 @@ export function deshacerConJuego(state: AppState, eventId: string): AppState {
   const diaSigueCompleto = diaCompleto(sinEvento.habits, evento.fecha, sinEvento.completions, juego.diasProtegidos);
   const diasCompletos =
     diaEraCompleto && !diaSigueCompleto ? Math.max(0, juego.diasCompletos - 1) : juego.diasCompletos;
+  let juegoFinal = { ...juego, xpTotal, xpSemanal, madrugadas, diasCompletos, actualizadoEn: new Date().toISOString() };
+  // Historial: el XP devuelto queda registrado con su motivo.
+  if (xp > 0) {
+    juegoFinal = conMovimientosXp(juegoFinal, [
+      {
+        id: `rev:${eventId}`,
+        ts: evento.timestamp ? new Date(evento.timestamp).getTime() : Date.now(),
+        fecha: evento.fecha,
+        delta: -xp,
+        motivo: "revertido",
+        detalle: habit?.nombre ?? "Hábito",
+      },
+    ]);
+  }
   return {
     ...sinEvento,
-    juego: { ...juego, xpTotal, xpSemanal, madrugadas, diasCompletos, actualizadoEn: new Date().toISOString() },
+    juego: juegoFinal,
   };
 }
 
@@ -366,7 +380,7 @@ export function registrarConJuego(
   if (despues.completions.length === state.completions.length) {
     return { state: despues, eventos: [] };
   }
-  return aplicarRecompensas(state, despues, { habitId, fecha, timestamp });
+  return aplicarRecompensas(state, despues, { habitId, fecha, timestamp, eventId });
 }
 
 /**
@@ -391,7 +405,7 @@ export function registrarSuenoConJuego(
   if (despues.completions.length === state.completions.length) {
     return { state: despues, eventos: [] };
   }
-  return aplicarRecompensas(state, despues, { habitId, fecha, timestamp, xpBase, retrasoMin, cualSueno: cual });
+  return aplicarRecompensas(state, despues, { habitId, fecha, timestamp, eventId, xpBase, retrasoMin, cualSueno: cual });
 }
 
 /**

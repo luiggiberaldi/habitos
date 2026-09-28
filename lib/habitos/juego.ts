@@ -6,7 +6,7 @@
 // entre dispositivos. Todo sigue siendo puro (sin I/O): el contexto decide
 // cuándo persistir y sincronizar.
 
-import type { AppState, Habit, JuegoState, MarcaSueno } from "./types";
+import type { AppState, Habit, JuegoState, MarcaSueno, MovimientoXp } from "./types";
 import type { NivelActual } from "./gamificacion";
 import { completadosPara, esDescanso, inicioSemana, moverFecha, todayKey } from "./dates";
 import {
@@ -52,6 +52,7 @@ export function juegoInicial(): JuegoState {
     diasCompletos: 0,
     nombreLiga: "",
     suenoFallos: [],
+    historialXp: [],
     actualizadoEn: new Date(0).toISOString(),
   };
 }
@@ -80,7 +81,59 @@ export function normalizarJuego(value: unknown): JuegoState {
     rachaMaxima: p.rachaMaxima && typeof p.rachaMaxima === "object" ? p.rachaMaxima : {},
     rachaPremiada: p.rachaPremiada && typeof p.rachaPremiada === "object" ? p.rachaPremiada : {},
     suenoFallos: Array.isArray(p.suenoFallos) ? p.suenoFallos.filter((x): x is string => typeof x === "string") : [],
+    historialXp: normalizarHistorialXp(p.historialXp),
   };
+}
+
+/** Tope de movimientos guardados: el historial es una ventana, no un ledger infinito. */
+export const TOPE_HISTORIAL_XP = 200;
+
+function esMovimientoXp(x: unknown): x is MovimientoXp {
+  if (!x || typeof x !== "object") return false;
+  const m = x as Record<string, unknown>;
+  return (
+    typeof m.id === "string" &&
+    typeof m.ts === "number" &&
+    typeof m.fecha === "string" &&
+    typeof m.delta === "number" &&
+    typeof m.motivo === "string" &&
+    typeof m.detalle === "string"
+  );
+}
+
+export function normalizarHistorialXp(value: unknown): MovimientoXp[] {
+  if (!Array.isArray(value)) return [];
+  const vistos = new Set<string>();
+  const out: MovimientoXp[] = [];
+  for (const x of value) {
+    if (!esMovimientoXp(x) || vistos.has(x.id)) continue;
+    vistos.add(x.id);
+    out.push({ id: x.id, ts: x.ts, fecha: x.fecha, delta: x.delta, motivo: x.motivo, detalle: x.detalle });
+  }
+  out.sort((a, b) => b.ts - a.ts);
+  return out.slice(0, TOPE_HISTORIAL_XP);
+}
+
+/**
+ * Añade movimientos al historial con idempotencia por id (un reintento o la
+ * llegada del mismo evento desde otro dispositivo no duplica). Ordenado del
+ * más reciente al más antiguo, con tope.
+ */
+export function conMovimientosXp(juego: JuegoState, movs: MovimientoXp[]): JuegoState {
+  if (movs.length === 0) return juego;
+  return { ...juego, historialXp: normalizarHistorialXp([...movs, ...juego.historialXp]) };
+}
+
+/** Totales del historial: cuánto XP se ha ganado y cuánto se ha perdido. */
+export function totalesHistorialXp(juego: JuegoState | undefined): { ganado: number; perdido: number } {
+  const h = normalizarJuego(juego).historialXp;
+  let ganado = 0;
+  let perdido = 0;
+  for (const m of h) {
+    if (m.delta > 0) ganado += m.delta;
+    else perdido += -m.delta;
+  }
+  return { ganado, perdido };
 }
 
 /* ------------------------------ Eventos de UI --------------------------- */
@@ -127,6 +180,8 @@ interface RegistroCtx {
   /** Fecha del registro (normalmente hoy). */
   fecha: string;
   timestamp: string;
+  /** Id del evento de cumplimiento (para ids deterministas del historial). */
+  eventId?: string;
   /** XP base personalizado (sueño: por puntualidad, puede ser negativo). */
   xpBase?: number;
   /** Minutos de retraso vs la hora objetivo (solo sueño, para el mensaje). */
@@ -169,8 +224,41 @@ export function aplicarRecompensas(
   const objetivo = objetivoEnFecha(habit, fecha);
   const compAntes = completadosPara(habit, fecha, antes.completions).size;
   const compDespues = completadosPara(habit, fecha, despues.completions).size;
-  if (habit.tipo !== "sueno" && compAntes < objetivo && compDespues >= objetivo) {
+  const cruzoObjetivo = habit.tipo !== "sueno" && compAntes < objetivo && compDespues >= objetivo;
+  if (cruzoObjetivo) {
     xpGanado += PUNTOS_OBJETIVO_DIARIO;
+  }
+
+  // Historial de XP: cada fuente de XP deja su movimiento con motivo.
+  const tsMov = new Date(timestamp).getTime();
+  // El id lleva el timestamp: una corrección de sueño re-registra el mismo
+  // eventId con otra hora y debe quedar como movimiento aparte (no pisar el
+  // original); el deshacer previo ya dejó su movimiento "revertido".
+  const idReg = `reg:${ctx.eventId ?? `${habitId}|${fecha}|${timestamp}`}:${tsMov}`;
+  const movs: MovimientoXp[] = [];
+  const baseRegistro = ctx.xpBase ?? xpPorRegistro(nivelAntes);
+  if (baseRegistro !== 0) {
+    movs.push({
+      id: idReg,
+      ts: tsMov,
+      fecha: hoy,
+      delta: baseRegistro,
+      motivo: habit.tipo === "sueno" ? "sueno" : "registro",
+      detalle:
+        habit.tipo === "sueno" && ctx.cualSueno
+          ? `${ctx.cualSueno === "levantar" ? "Me levanté" : "Me acosté"} · ${habit.nombre}`
+          : habit.nombre,
+    });
+  }
+  if (cruzoObjetivo) {
+    movs.push({
+      id: `obj:${idReg}`,
+      ts: tsMov,
+      fecha: hoy,
+      delta: PUNTOS_OBJETIVO_DIARIO,
+      motivo: "objetivo",
+      detalle: habit.nombre,
+    });
   }
 
   // 2b. Sueño: evento inmediato con el resultado (va primero en la cola).
@@ -238,6 +326,14 @@ export function aplicarRecompensas(
         hubo = true;
         const xpDesafio = xpPorDesafio(d.meta);
         xpGanado += xpDesafio;
+        movs.push({
+          id: `desafio:${d.id}`,
+          ts: tsMov,
+          fecha: hoy,
+          delta: xpDesafio,
+          motivo: "desafio",
+          detalle: `${h.nombre}: ${d.meta} días esta semana`,
+        });
         eventos.push({
           tipo: "desafio",
           titulo: "¡Desafío completado!",
@@ -261,6 +357,16 @@ export function aplicarRecompensas(
       congeladores: premio.congelador ? juego.congeladores + 1 : juego.congeladores,
     };
     xpGanado += premio.xp;
+    if (premio.xp > 0) {
+      movs.push({
+        id: `cofre:${fecha}`,
+        ts: tsMov,
+        fecha: hoy,
+        delta: premio.xp,
+        motivo: "cofre",
+        detalle: "Día completo",
+      });
+    }
     eventos.push({
       tipo: "cofre",
       titulo: "¡Cofre del día!",
@@ -277,6 +383,7 @@ export function aplicarRecompensas(
     xpTotal: Math.max(0, juego.xpTotal + xpGanado),
     xpSemanal: Math.max(0, juego.xpSemanal + xpGanado),
   };
+  juego = conMovimientosXp(juego, movs);
 
   // 9. Logros recién desbloqueados. El XP NO se acredita solo: el usuario
   // lo reclama tocando el logro en su sala de trofeos.
@@ -329,13 +436,26 @@ export function reclamarLogro(
   const nivelAntes = nivelEfectivo(juego.xpTotal, juego.nivelMaximo).nivel;
   const xpTotal = juego.xpTotal + def.xp;
   const nivelMaximo = Math.max(juego.nivelMaximo, nivelParaXp(xpTotal).nivel);
-  const juego2: JuegoState = {
-    ...juego,
-    logrosReclamados: [...juego.logrosReclamados, logroId],
-    xpTotal,
-    nivelMaximo,
-    actualizadoEn: new Date().toISOString(),
-  };
+  const ahora = new Date();
+  const juego2: JuegoState = conMovimientosXp(
+    {
+      ...juego,
+      logrosReclamados: [...juego.logrosReclamados, logroId],
+      xpTotal,
+      nivelMaximo,
+      actualizadoEn: ahora.toISOString(),
+    },
+    [
+      {
+        id: `logro:${logroId}`,
+        ts: ahora.getTime(),
+        fecha: todayKey(),
+        delta: def.xp,
+        motivo: "logro",
+        detalle: def.nombre,
+      },
+    ],
+  );
   const nivelDespues = nivelEfectivo(xpTotal, nivelMaximo);
   return {
     state: { ...state, juego: juego2 },
@@ -409,6 +529,17 @@ export function reconciliarJuego(state: AppState): AppState {
     const nivelEst = nivelParaXp(plano.xp).nivel;
     const { xp, xpSem } = nivelEst > 1 ? calcular(nivelEst) : plano;
     juego = { ...juego, xpTotal: Math.max(0, xp), xpSemanal: Math.max(0, xpSem), semanaXp: semana };
+    // El pasado anterior al historial queda como una única entrada estimada.
+    juego = conMovimientosXp(juego, [
+      {
+        id: "backfill",
+        ts: 1,
+        fecha: "1970-01-01",
+        delta: Math.max(0, Math.round(xp)),
+        motivo: "historial",
+        detalle: "XP acumulado antes del historial (estimado)",
+      },
+    ]);
     marcar();
   }
 
@@ -446,6 +577,38 @@ export function reconciliarJuego(state: AppState): AppState {
             ? Math.max(0, juego.xpSemanal + SUENO_FALLO_XP)
             : juego.xpSemanal,
       };
+      juego = conMovimientosXp(juego, [
+        {
+          id: `fallo:${clave}`,
+          ts: Date.parse(`${fecha}T12:00:00`),
+          fecha,
+          delta: SUENO_FALLO_XP,
+          motivo: "sueno-olvido",
+          detalle: `${cual === "levantar" ? "Me levanté" : "Me acosté"} sin marcar`,
+        },
+      ]);
+      marcar();
+    }
+  }
+
+  // Siembra: fallos de sueño antiguos (anteriores al historial) también
+  // aparecen como movimientos; la idempotencia por id evita duplicarlos.
+  {
+    const semilla: MovimientoXp[] = juego.suenoFallos
+      .filter((clave) => !juego.historialXp.some((m) => m.id === `fallo:${clave}`))
+      .map((clave) => {
+        const [cual, fecha] = clave.split("|");
+        return {
+          id: `fallo:${clave}`,
+          ts: Date.parse(`${fecha}T12:00:00`),
+          fecha,
+          delta: SUENO_FALLO_XP,
+          motivo: "sueno-olvido" as const,
+          detalle: `${cual === "levantar" ? "Me levanté" : "Me acosté"} sin marcar`,
+        };
+      });
+    if (semilla.length > 0) {
+      juego = conMovimientosXp(juego, semilla);
       marcar();
     }
   }
@@ -544,6 +707,7 @@ export function fusionarJuego(local: JuegoState, remoto: JuegoState | null): Jue
     logros: union(a.logros, b.logros),
     logrosReclamados: union(a.logrosReclamados, b.logrosReclamados),
     suenoFallos: union(a.suenoFallos, b.suenoFallos),
+    historialXp: normalizarHistorialXp([...a.historialXp, ...b.historialXp]),
     ultimoCofre: a.ultimoCofre && b.ultimoCofre
       ? (a.ultimoCofre > b.ultimoCofre ? a.ultimoCofre : b.ultimoCofre)
       : (a.ultimoCofre ?? b.ultimoCofre),

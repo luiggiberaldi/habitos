@@ -87,3 +87,9 @@ Los RPC que llama la web deben aceptar el JWT del navegador (`auth.uid() = p_use
 - **Estimado como fallback, no como dato falso.** `consumo_semanal_estim` no genera movimientos sintéticos: `rpc_mer_inventario` usa `estimado/7` solo cuando no hay consumos reales en 30d y marca `consumo_estimado:true` para que la UI lo indique. El presupuesto lo hereda gratis (reutiliza el inventario).
 - **Guard de stock con mensaje útil.** `stock_insuficiente: quedan X und de Y` — el error ya trae el dato que el usuario necesita, sin otra consulta.
 - **Renombrar UI sin renombrar el modelo.** "Inventario"→"Alacena" fue solo etiquetas; tablas `mer_*`, RPC y tipos `Mer*` intactos. Cero riesgo de migración.
+
+## Historial de XP (2026-09-28)
+- Los movimientos de XP viven en el propio `JuegoState` (no en el log de auditoría): el log es telemetría fire-and-forget con tope de cola, no sirve como fuente para una vista de usuario.
+- Ids deterministas por causa (`reg:<eventId>:<ts>`, `desafio:<id>`, `cofre:<fecha>`, `logro:<id>`, `rev:<eventId>`, `fallo:<clave>`, `backfill`): la fusión entre dispositivos es unión por id y los reintentos no duplican.
+- El `reg:` lleva el timestamp en el id porque corregir una marca de sueño re-registra el mismo eventId: el historial muestra +original, −revertido, +corregido (honesto en vez de pisar).
+- El pasado anterior al historial se resume en UNA entrada "historial" (estimado del backfill) + siembra de `suenoFallos` viejos; así los totales cuadran sin inventar detalle que no existe.

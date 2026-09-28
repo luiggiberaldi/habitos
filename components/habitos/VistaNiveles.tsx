@@ -5,6 +5,7 @@ import { useStoreState } from "../../lib/habitos/store-context";
 import { NIVELES, nivelEfectivo } from "../../lib/habitos/gamificacion";
 import { AvatarNivel, PALETA } from "../../components/AvatarNivel";
 import { IconCheck, IconRayo } from "../../lib/core/ui/icons";
+import { HistorialXp } from "./HistorialXp";
 
 /**
  * /niveles — mapa de los 9 niveles: qué XP pide cada uno, cuánto falta
@@ -149,6 +150,8 @@ export function VistaNiveles() {
           tu nivel hasta recuperar el progreso.
         </p>
       </section>
+
+      <HistorialXp />
     </div>
   );
 }

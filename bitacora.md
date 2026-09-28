@@ -799,3 +799,12 @@ luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en
 - `whatsapp-registrar.mjs` crasheaba al arrancar: `spawnSync is not defined` en el bloque que fuerza TZ=America/Caracas (faltaba el import de `node:child_process`). Nunca había fallado porque... fallaba siempre que TZ no venía seteado; se arregló el import.
 - Bug real: "me acosté a las 1:40" ignoraba la hora explícita y marcaba con la hora actual (08:10). Ahora `args.horaSueno` captura `\d{1,2}:\d{2}` del texto cuando hay verbo de sueño y se usa como horaReal.
 - Corrección de datos: el registro de anoche quedó con created_at 08:10; se ajustó a 01:40 (2026-09-28T05:40Z) para que la duración de la noche calcule bien. El -10 XP se mantuvo (220 min tarde igual da -10).
+
+## 2026-09-28 — Historial de XP (ganado/perdido + motivo)
+- Nuevo `historialXp` en `JuegoState`: cada movimiento guarda delta (+/−), fecha, motivo y detalle. Tope 200, orden del más reciente al más antiguo.
+- Motivos: registro, objetivo (+5), desafío, cofre, logro, sueño (±puntualidad), sueño-olvido (−10), revertido (deshacer), historial (saldo estimado anterior).
+- Emisión en funciones puras: `aplicarRecompensas` (registro/objetivo/desafío/cofre/sueño), `reclamarLogro`, `deshacerConJuego` (store.ts), `reconciliarJuego` (siembra fallos antiguos + entrada "historial" en el backfill).
+- Fusión entre dispositivos por unión de ids deterministas (sin duplicados).
+- UI: sección "Historial de XP" en la pestaña Niveles con tarjetas Ganado/Perdido y lista con icono por motivo, fecha relativa y delta coloreado.
+- Verificado: tsc limpio, eslint 0 errores (1 warning preexistente), smoke-juego 122/122 (12 tests nuevos), smoke-sueno 59/59, smoke-p0 5/5, build OK.
+- Pendiente: commit, push y deploy (sin autorización).
