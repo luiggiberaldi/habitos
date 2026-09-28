@@ -69,10 +69,10 @@ const FOOT_TXT: RGB = [200, 205, 220];
 
 const SYN = {
   nombre: "SYNAPTICA.CA",
-  rif: "V24457713",
-  telefono: "04124051793",
-  email: "synapticaia@gmail.com",
-  direccion: "RICARDO URRIERA SECTOR 3",
+  rif: "",
+  telefono: "",
+  email: "",
+  direccion: "",
   ciudad: "VALENCIA",
   tagline: "Desarrollo de Software & Soluciones Digitales",
   gracias: "Gracias por su pago. Synaptica \u2014 Soluciones digitales.",
@@ -276,10 +276,10 @@ function drawSynParties(doc: jsPDF, receipt: Receipt, cursor: Cursor): void {
   partyCard(doc, 107, y, cardW, cardH, "EMITIDO POR", NAVY, [
     { t: em.nombre, bold: true, size: 10.5 },
     ...compactLines([
-      `RIF: ${em.rif}`,
-      `Tlf: ${em.telefono}`,
-      em.email.toUpperCase(),
-      em.direccion,
+      em.rif ? `RIF: ${em.rif}` : "",
+      em.telefono ? `Tlf: ${em.telefono}` : "",
+      em.email ? em.email.toUpperCase() : "",
+      em.direccion ? em.direccion : "",
     ]).map((t) => ({ t, size: 8.5 })),
   ]);
 
@@ -749,7 +749,8 @@ function drawSynFooter(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   setTextColor(doc, HEAD_SUB);
-  doc.text(`${em.rif}  \u00b7  ${em.telefono}`, 12, fy + 15.8);
+  const lineaId = [em.rif, em.telefono].filter(Boolean).join("  \u00b7  ");
+  if (lineaId) doc.text(lineaId, 12, fy + 15.8);
 
   doc.setFont("helvetica", "bolditalic");
   doc.setFontSize(9);
@@ -759,8 +760,9 @@ function drawSynFooter(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   setTextColor(doc, FOOT_TXT);
-  doc.text(em.email, 181, fy + 8.5, { align: "right" });
-  doc.text(`${em.direccion}, ${SYN.ciudad}`, 181, fy + 17.5, { align: "right" });
+  if (em.email) doc.text(em.email, 181, fy + 8.5, { align: "right" });
+  const lineaDir = [em.direccion, SYN.ciudad].filter(Boolean).join(", ");
+  if (lineaDir) doc.text(lineaDir, 181, fy + 17.5, { align: "right" });
 
   doc.setFontSize(6);
   setTextColor(doc, HEAD_SUB);

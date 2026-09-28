@@ -770,3 +770,17 @@ luigi por nota de voz: "acabo de gastar 2 huevos, 3 huevos". Dos hallazgos:
 ## 2026-09-28 — Footer PDF Synaptica: logo 1.5mm a la izquierda
 
 - luigi: logo del footer 1.5mm a la izquierda (x 198 → 196.5). Muestra v7.
+
+## 2026-09-28 — Recibos: botón Borrar (reemplaza Anular) + fixes PDF/WhatsApp
+
+luigi pidió: botón de borrar recibo y quitar el anular.
+- Migración 0031: `rpc_recibo_borrar` (hard delete; los pagos viven en el snapshot, sin tablas hijas). Aplicada en Supabase.
+- App: `RecibosTab` ahora muestra "Borrar" con modal de confirmación propio ("Se elimina definitivamente del historial"); eliminado el botón/modal de Anular. `cliente.ts`: `borrarRecibo()` reemplaza `anularRecibo()`.
+- WhatsApp: comando `recibo borrar SEN-…` (también `eliminar`) con flujo resumen → "sí"; eliminado el comando `anular`. Ayuda y mock actualizados.
+- Fix PDF modalidad: `paymentMode` se derivaba como `pagos.length > 0 ? "partial" : "full"` → un recibo PAGADO mostraba "MODALIDAD: Pago parcial". Ahora: pagado → "Pago completo"; con abonos parciales → "Pago parcial". Corregido en `lib/recibos/cliente.ts` y en el `filaARecibo` propio de `whatsapp-recibos.mjs`.
+- Privacidad: el tema Synaptica tenía hardcodeados RIF/teléfono/email/dirección de luigi como fallback del emisor (`SYN` en `synaptica.ts`) → cualquier recibo sin datos de emisor los imprimía. Se eliminaron del código; el PDF solo muestra datos del emisor si vienen en el snapshot. Los commits con esos datos NO están pusheados (solo historial local).
+- WhatsApp: "en contado" ahora mapea a pago en efectivo (detectarMetodo).
+
+## 2026-09-28 — Recibo real SEN-202609-007 (Yoshanny Pérez)
+
+luigi por nota de voz: recibo para Yoshanny Pérez, 30 gramos de escroto, $15, tel 0412-4051793, dirección Ricardo Urrera, emisor Luigi Beraldi, pagado al contado. Flujo resumen → "sí" → creado → abono $15 en efectivo → PAGADO. PDF regenerado sin datos personales hardcodeados.

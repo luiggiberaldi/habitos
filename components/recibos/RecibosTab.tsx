@@ -13,7 +13,7 @@ import type { FinMoneda } from "../../lib/finanzas/types";
 import {
   listarRecibos,
   crearRecibo,
-  anularRecibo,
+  borrarRecibo,
   abonarRecibo,
   descargarPdf,
   filaARecibo,
@@ -378,7 +378,7 @@ function FilaRecibo({ fila, onCambio }: { fila: ReciboFila; onCambio: () => void
   const [referencia, setReferencia] = useState("");
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmarAnular, setConfirmarAnular] = useState(false);
+  const [confirmarBorrar, setConfirmarBorrar] = useState(false);
 
   const abonar = async () => {
     setError(null);
@@ -396,15 +396,15 @@ function FilaRecibo({ fila, onCambio }: { fila: ReciboFila; onCambio: () => void
     }
   };
 
-  const anular = async () => {
+  const borrar = async () => {
     setError(null);
     setTrabajando(true);
     try {
-      await anularRecibo(fila.id);
-      setConfirmarAnular(false);
+      await borrarRecibo(fila.id);
+      setConfirmarBorrar(false);
       onCambio();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo anular");
+      setError(e instanceof Error ? e.message : "No se pudo borrar");
     } finally {
       setTrabajando(false);
     }
@@ -446,15 +446,13 @@ function FilaRecibo({ fila, onCambio }: { fila: ReciboFila; onCambio: () => void
             Abonar
           </button>
         )}
-        {fila.estado !== "anulado" && (
-          <button
-            type="button"
-            onClick={() => setConfirmarAnular((v) => !v)}
-            className="rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-bold text-red-600"
-          >
-            Anular
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setConfirmarBorrar((v) => !v)}
+          className="rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-bold text-red-600"
+        >
+          Borrar
+        </button>
       </div>
 
       {expandido && (
@@ -484,16 +482,16 @@ function FilaRecibo({ fila, onCambio }: { fila: ReciboFila; onCambio: () => void
         </div>
       )}
 
-      {confirmarAnular && (
+      {confirmarBorrar && (
         <div className="mt-2 rounded-xl bg-red-50 p-3 dark:bg-red-900/20">
           <p className="text-xs font-bold text-red-700 dark:text-red-300">
-            ¿Anular el recibo {fila.numero}? Queda en el historial con marca ANULADO.
+            ¿Borrar el recibo {fila.numero}? Se elimina definitivamente del historial.
           </p>
           <div className="mt-2 flex gap-2">
-            <button type="button" disabled={trabajando} onClick={anular} className="rounded-xl bg-red-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">
-              Sí, anular
+            <button type="button" disabled={trabajando} onClick={borrar} className="rounded-xl bg-red-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">
+              Sí, borrar
             </button>
-            <button type="button" onClick={() => setConfirmarAnular(false)} className="rounded-xl bg-surface px-3 py-1.5 text-xs font-bold text-foreground">
+            <button type="button" onClick={() => setConfirmarBorrar(false)} className="rounded-xl bg-surface px-3 py-1.5 text-xs font-bold text-foreground">
               No
             </button>
           </div>

@@ -26,7 +26,7 @@
 //   "pdf Ana"                                       → PDF en base64
 //   "duplicar SEN-202609-001"                       → borrador duplicado
 //   "abonar 100 al SEN-202609-001"                  → borrador abono
-//   "anular SEN-202609-001"                         → borrador anulación
+//   "borrar SEN-202609-001"                         → borrador borrado
 //   "cancelar"                                      → descarta el borrador
 //   "ayuda"                                         → ayuda
 //
@@ -85,7 +85,7 @@ function crearRpcRecibos(cfg) {
       }
       if (fn === "rpc_recibo_crear") return { ok: true, id: "mock-id", numero: "SEN-202609-001" };
       if (fn === "rpc_recibo_abonar") return { ok: true, estado: "parcial", saldo: 225 };
-      if (fn === "rpc_recibo_anular") return { ok: true };
+      if (fn === "rpc_recibo_borrar") return { ok: true };
       if (fn === "rpc_recibo_duplicar") return { ok: true, id: "mock-id-2", numero: "SEN-202609-002" };
       throw new Error(`mock sin datos para ${fn}`);
     }
@@ -299,6 +299,7 @@ function detectarMetodo(texto) {
   const n = norm(texto);
   if (/\bpago movil\b/.test(n)) return "mobile";
   if (/\befectivo\b/.test(n)) return "cash";
+  if (/\bcontado\b/.test(n)) return "cash";
   if (/\bzelle\b/.test(n)) return "zelle";
   if (/\btarjeta\b/.test(n)) return "card";
   if (/\btransfer/.test(n)) return "transfer";
@@ -381,7 +382,7 @@ function filaARecibo(fila) {
     meta: {
       number: fila.numero, issueDate: fila.fecha_emision, dueDate: fila.fecha_vencimiento || "",
       currency: fila.moneda, primaryMethod: "transfer",
-      paymentMode: pagos.length > 0 ? "partial" : "full",
+      paymentMode: fila.estado === "pagado" ? "full" : (fila.total_pagado > 0 ? "partial" : "full"),
       notes: typeof s.notas === "string" ? s.notas : "", observations: "",
       thankYouMessage: "¡Gracias por su preferencia!", warrantyDays: 0, warrantyEndDate: "",
     },
@@ -470,7 +471,7 @@ try {
         "• «recibo listar» → últimos recibos · «recibo ver Ana» → detalle",
         "• «recibo pdf Ana» → te mando el PDF",
         "• «recibo abonar 100 al SEN-202609-001» → registra un pago",
-        "• «recibo anular SEN-202609-001» → anula un recibo",
+        "• «recibo borrar SEN-202609-001» → borra un recibo definitivamente",
         "• «recibo duplicar SEN-202609-001» → lo copia como nuevo",
         "• «recibo cancelar» → descarta el borrador",
         "Nada se crea sin tu «sí» después del resumen.",
@@ -545,12 +546,12 @@ try {
           mensaje: `Abono de ${fmtMoneda(miDraft.abono.monto, miDraft.recibo.moneda)} registrado en ${miDraft.recibo.numero}. Saldo: ${fmtMoneda(r.saldo, miDraft.recibo.moneda)} (${r.estado}).`,
         });
       }
-      if (miDraft.tipo === "anular") {
-        await rpc("rpc_recibo_anular", { p_user_id: cfg.USER_ID, p_recibo_id: miDraft.recibo.id });
+      if (miDraft.tipo === "borrar") {
+        await rpc("rpc_recibo_borrar", { p_user_id: cfg.USER_ID, p_recibo_id: miDraft.recibo.id });
         guardarDraft(null);
         out({
-          ok: true, codigo: "anulado",
-          mensaje: `Recibo ${miDraft.recibo.numero} anulado. El PDF ahora muestra ANULADO.`,
+          ok: true, codigo: "borrado",
+          mensaje: `Recibo ${miDraft.recibo.numero} borrado definitivamente.`,
         });
       }
       if (miDraft.tipo === "duplicar") {
@@ -682,24 +683,21 @@ try {
     }
   }
 
-  // ── anular (borrador → resumen → sí) ──
+  // ── borrar (borrador → resumen → sí) ──
   {
-    const m = q.match(/^anular\s+(.+)$/i);
+    const m = q.match(/^(borrar|eliminar)\s+(.+)$/i);
     if (m) {
       let fila;
       try {
-        fila = await rpc("rpc_recibo_ver", { p_user_id: cfg.USER_ID, p_busqueda: m[1].trim() });
+        fila = await rpc("rpc_recibo_ver", { p_user_id: cfg.USER_ID, p_busqueda: m[2].trim() });
       } catch (e) {
         if (String(e.message).includes("recibo_no_encontrado")) {
-          out({ ok: false, codigo: "no-encontrado", detalle: `No encontré ningún recibo con «${m[1].trim()}».` });
+          out({ ok: false, codigo: "no-encontrado", detalle: `No encontré ningún recibo con «${m[2].trim()}».` });
         }
         throw e;
       }
-      if (fila.estado === "anulado") {
-        out({ ok: false, codigo: "ya-anulado", detalle: `El recibo ${fila.numero} ya está anulado.` });
-      }
       const draft = {
-        tipo: "anular", fase: "resumen",
+        tipo: "borrar", fase: "resumen",
         recibo: { id: fila.id, numero: fila.numero, cliente_nombre: fila.cliente_nombre, total: Number(fila.total), moneda: fila.moneda },
         actualizado: new Date().toISOString(),
       };
@@ -707,11 +705,11 @@ try {
       out({
         ok: false, codigo: "resumen", espera_confirmacion: true,
         resumen: [
-          `Anular el recibo ${fila.numero}:`,
+          `Borrar el recibo ${fila.numero}:`,
           `Cliente: ${fila.cliente_nombre} · Total: ${fmtMoneda(fila.total, fila.moneda)} · Saldo: ${fmtMoneda(fila.saldo, fila.moneda)}`,
-          "El recibo se conserva pero queda marcado ANULADO.",
+          "El recibo se elimina definitivamente del historial.",
           "",
-          '¿Lo anulo? Responde "sí" para confirmar.',
+          '¿Lo borro? Responde "sí" para confirmar.',
         ].join("\n"),
       });
     }

@@ -101,7 +101,7 @@ export function filaARecibo(fila: ReciboFila): Receipt {
       dueDate: fila.fecha_vencimiento ?? "",
       currency: fila.moneda,
       primaryMethod: "transfer",
-      paymentMode: pagos.length > 0 ? "partial" : "full",
+      paymentMode: fila.estado === "pagado" ? "full" : fila.total_pagado > 0 ? "partial" : "full",
       notes: typeof s.notas === "string" ? s.notas : "",
       observations: "",
       thankYouMessage: "¡Gracias por su preferencia!",
@@ -325,18 +325,18 @@ export async function abonarRecibo(
   return { estado: r.estado, saldo: Number(r.saldo) };
 }
 
-/** Anula un recibo (soft delete — guardarraíl #3). */
-export async function anularRecibo(id: string): Promise<void> {
+/** Borra un recibo definitivamente (hard delete). */
+export async function borrarRecibo(id: string): Promise<void> {
   const supabase = getSupabase();
   if (!supabase) throw new Error("Sin conexión con la nube");
   const userId = await usuario();
-  const { data, error } = await supabase.rpc("rpc_recibo_anular", {
+  const { data, error } = await supabase.rpc("rpc_recibo_borrar", {
     p_user_id: userId,
     p_recibo_id: id,
   });
-  lanzarSiHayError(error, "No se pudo anular el recibo");
+  lanzarSiHayError(error, "No se pudo borrar el recibo");
   const r = data as { ok: boolean } | null;
-  if (!r?.ok) throw new Error("No se pudo anular el recibo");
+  if (!r?.ok) throw new Error("No se pudo borrar el recibo");
 }
 
 /** Hoy en America/Caracas, YYYY-MM-DD. */
