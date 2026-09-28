@@ -62,3 +62,7 @@ El primer borrador del cliente hacía movimiento + update como pasos sueltos (no
 - **Doble autenticación para RPC que usan scripts Y navegador.** `rpc_coach_llamada_ok(p_user_id)`: secreto de integración O `auth.uid() = p_user_id`. Los RPC internos con secreto quedaron intactos; el coach agrega sus propias agregaciones en vez de llamarlos (menos superficie, mismo alcance).
 - **PostgREST PGRST301 "Expected 3 parts in JWT"** en la Edge Function: el `fetch` manual con `apikey`/`Authorization` armados a mano falló; el cliente supabase-js con `global: { headers: { "x-...-secret": ... } }` maneja las claves correctamente. Regla: en Edge Functions, headers custom vía `global.headers` del cliente, nunca fetch manual.
 - **Dedupe de alertas por (usuario, correlación, ventana).** La primera invocación envía, la segunda no. Tabla `coach_alertas_enviadas`, tag push `coach-<id>-<ventana>`.
+
+## 2026-09-27 — RPCs del navegador: auth dual, nunca secreto público
+
+Los RPC que llama la web deben aceptar el JWT del navegador (`auth.uid() = p_user_id`) ADEMÁS del secreto de integración (patrón `rpc_*_llamada_ok`, ver 0026 coach y 0028 mercado). Exigir el secreto en el cliente (`NEXT_PUBLIC_*`) lo expone en el bundle y, si no se configura, rompe el módulo en producción silenciosamente — pasó con Mercado (Fase 2): el E2E por scripts dio 18/18 pero la web nunca funcionó. Lección: el E2E de un módulo debe incluir al menos una llamada con JWT real de navegador, no solo la vía secreto.

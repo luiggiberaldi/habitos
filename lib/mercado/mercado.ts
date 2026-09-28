@@ -1,12 +1,15 @@
 // lib/mercado/mercado.ts — Cliente del módulo Mercado (Fase 2).
 //
-// Los RPC de mercado usan el mismo secreto compartido que finanzas
-// (header `x-fin-rpc-secret`, fail-closed). La sesión se toma del cliente
-// Supabase del navegador (auth del usuario dueño).
+// lib/mercado/mercado.ts — Cliente del módulo Mercado (Fase 2).
+//
+// La UI llama a los RPC con el JWT del navegador; el RPC acepta la llamada
+// cuando auth.uid() = p_user_id (migración 0028, mismo patrón que el coach).
+// El secreto de integración es solo para los scripts (WhatsApp/cron) y NUNCA
+// viaja al cliente.
 
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabase, getSessionUser } from "../core/supabase";
 import type {
   MerInventarioItem,
   MerListaItem,
@@ -16,36 +19,14 @@ import type {
   MerUnidad,
 } from "./types";
 
-const supabase = () =>
-  createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-
 async function rpc<T>(fn: string, params: Record<string, unknown>): Promise<T> {
-  const secreto = process.env.NEXT_PUBLIC_HABITOS_RPC_SECRET;
-  if (!secreto) throw new Error("Falta NEXT_PUBLIC_HABITOS_RPC_SECRET.");
-  const { data: { session } } = await supabase().auth.getSession();
-  const userId = session?.user.id;
-  if (!userId) throw new Error("Sin sesión.");
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/${fn}`,
-    {
-      method: "POST",
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-        "x-fin-rpc-secret": secreto,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ p_user_id: userId, ...params }),
-    },
-  );
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Error de Mercado (${fn}): ${txt.slice(0, 160)}`);
-  }
-  return (await res.json()) as T;
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Sin conexión con la nube.");
+  const user = await getSessionUser();
+  if (!user) throw new Error("Sin sesión.");
+  const { data, error } = await supabase.rpc(fn, { p_user_id: user.id, ...params });
+  if (error) throw new Error(`Error de Mercado (${fn}): ${error.message.slice(0, 160)}`);
+  return data as T;
 }
 
 export const merRpc = {

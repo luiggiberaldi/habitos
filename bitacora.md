@@ -556,3 +556,15 @@
 **Verificación (real, 2026-09-27):** tsc limpio, build limpio.
 
 **Pendiente (no verificado):** verificación visual en el teléfono de luigi. Nota: su captura aún mostraba "Ingresar tasas manualmente" y el header sin la línea del coach — es la versión vieja en caché de la PWA; el cambio ya estaba desplegado.
+
+## 2026-09-27 — Mercado web roto en producción: faltaba auth JWT (bug real)
+
+**Reporte de luigi:** en /mercado aparecía el banner rojo "Falta NEXT_PUBLIC_HABITOS_RPC_SECRET." — el módulo no cargaba nada.
+
+**Diagnóstico:** `lib/mercado/mercado.ts` exigía el secreto de integración como variable pública (`NEXT_PUBLIC_HABITOS_RPC_SECRET`). Esa variable nunca se configuró en Vercel — y con razón: exponer el secreto en el bundle del cliente sería una filtración de seguridad. Los RPC de Mercado (0022/0023) solo aceptaban el secreto por header, así que la web quedó rota desde el despliegue de la Fase 2 (el E2E 18/18 fue por scripts/WhatsApp, que usan el secreto en servidor).
+
+**Fix (mismo patrón que el coach, migración 0026):**
+- `supabase/migrations/0028_mercado_jwt.sql` (aplicada, HTTP 201): nuevo helper `rpc_mer_llamada_ok(p_user_id)` — acepta el secreto de integración O el JWT del navegador cuando `auth.uid() = p_user_id`. Redefine los 7 RPC (`producto_upsert`, `movimiento`, `inventario`, `precios`, `lista`, `lista_toggle`, `presupuesto`) con el check dual. Corregido además el bloque de permisos: apuntaba a la firma vieja de `producto_upsert` (6 params, eliminada en la 0023) y fallaba la migración.
+- `lib/mercado/mercado.ts`: el cliente ahora llama con `supabase.rpc()` y el JWT de la sesión (como `lib/coach/coach.ts`); eliminado todo rastro de `NEXT_PUBLIC_HABITOS_RPC_SECRET` del repo.
+
+**Verificación (real, 2026-09-27):** migración HTTP 201; `rpc_mer_lista` con secreto → HTTP 200 (vía WhatsApp/scripts intacta); sin secreto ni JWT → `no_autorizado` (fail-closed intacto); tsc limpio, build limpio. La vía JWT del navegador sigue el patrón probado del coach; pendiente la confirmación visual de luigi en su teléfono.
