@@ -79,3 +79,11 @@ Los RPC que llama la web deben aceptar el JWT del navegador (`auth.uid() = p_use
 
 ## Extraer logo de un PDF de referencia (2026-09-28)
 - `pdfimages -png archivo.pdf prefijo` extrae las imágenes embebidas (logos, firmas) tal cual están en el PDF. Si salen con fondo negro y el arte es claro, convertir negro→transparente con PIL (`numpy`: alfa=0 donde luminancia<24) y recortar con `getbbox()`. Verificar con `np.unique(alpha)`. Sirve para rescatar la marca oficial cuando el cliente la tiene solo dentro de un PDF.
+
+## 2026-09-28 — Fixeo Mercado: patrones reutilizables
+
+- **Compra desde la lista: RPC compuesto atómico, no dos llamadas del cliente.** `rpc_mer_lista_comprar` llama a `rpc_mer_movimiento` por dentro (reutiliza precio/egreso/idempotencia) y luego borra la fila de lista, todo en una transacción. El anidado funciona porque `auth.uid()` se resuelve por GUC de la sesión aunque la función sea SECURITY DEFINER.
+- **Idempotencia ANTES que la precondición de negocio.** El primer diseño devolvía `no_en_lista` en el reintento de red porque la fila ya estaba borrada. Fix: chequear `clave_evento` primero y devolver `duplicado:true` aunque la precondición (fila en lista) ya no exista.
+- **Estimado como fallback, no como dato falso.** `consumo_semanal_estim` no genera movimientos sintéticos: `rpc_mer_inventario` usa `estimado/7` solo cuando no hay consumos reales en 30d y marca `consumo_estimado:true` para que la UI lo indique. El presupuesto lo hereda gratis (reutiliza el inventario).
+- **Guard de stock con mensaje útil.** `stock_insuficiente: quedan X und de Y` — el error ya trae el dato que el usuario necesita, sin otra consulta.
+- **Renombrar UI sin renombrar el modelo.** "Inventario"→"Alacena" fue solo etiquetas; tablas `mer_*`, RPC y tipos `Mer*` intactos. Cero riesgo de migración.
