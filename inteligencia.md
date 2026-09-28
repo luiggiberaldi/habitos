@@ -93,3 +93,7 @@ Los RPC que llama la web deben aceptar el JWT del navegador (`auth.uid() = p_use
 - Ids deterministas por causa (`reg:<eventId>:<ts>`, `desafio:<id>`, `cofre:<fecha>`, `logro:<id>`, `rev:<eventId>`, `fallo:<clave>`, `backfill`): la fusión entre dispositivos es unión por id y los reintentos no duplican.
 - El `reg:` lleva el timestamp en el id porque corregir una marca de sueño re-registra el mismo eventId: el historial muestra +original, −revertido, +corregido (honesto en vez de pisar).
 - El pasado anterior al historial se resume en UNA entrada "historial" (estimado del backfill) + siembra de `suenoFallos` viejos; así los totales cuadran sin inventar detalle que no existe.
+
+## 2026-09-28 — console.log + process.exit trunca el pipe en salidas grandes
+- Los scripts que imprimen JSON a stdout y terminan con `process.exit()` pierden la cola del pipe cuando la salida es grande (el base64 de un PDF se cortaba a los ~64-146KB). `console.log` a un pipe es asíncrono; el exit mata el proceso antes de drenar.
+- Fix: `writeSync(1, JSON.stringify(obj) + "\n")` antes del exit. Aplicado en `scripts/whatsapp-recibos.mjs` y `scripts/whatsapp-router.mjs`. Regla: todo script CLI que emita JSON para otro proceso debe usar writeSync.
