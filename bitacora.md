@@ -766,3 +766,7 @@ luigi auditó el PDF demo (SEN-202609-004) y encontró 3 fallas reales, todas co
 luigi por nota de voz: "acabo de gastar 2 huevos, 3 huevos". Dos hallazgos:
 - El parser de consumo exigía `<cantidad><unidad> de <producto>` ("1L de leche") y rechazaba "2 huevos" (unidad implícita), aunque el comentario del propio código decía que "consumí 2 huevos" debía funcionar. Ahora hay fallback: `<cantidad> <producto>` sin unidad usa la unidad del producto en el inventario.
 - La nota quedó ambigua (¿2 o 3 huevos?) → se le pregunta antes de registrar.
+
+## 2026-09-28 — Footer PDF Synaptica: logo 1.5mm a la izquierda
+
+- luigi: logo del footer 1.5mm a la izquierda (x 198 → 196.5). Muestra v7.

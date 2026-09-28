@@ -732,7 +732,7 @@ function drawSynFooter(
   if (options.logoDataUrl) {
     try {
       // +4mm abajo y a la derecha hasta el borde (x=198: con 15mm se salía de la página).
-      doc.addImage(options.logoDataUrl, "PNG", 198, 283, 12, (12 * 1614) / 1904);
+      doc.addImage(options.logoDataUrl, "PNG", 196.5, 283, 12, (12 * 1614) / 1904);
     } catch {
       /* sin logo */
     }
