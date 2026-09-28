@@ -2,7 +2,14 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
-## 2026-09-28 (Sidebar desktop sin redundancia — PENDIENTE despliegue)
+## 2026-09-28 (Desglose por moneda en Finanzas + cartera Efectivo — PENDIENTE despliegue)
+
+- luigi (viendo captura del encabezado de Finanzas): "aca debe aparecer cuando hay en bs y $ y usdt" + "tambien añade una cartera de dolares en efectivo".
+- app/finanzas/page.tsx: `Encabezado` ahora muestra bajo "Suma de saldos en dólares" una línea con el desglose en moneda nativa (Bs / $ / USDT), sumando `saldoMoneda` por moneda con `formatearMonto`; permite salto de línea en móvil.
+- Nueva cuenta "Efectivo" (USD, efectivo, id b59e0e3a-…) creada por SQL directo (igual que Binance/BDV); saldo inicial 0. Sin choque con el auto-"Efectivo" del RPC: ese solo se crea si no hay cuentas, y ya había dos.
+- Validación: tsc limpio; eslint 0 errores; build exit 0.
+
+## 2026-09-28 (Sidebar desktop sin redundancia — DESPLEGADO a producción)
 
 - luigi (viendo captura): "hay redundancias" — el sidebar desktop repetía Logros/Niveles/Datos que ya son pestañas dentro de /habitos.
 - components/Nav.tsx: eliminada la sección "HÁBITOS" del sidebar desktop; el badge de premios por reclamar se movió al ítem "Hábitos". Sin useSearchParams/Suspense (ya no hacen falta).

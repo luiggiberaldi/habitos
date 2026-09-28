@@ -66,7 +66,14 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 /** Encabezado serio: sin juego, sin XP. Solo el patrimonio del hogar. */
-function Encabezado({ patrimonio, cargando }: { patrimonio: number; cargando: boolean }) {
+function Encabezado({ patrimonio, cuentas, cargando }: { patrimonio: number; cuentas: FinCuentaConSaldo[]; cargando: boolean }) {
+  // Desglose por moneda en su unidad nativa: cuánto hay en Bs, en $ y en USDT.
+  const desglose = useMemo(() => {
+    const orden: FinMoneda[] = ["VES", "USD", "USDT"];
+    const sumas = new Map<FinMoneda, number>();
+    for (const c of cuentas) sumas.set(c.moneda, (sumas.get(c.moneda) ?? 0) + c.saldoMoneda);
+    return orden.map((m) => formatearMonto(sumas.get(m) ?? 0, m));
+  }, [cuentas]);
   return (
     <header
       className="relative overflow-hidden rounded-3xl p-5 text-white"
@@ -97,6 +104,11 @@ function Encabezado({ patrimonio, cargando }: { patrimonio: number; cargando: bo
           {cargando ? "…" : `$ ${new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(patrimonio)}`}
         </p>
         <p className="mt-1 text-xs text-white/75">Suma de saldos en dólares</p>
+        <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-white/90" aria-label={`Desglose por moneda: ${desglose.join(", ")}`}>
+          {desglose.map((d) => (
+            <span key={d} className="whitespace-nowrap">{d}</span>
+          ))}
+        </p>
       </div>
     </header>
   );
@@ -634,7 +646,7 @@ export default function Finanzas() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-      <Encabezado patrimonio={patrimonio} cargando={cargando} />
+      <Encabezado patrimonio={patrimonio} cuentas={cuentas} cargando={cargando} />
 
       <div className="grid grid-cols-2 gap-2 rounded-2xl bg-surface p-1.5" role="tablist" aria-label="Secciones de Finanzas">
         {(
