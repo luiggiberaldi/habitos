@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // Módulo Cartera por WhatsApp (Fase 6.3): catálogo de productos + clientes con cartera.
 //
-//   node scripts/whatsapp-cartera.mjs --q "<texto sin el prefijo>"
-//   Prefijos en el router: cartera | cliente(s) | producto(s)
+//   node scripts/whatsapp-cartera.mjs --q "<texto sin la palabra clave>" --kw "<cartera|clientes|productos|cliente|producto>"
+//   El router recorta el prefijo ("cartera ...", "clientes ...", "productos ...",
+//   "cliente ...", "producto ...") y pasa la palabra clave en --kw para desambiguar
+//   ("queso" puede ser filtro de productos o de clientes). Si el texto queda vacío,
+//   el router pasa la propia palabra clave como --q.
 //
 // Contrato: siempre JSON a stdout. El agente responde SOLO desde el JSON:
 //   ok:true                    → confirmar con `mensaje`
@@ -16,26 +19,25 @@
 // resumen + "sí" explícito (guardarraíl #1 de Cartera). La confirmación es
 // idempotente: antes del RPC el borrador pasa a fase "ejecutando".
 //
-// Intenciones:
-//   "producto añadir queso blanco 5 dolares kg lacteos" → borrador producto
-//   "productos" / "productos queso"                    → listar catálogo
-//   "cliente añadir Ana Pérez" / "cliente añadir Ana proveedor" → borrador
-//   "clientes"                                         → listar con saldos
-//   "cartera"                                          → resumen de saldos
-//   "cartera Ana"                                      → detalle de Ana
-//   "cargo Ana 100 dolares venta de queso"             → borrador cargo
-//   "abono Ana 40"                                     → borrador abono
+// Intenciones (texto ya sin la palabra clave; kw la desambigua):
+//   kw=producto  "añadir queso blanco 5 dolares kg" / "queso blanco 5 dolares kg" → borrador producto
+//   kw=productos  "" / "queso"                    → listar catálogo (filtro opcional)
+//   kw=cliente    "añadir Ana Pérez" / "Ana proveedor" → borrador cliente
+//   kw=clientes   "" / "ana"                       → listar con saldos
+//   kw=cartera    ""                               → resumen de saldos
+//   kw=cartera    "ana"                            → detalle de Ana
+//   (cualquier kw) "cargo Ana 100 dolares venta de queso" → borrador cargo
+//   (cualquier kw) "abono Ana 40"                 → borrador abono
 //   "cancelar"                                         → descarta el borrador
 //   "ayuda"                                            → ayuda
 //
-// NOTA PARA EL AGENTE DEL CHAT: después de un `resumen`, el usuario responde
-// "sí" SIN prefijo (el router lo mandaría a hábitos). Si hay un borrador
-// pendiente para ese usuario, ese "sí" debe enrutarse aquí:
-//   node scripts/whatsapp-cartera.mjs --q "sí"
+// NOTA: el router ya enruta el "sí"/"cancelar" sin prefijo a este script cuando
+// hay un borrador pendiente (ver whatsapp-router.mjs). Invocación directa con
+// --q "sí" también funciona.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { cargarConfig, norm, root } from "./whatsapp-comun.mjs";
+import { cargarConfig, norm } from "./whatsapp-comun.mjs";
 
 const HOME = process.env.HOME || "/home/hatch";
 
@@ -49,8 +51,12 @@ for (let i = 2; i < process.argv.length; i++) {
   }
 }
 const out = (obj) => { console.log(JSON.stringify(obj)); process.exit(obj.ok ? 0 : 1); };
-const q = String(args.q ?? "").trim();
-if (!q) out({ ok: false, codigo: "args", detalle: "se requiere --q \"<texto>\"" });
+const qRaw = String(args.q ?? "").trim();
+const kw = String(args.kw ?? "").trim().toLowerCase();
+// El router pasa la propia palabra clave como --q cuando el texto queda vacío
+// ("cartera" → q="cartera"); se normaliza a "" para los bloques de abajo.
+const q = qRaw.toLowerCase() === kw && kw ? "" : qRaw;
+if (!qRaw) out({ ok: false, codigo: "args", detalle: "se requiere --q \"<texto>\"" });
 
 let cfg;
 try {
@@ -140,14 +146,16 @@ const fmtFecha = (iso) => {
 function textoSaldo(saldo, moneda) {
   const s = Number(saldo);
   if (s > 0) return `me deben ${fmtMoneda(s, moneda)}`;
-  if (s < 0) return `les debo ${fmtMoneda(s, moneda)}`;
+  if (s < 0) return `les debo ${fmtMoneda(Math.abs(s), moneda)}`;
   return `en cero en ${moneda}`;
 }
 
 // ── Parseo ───────────────────────────────────────────────────────────────────
-/** Monto: acepta 1.234,56 (es-VE), 1,234.56 y 1234.56. Devuelve number o null. */
+/** Monto: acepta 1.234,56 (es-VE), 1,234.56 y 1234.56. Devuelve number o null.
+ *  No toma dígitos pegados a letras ("E2E" no es un monto). */
+const MONTO_RX = /(?<![\p{L}\d])(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\p{L}])/u;
 function extraerMonto(texto) {
-  const m = texto.match(/(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/);
+  const m = texto.match(MONTO_RX);
   if (!m) return null;
   let s = m[1];
   if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
@@ -155,8 +163,7 @@ function extraerMonto(texto) {
   const n = Number(s);
   return n > 0 ? Math.round(n * 100) / 100 : null;
 }
-const montoRaw = (texto) =>
-  (texto.match(/(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/) || [])[1] || null;
+const montoRaw = (texto) => (texto.match(MONTO_RX) || [])[1] || null;
 
 function detectarMoneda(texto) {
   const n = norm(texto);
@@ -190,6 +197,15 @@ function limpiarResto(texto) {
     .replace(/\b(usdt|tether|bs|bolivares?|ves|cop|pesos?|dolares?|bucks?)\b/gi, " ")
     .replace(/\$/g, " ")
     .replace(UNIDADES_RX, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
+/** Como limpiarResto pero conserva "de", "la", etc.: para el concepto del movimiento. */
+function limpiarConcepto(texto) {
+  return norm(texto)
+    .replace(/\b\d[\d.,]*\b/g, " ")
+    .replace(/\b(dolares|dólares|usd|\$|bs|bolivares|bolívares|ves|cop|pesos|euros|eur|usdt|tether|cripto)\b/gi, " ")
+    .replace(/\b(kg|kilos?|g|gr|gramos?|l|litros?|ml|und|unidades?|docena|paquete|saco|caja)\b/gi, " ")
     .replace(/\s+/g, " ").trim();
 }
 
@@ -299,12 +315,16 @@ try {
   // Si hay un borrador en fase "completar", esta entrada continúa la conversación.
   // (Por ahora solo el borrador de producto/cliente pide datos por texto libre.)
 
-  // ── producto añadir (antes del listado: "queso 5 dolares" es añadir) ──
+  // ── producto añadir ──
+  // kw=producto ("producto añadir queso 5 dolares" / "producto queso 5 dolares").
+  // Sin kw (invocación directa), "añadir ..." también agrega producto.
   {
-    const mAdd = q.match(/^(?:producto\s+)?(a[nñ]adir|agregar|nuevo)\s+([\s\S]+)$/i);
-    let restoProd = mAdd ? mAdd[2].replace(/^producto\s+/i, "").trim() : null;
-    if (!restoProd && extraerMonto(q) !== null && !/^(cargo|cargar|abono|abonar|cartera|clientes?|productos?|resumen|ayuda|cancelar|si)\b/.test(nq)) {
-      restoProd = q; // "queso 5 dolares" (sin palabra clave) → añadir producto
+    let restoProd = null;
+    const mAdd = q.match(/^(a[nñ]adir|agregar|nuevo)\s+([\s\S]+)$/i);
+    if (kw === "producto" || (kw === "productos" && mAdd)) restoProd = mAdd ? mAdd[2].trim() : q;
+    else if (!kw && mAdd) restoProd = mAdd[2].trim();
+    if (restoProd === "") {
+      out({ ok: false, codigo: "pregunta", pregunta: "¿Qué producto agrego y a qué precio? Ej. «producto añadir queso blanco 5 dolares kg».", detalle: "falta nombre y precio" });
     }
     if (restoProd) {
       const precio = extraerMonto(restoProd);
@@ -340,82 +360,73 @@ try {
     }
   }
 
-  // ── productos: listar ──
-  {
-    const m = nq.match(/^(productos?|catalogo)(\s+(.+))?$/);
-    if (m) {
-      const filtro = (m[3] || "").trim();
-      const lista = await rpc("rpc_cat_producto_listar", { p_user_id: cfg.USER_ID, p_solo_activos: true });
-      const items = filtro ? buscarPorNombre(lista, filtro) : lista;
-      if (!items.length) {
-        out({ ok: false, codigo: "sin-productos", detalle: filtro ? `No hay productos que coincidan con «${filtro}».` : "El catálogo está vacío. Agrégalo con «producto añadir nombre precio»." });
-      }
-      const lineas = items.slice(0, 20).map((p) => `• ${p.nombre} — ${fmtMoneda(p.precio_venta, p.moneda)} (${p.unidad})`);
-      out({
-        ok: true, codigo: "productos",
-        mensaje: [`Catálogo (${items.length}):`, ...lineas].join("\n"),
-      });
+  // ── productos: listar (kw=productos; "" = todos, "queso" = filtro) ──
+  // "añadir ..." lo maneja el bloque de producto añadir (arriba).
+  if (kw === "productos" && !/^(a[nñ]adir|agregar|nuevo)\b/i.test(q)) {
+    const filtro = q;
+    const lista = await rpc("rpc_cat_producto_listar", { p_user_id: cfg.USER_ID, p_solo_activos: true });
+    const items = filtro ? buscarPorNombre(lista, filtro) : lista;
+    if (!items.length) {
+      out({ ok: false, codigo: "sin-productos", detalle: filtro ? `No hay productos que coincidan con «${filtro}».` : "El catálogo está vacío. Agrégalo con «producto añadir nombre precio»." });
     }
+    const lineas = items.slice(0, 20).map((p) => `• ${p.nombre} — ${fmtMoneda(p.precio_venta, p.moneda)} (${p.unidad})`);
+    out({
+      ok: true, codigo: "productos",
+      mensaje: [`Catálogo (${items.length}):`, ...lineas].join("\n"),
+    });
   }
 
-  // ── clientes: listar ──
-  {
-    const m = nq.match(/^clientes(\s+(.+))?$/);
-    if (m) {
-      const filtro = (m[2] || "").trim();
-      const lista = await rpc("rpc_car_cliente_listar", { p_user_id: cfg.USER_ID });
-      const items = filtro ? buscarPorNombre(lista, filtro) : lista.filter((c) => c.activo);
-      if (!items.length) {
-        out({ ok: false, codigo: "sin-clientes", detalle: filtro ? `No hay clientes que coincidan con «${filtro}».` : "Aún no tienes clientes. Agrégalos con «cliente añadir nombre»." });
-      }
-      const lineas = items.slice(0, 20).map((c) => {
-        const saldos = (c.saldos || []).filter((s) => Number(s.saldo) !== 0);
-        const txt = saldos.length ? saldos.map((s) => textoSaldo(s.saldo, s.moneda)).join(" · ") : "en cero";
-        return `• ${c.nombre}: ${txt}`;
-      });
-      out({ ok: true, codigo: "clientes", mensaje: [`Clientes (${items.length}):`, ...lineas].join("\n") });
+  // ── clientes: listar (kw=clientes; "" = todos, "ana" = filtro) ──
+  if (kw === "clientes") {
+    const filtro = q;
+    const lista = await rpc("rpc_car_cliente_listar", { p_user_id: cfg.USER_ID });
+    const items = filtro ? buscarPorNombre(lista, filtro) : lista.filter((c) => c.activo);
+    if (!items.length) {
+      out({ ok: false, codigo: "sin-clientes", detalle: filtro ? `No hay clientes que coincidan con «${filtro}».` : "Aún no tienes clientes. Agrégalos con «cliente añadir nombre»." });
     }
+    const lineas = items.slice(0, 20).map((c) => {
+      const saldos = (c.saldos || []).filter((s) => Number(s.saldo) !== 0);
+      const txt = saldos.length ? saldos.map((s) => textoSaldo(s.saldo, s.moneda)).join(" · ") : "en cero";
+      return `• ${c.nombre}: ${txt}`;
+    });
+    out({ ok: true, codigo: "clientes", mensaje: [`Clientes (${items.length}):`, ...lineas].join("\n") });
   }
 
-  // ── cliente añadir ──
-  {
-    const m = q.match(/^cliente\s+([\s\S]+)$/i);
-    if (m) {
-      let resto = m[1].trim().replace(/^(a[nñ]adir|agregar|nuevo)\s+/i, "").trim();
-      let tipo = "cliente";
-      if (/\bproveedor\b/i.test(resto)) { tipo = "proveedor"; resto = resto.replace(/\bproveedor\b/i, "").trim(); }
-      else if (/\bambos\b/i.test(resto)) { tipo = "ambos"; resto = resto.replace(/\bambos\b/i, "").trim(); }
-      else resto = resto.replace(/\bcliente\b/i, "").trim();
-      const nombre = resto.replace(/\s+/g, " ").trim();
-      if (!nombre) {
-        out({ ok: false, codigo: "pregunta", pregunta: "¿Cómo se llama el cliente? Ej. «cliente añadir Ana Pérez».", detalle: "falta el nombre" });
-      }
-      const draft = {
-        tipo: "cliente", fase: "resumen",
-        cliente: { nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1), tipo },
-        actualizado: new Date().toISOString(),
-      };
-      guardarDraft(draft);
-      const tipoTxt = tipo === "proveedor" ? "Proveedor (le debo)" : tipo === "ambos" ? "Cliente y proveedor" : "Cliente (me debe)";
-      out({
-        ok: false, codigo: "resumen", espera_confirmacion: true,
-        resumen: [
-          "Agregar cliente:",
-          `Nombre: ${draft.cliente.nombre}`,
-          `Tipo: ${tipoTxt}`,
-          "",
-          '¿Lo guardo? Responde "sí" para confirmar.',
-        ].join("\n"),
-      });
+  // ── cliente añadir (kw=cliente: "añadir Ana Pérez" / "Ana proveedor" / "Ana") ──
+  if (kw === "cliente") {
+    let resto = q.replace(/^(a[nñ]adir|agregar|nuevo)\s+/i, "").trim();
+    let tipo = "cliente";
+    if (/\bproveedor\b/i.test(resto)) { tipo = "proveedor"; resto = resto.replace(/\bproveedor\b/i, "").trim(); }
+    else if (/\bambos\b/i.test(resto)) { tipo = "ambos"; resto = resto.replace(/\bambos\b/i, "").trim(); }
+    else resto = resto.replace(/\bcliente\b/i, "").trim();
+    const nombre = resto.replace(/\s+/g, " ").trim();
+    if (!nombre) {
+      out({ ok: false, codigo: "pregunta", pregunta: "¿Cómo se llama el cliente? Ej. «cliente añadir Ana Pérez».", detalle: "falta el nombre" });
     }
+    const draft = {
+      tipo: "cliente", fase: "resumen",
+      cliente: { nombre: nombre.charAt(0).toUpperCase() + nombre.slice(1), tipo },
+      actualizado: new Date().toISOString(),
+    };
+    guardarDraft(draft);
+    const tipoTxt = tipo === "proveedor" ? "Proveedor (le debo)" : tipo === "ambos" ? "Cliente y proveedor" : "Cliente (me debe)";
+    out({
+      ok: false, codigo: "resumen", espera_confirmacion: true,
+      resumen: [
+        "Agregar cliente:",
+        `Nombre: ${draft.cliente.nombre}`,
+        `Tipo: ${tipoTxt}`,
+        "",
+        '¿Lo guardo? Responde "sí" para confirmar.',
+      ].join("\n"),
+    });
   }
 
-  // ── cartera: resumen / detalle ──
-  {
-    const m = nq.match(/^cartera(\s+(.+))?$/);
-    if (m) {
-      const filtro = (m[2] || "").trim();
-      if (!filtro) {
+  // ── cartera: resumen (kw=cartera, q="") / detalle (kw=cartera, q="ana") ──
+  // No intercepta comandos (cargo/abono/...): esos los maneja su bloque.
+  if (kw === "cartera" && !/^(cargo|cargar|abono|abonar|a[nñ]adir|agregar|nuevo|ayuda|cancelar|si|no|ok)\b/.test(nq)) {
+    const filtro = q;
+    if (!filtro) {
         const r = await rpc("rpc_car_cartera", { p_user_id: cfg.USER_ID, p_cliente_id: null, p_limite_movimientos: 1 });
         const clientes = r.clientes || [];
         const conSaldo = clientes.filter((c) => (c.saldos || []).some((s) => Number(s.saldo) !== 0));
@@ -475,7 +486,6 @@ try {
         }
       }
       out({ ok: true, codigo: "cartera_detalle", mensaje: l.join("\n") });
-    }
   }
 
   // ── cargo / abono ──
@@ -490,15 +500,30 @@ try {
       }
       const moneda = detectarMoneda(q) || "USD";
       const lista = await rpc("rpc_car_cliente_listar", { p_user_id: cfg.USER_ID });
-      // Quita monto/moneda del texto para buscar el nombre
-      const paraNombre = limpiarResto(resto.replace(/^(cargo|cargar|abono|abonar)\b/i, "").trim());
-      let cands = buscarPorNombre(lista, paraNombre);
-      if (!cands.length) {
-        // Intento 2: las primeras palabras podrían ser el nombre
-        const palabras = paraNombre.split(/\s+/).slice(0, 2).join(" ");
-        cands = buscarPorNombre(lista, palabras);
+      // El nombre es el prefijo más largo que identifique un único cliente;
+      // lo demás es el concepto. ("cargo Ana 100 venta de queso" → Ana + "venta de queso")
+      const sinMonto = limpiarConcepto(resto);
+      const palabras = sinMonto.split(/\s+/).filter(Boolean);
+      let cliente = null, usadas = 0, amb = [];
+      for (let n = palabras.length; n >= 1 && !cliente; n--) {
+        const m = buscarPorNombre(lista, palabras.slice(0, n).join(" "));
+        if (m.length === 1) { cliente = m[0]; usadas = n; }
       }
-      if (!cands.length) {
+      if (!cliente) {
+        for (let n = 1; n <= palabras.length && !amb.length; n++) {
+          const m = buscarPorNombre(lista, palabras.slice(0, n).join(" "));
+          if (m.length > 1) amb = m;
+        }
+      }
+      if (!cliente && amb.length > 1) {
+        out({
+          ok: false, codigo: "pregunta",
+          pregunta: `¿Cuál de estos?\n${amb.slice(0, 5).map((c) => `• ${c.nombre}`).join("\n")}`,
+          opciones: amb.slice(0, 5).map((c) => c.nombre),
+          detalle: "cliente ambiguo",
+        });
+      }
+      if (!cliente) {
         const nombres = lista.filter((c) => c.activo).slice(0, 8).map((c) => c.nombre);
         out({
           ok: false, codigo: "pregunta",
@@ -507,20 +532,7 @@ try {
           detalle: "no se identificó el cliente",
         });
       }
-      if (cands.length > 1) {
-        out({
-          ok: false, codigo: "pregunta",
-          pregunta: `¿Cuál de estos?\n${cands.slice(0, 5).map((c) => `• ${c.nombre}`).join("\n")}`,
-          opciones: cands.slice(0, 5).map((c) => c.nombre),
-          detalle: "cliente ambiguo",
-        });
-      }
-      const cliente = cands[0];
-      // Concepto: lo que queda tras quitar el nombre del cliente
-      let concepto = paraNombre;
-      const nx = norm(cliente.nombre);
-      const idx = norm(concepto).indexOf(nx);
-      if (idx >= 0) concepto = (concepto.slice(0, idx) + concepto.slice(idx + cliente.nombre.length)).replace(/\s+/g, " ").trim();
+      let concepto = limpiarConcepto(palabras.slice(usadas).join(" "));
       if (!concepto) concepto = tipo === "cargo" ? "Cargo" : "Abono";
       const draft = {
         tipo: "movimiento", fase: "resumen",

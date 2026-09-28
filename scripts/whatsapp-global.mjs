@@ -48,22 +48,32 @@ async function rpc(fn, params) {
   return text ? JSON.parse(text) : null;
 }
 
-const fmtUsd = (n) =>
-  "$" + Number(n || 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
 async function main() {
   // ── ¿cuánto debo en total? ──
+  // Combina la cartera comercial (Fase 6: car_clientes) con las deudas de
+  // Control (Fase 3: fin_deudas). Signo: positivo = me deben, negativo = les debo.
   if (/cu[aá]nto (debo|deben|me deben)/.test(bajo)) {
-    const deudas = await rpc("rpc_fin_deudas", P);
-    const pend = deudas.filter((d) => d.estado === "pendiente");
-    const porPagar = pend.filter((d) => d.tipo === "por_pagar");
-    const porCobrar = pend.filter((d) => d.tipo === "por_cobrar");
-    return out({
-      ok: true,
-      codigo: "deuda_total",
-      por_pagar: porPagar.map((d) => ({ contraparte: d.contraparte, pendiente: d.pendiente, moneda: d.moneda })),
-      por_cobrar: porCobrar.map((d) => ({ contraparte: d.contraparte, pendiente: d.pendiente, moneda: d.moneda })),
-    });
+    let porPagar = [], porCobrar = [];
+    try {
+      const deudas = await rpc("rpc_fin_deudas", P);
+      const pend = (Array.isArray(deudas) ? deudas : []).filter((d) => d.estado === "pendiente");
+      porPagar = pend.filter((d) => d.tipo === "por_pagar")
+        .map((d) => ({ contraparte: d.contraparte, pendiente: d.pendiente, moneda: d.moneda, origen: "control" }));
+      porCobrar = pend.filter((d) => d.tipo === "por_cobrar")
+        .map((d) => ({ contraparte: d.contraparte, pendiente: d.pendiente, moneda: d.moneda, origen: "control" }));
+    } catch { /* Control aún sin deudas: se ignora */ }
+    try {
+      const cartera = await rpc("rpc_car_cartera", { p_user_id: cfg.USER_ID, p_cliente_id: null, p_limite_movimientos: 1 });
+      for (const c of cartera.clientes || []) {
+        for (const s of c.saldos || []) {
+          const v = Number(s.saldo);
+          if (!v) continue;
+          const item = { contraparte: c.nombre, pendiente: Math.abs(v), moneda: s.moneda, origen: "cartera" };
+          if (v > 0) porCobrar.push(item); else porPagar.push(item);
+        }
+      }
+    } catch { /* cartera vacía o sin acceso: se ignora */ }
+    return out({ ok: true, codigo: "deuda_total", por_pagar: porPagar, por_cobrar: porCobrar });
   }
 
   // ── ¿qué me falta comprar? ──

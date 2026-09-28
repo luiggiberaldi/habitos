@@ -7,14 +7,18 @@
 //   "finanzas ..." / "fin ..."   → scripts/whatsapp-finanzas.mjs
 //   "recibo ..."  / "recibos ..." → scripts/whatsapp-recibos.mjs
 //   "mercado ..."  / "merca ..." → scripts/whatsapp-mercado.mjs
+//   "cartera" / "cliente(s)" / "producto(s)" → scripts/whatsapp-cartera.mjs
 //   (sin prefijo)                → hábitos (comportamiento actual)
+//   Tras un `resumen`, el "sí"/"cancelar" sin prefijo se enruta al módulo con
+//   borrador pendiente (recibos o cartera, el más reciente).
 //
 // Imprime el JSON del módulo con `modulo` añadido, para que el agente
 // redacte la respuesta. Los módulos corren como subproceso aislado: si
 // uno falla, el router responde el error sin caerse.
 import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { root } from "./whatsapp-comun.mjs";
+import { root, cargarConfig, norm } from "./whatsapp-comun.mjs";
 
 const args = {};
 for (let i = 2; i < process.argv.length; i++) {
@@ -35,16 +39,23 @@ const PREFIJOS = [
   { modulo: "recibos", script: "whatsapp-recibos.mjs", rx: /^(recibos?)\b[\s:,]*/i },
   { modulo: "mercado", script: "whatsapp-mercado.mjs", rx: /^(mercado|merca)\b[\s:,]*/i },
   { modulo: "control", script: "whatsapp-control.mjs", rx: /^(control|ctrl)\b[\s:,]*/i },
+  { modulo: "cartera", script: "whatsapp-cartera.mjs", rx: /^(cartera|clientes?|productos?)\b[\s:,]*/i, pasaKw: true },
 ];
 
 let modulo = "habitos";
 let script = null;
 let resto = texto;
+let kw = "";
 for (const p of PREFIJOS) {
   if (p.rx.test(texto)) {
     modulo = p.modulo;
     script = p.script;
+    const mkw = texto.match(p.rx);
+    kw = (mkw && mkw[1] ? mkw[1] : "").toLowerCase();
     resto = texto.replace(p.rx, "").trim();
+    // "cartera" / "productos" / "clientes" solos: el script necesita la palabra
+    // clave para saber qué listar (kw la desambigua).
+    if (!resto && p.pasaKw) resto = kw;
     break;
   }
 }
@@ -64,6 +75,43 @@ if (modulo === "habitos") {
     modulo = "global";
     script = "whatsapp-global.mjs";
     resto = texto;
+  }
+}
+
+// ── Continuación de borrador sin prefijo ────────────────────────────────────
+// Después de un `resumen`, el usuario responde "sí" SIN prefijo (iría a
+// hábitos). Si hay un borrador pendiente (recibos o cartera), ese texto se
+// enruta al módulo dueño del borrador más reciente:
+//   - fase "resumen": solo palabras de cierre ("sí", "cancelar", ...)
+//   - fase "completar" (el módulo pidió un dato): cualquier texto sin prefijo
+//     es la respuesta a esa pregunta.
+if (modulo === "habitos") {
+  let uid = null;
+  try { uid = cargarConfig({}).USER_ID; } catch { /* sin config: no se intercepta */ }
+  if (uid) {
+    const leerDraft = (archivo) => {
+      try {
+        const p = join(process.env.HOME || "/home/hatch", ".config", "habitos", archivo);
+        if (!existsSync(p)) return null;
+        const d = JSON.parse(readFileSync(p, "utf8"))[uid];
+        return d && (d.fase === "resumen" || d.fase === "completar") ? d : null;
+      } catch { return null; }
+    };
+    const drafts = [
+      { modulo: "recibos", script: "whatsapp-recibos.mjs", d: leerDraft("recibo-borrador.json") },
+      { modulo: "cartera", script: "whatsapp-cartera.mjs", d: leerDraft("cartera-borrador.json") },
+    ]
+      .filter((c) => c.d)
+      .sort((a, b) => String(b.d.actualizado || "").localeCompare(String(a.d.actualizado || "")));
+    const nq0 = norm(texto);
+    const esCierre = /^(si|confirmo|confirmar|dale|crealo|ok|de una|hazlo|va|cancelar|cancela|olvida|olvidalo|descarta|no)$/.test(nq0);
+    const cand = drafts.find((c) => c.d.fase === "completar") || (esCierre ? drafts.find((c) => c.d.fase === "resumen") : null);
+    if (cand) {
+      modulo = cand.modulo;
+      script = cand.script;
+      resto = texto;
+      kw = "";
+    }
   }
 }
 
@@ -92,7 +140,7 @@ if (modulo === "habitos") {
   }
 }
 
-// ── Módulos finanzas/mercado ───────────────────────────────────────────────
+// ── Módulos finanzas/mercado/control/cartera ────────────────────────────────
 if (!resto) {
   out({
     ok: false, codigo: "ayuda", modulo,
@@ -100,11 +148,15 @@ if (!resto) {
       ? 'Escribe p. ej. "finanzas gasté 5$ en pan" (disponible en Fase 1).'
       : modulo === "recibos"
       ? 'Escribe p. ej. "recibo para Ana: reparación laptop 150" o "recibo ayuda".'
+      : modulo === "cartera"
+      ? 'Escribe p. ej. "cartera", "clientes", "productos" o "cartera ayuda".'
       : 'Escribe p. ej. "mercado compré 2kg de arroz" (disponible en Fase 2).',
   });
 }
 try {
-  const res = execFileSync(process.execPath, [join(root, "scripts", script), "--q", resto], { encoding: "utf8" });
+  const argv = [join(root, "scripts", script), "--q", resto];
+  if (kw) argv.push("--kw", kw);
+  const res = execFileSync(process.execPath, argv, { encoding: "utf8" });
   out({ ...JSON.parse(res), modulo });
 } catch (e) {
   const crudo = e.stdout || "";

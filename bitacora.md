@@ -664,3 +664,27 @@
 **Limpieza:** recibo de prueba `SEN-202609-003` eliminado con SQL directo (número 003 de 202609 consumido por la prueba, documentado). tsc sin errores en archivos de recibos (los 6 errores restantes son de `components/cartera/`, Fase 6 en curso).
 
 **Pendiente (no verificado):** que el agente del chat de WhatsApp enrute el "sí" sin prefijo al script de recibos cuando hay borrador pendiente (el router lo mandaría a hábitos); verificación visual del PDF en el teléfono de luigi.
+
+## 2026-09-28 — Fase 6: Catálogo y Cartera por WhatsApp (router + parseo + hogar)
+
+**Qué cambió:**
+- `scripts/whatsapp-router.mjs`: nuevos prefijos `cartera | cliente(s) | producto(s)` → `whatsapp-cartera.mjs`; pasa la palabra clave en `--kw` para desambiguar (`productos` vs `clientes` vs `cartera` con texto vacío o filtro). Continuación de borrador sin prefijo: si hay borrador pendiente (recibos o cartera), el "sí"/"cancelar" (fase `resumen`) o cualquier respuesta (fase `completar`, el módulo pidió un dato) se enruta al módulo dueño del borrador más reciente en vez de ir a hábitos.
+- `scripts/whatsapp-cartera.mjs`: bloques reescritos a comandos sin prefijo + `--kw` (`producto añadir` acotado a kw=producto; listas por kw; `cartera` no intercepta comandos cargo/abono). Cargo/abono con match progresivo por prefijo: el nombre es el prefijo más largo que identifique un único cliente (`cargo Ana 100 venta de queso` → Ana Pérez + concepto "venta de queso"). Nuevo `limpiarConcepto` (conserva "de"/"la" en el concepto). `MONTO_RX` con lookarounds para no tomar dígitos pegados a letras ("E2E" ya no se lee como monto 2). "les debo" usa valor absoluto (antes "les debo $ -25,00").
+- `scripts/whatsapp-global.mjs`: "cuánto debo / cuánto me deben" ahora combina la cartera comercial (`rpc_car_cartera`) con las deudas de Control (`rpc_fin_deudas`), cada una con `origen`.
+- Migración `supabase/migrations/0032_cartera_hogar.sql` (aplicada): endurece el alcance de hogar en las 9 RPC de cartera — `p_hogar_id` exige membresía (`hogar_no_valido` si no), lecturas incluyen filas compartidas con hogares del usuario, desactivar/movimiento aceptan filas propias o compartidas. Patrón de Mercado (0022): valida contra `hogar_miembros` con `p_user_id` porque `auth.uid()` es NULL en llamadas por secreto.
+
+**Bugs encontrados en el E2E (todos corregidos y re-verificados):**
+1. `cliente añadir Ana Pérez` caía en el bloque de producto (el "añadir" sin kw lo interceptaba) → pregunta fantasma de precio. Fix: producto-añadir acotado por kw.
+2. `cartera cargo Ana 100...` lo atrapaba el bloque `cartera` como filtro de cliente → "no-encontrado". Fix: guarda que excluye palabras de comando.
+3. `cargo E2E 50...` no identificaba al cliente ("E2E" → "e e" al quitar dígitos) y luego tomaba monto 2 del "2" de "E2E". Fix: `limpiarConcepto` solo borra números standalone + `MONTO_RX` con fronteras de letra.
+
+**Verificación (real, 2026-09-28, vía router):**
+- Mock: producto añadir/listar, cliente añadir/listar, cartera resumen/detalle, cargo/abono con "sí" sin prefijo, cancelar, ayuda. ✅
+- Real: `cliente añadir E2E Temporal` → sí → `cartera cargo E2E 50 dolares prueba e2e` → sí → `cartera abono E2E 20` → sí → `cartera E2E` muestra cargos $50, abonos $20, "me deben $30,00". ✅
+- Real: `producto añadir Harina Pan 3.5 dolares kg` → sí; `cliente añadir Distribuidora XYZ proveedor` → sí. ✅
+- Global real: `cuánto me deben` → `[{contraparte:"Prueba Cartera", pendiente:60, moneda:"USD", origen:"cartera"}]`. ✅
+- Hogar: `rpc_cat_producto_upsert` con hogar falso → `hogar_no_valido`; sin hogar → OK. ✅
+- Regresión: `recibo ayuda`, `finanzas saldo`, `tomé agua`, `sí` sin borradores (→ hábitos sin-match), recibos resumen → `sí` sin prefijo → creado. ✅
+- tsc limpio, eslint limpio (2 warnings eliminados), `npm run build` OK.
+
+**Limpieza:** eliminados todos los datos de prueba (E2E Temporal, Prueba Cartera, Distribuidora XYZ, Prueba Producto, Harina Pan, Prod Hogar OK + sus movimientos). Tablas en cero.

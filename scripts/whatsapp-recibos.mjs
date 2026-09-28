@@ -28,10 +28,9 @@
 //   "cancelar"                                      → descarta el borrador
 //   "ayuda"                                         → ayuda
 //
-// NOTA PARA EL AGENTE DEL CHAT: después de un `resumen`, el usuario responde
-// "sí" SIN prefijo (el router lo mandaría a hábitos). Si hay un borrador
-// pendiente para ese usuario, ese "sí" debe enrutarse aquí:
-//   node scripts/whatsapp-recibos.mjs --q "sí"
+// NOTA: el router ya enruta el "sí"/"cancelar" sin prefijo a este script cuando
+// hay un borrador pendiente (ver whatsapp-router.mjs). Invocación directa con
+// --q "sí" también funciona.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
