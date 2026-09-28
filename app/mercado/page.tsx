@@ -105,13 +105,13 @@ function Tabs({
     { id: "registrar", etiqueta: "Registrar" },
   ] as const;
   return (
-    <div className="flex gap-2 overflow-x-auto rounded-2xl bg-surface p-1.5">
+    <div className="grid grid-cols-3 gap-2 rounded-2xl bg-surface p-1.5">
       {items.map((t) => (
         <button
           key={t.id}
           type="button"
           onClick={() => setTab(t.id)}
-          className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-bold transition-colors ${
+          className={`min-w-0 rounded-xl px-2 py-2 text-center text-sm font-bold transition-colors ${
             tab === t.id ? "bg-accent text-white" : "text-muted hover:text-foreground"
           }`}
         >
@@ -645,13 +645,13 @@ export default function MercadoPage() {
 
               <div className="rounded-2xl bg-surface p-4">
                 <p className="text-sm font-black text-foreground">Movimiento de inventario</p>
-                <div className="mt-3 flex gap-2 overflow-x-auto rounded-2xl bg-background p-1.5">
+                <div className="mt-3 grid grid-cols-4 gap-2 rounded-2xl bg-background p-1.5">
                   {TIPOS_MOV.map((t) => (
                     <button
                       key={t.valor}
                       type="button"
                       onClick={() => setMTipo(t.valor)}
-                      className={`flex-1 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-bold ${
+                      className={`min-w-0 rounded-xl px-2 py-2 text-center text-sm font-bold ${
                         mTipo === t.valor ? "bg-accent text-white" : "text-muted hover:text-foreground"
                       }`}
                     >

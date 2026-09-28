@@ -1522,14 +1522,14 @@ export default function ControlPage() {
         )}
       </div>
 
-      <nav aria-label="Secciones de Control" className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-border bg-surface p-1">
+      <nav aria-label="Secciones de Control" className="mb-4 grid grid-cols-5 gap-1 rounded-2xl border border-border bg-surface p-1">
         {TABS.map((t) => (
           <button
             key={t.valor}
             type="button"
             onClick={() => setTab(t.valor)}
             aria-current={tab === t.valor ? "page" : undefined}
-            className={`whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-bold ${
+            className={`min-w-0 rounded-xl px-1 py-2 text-center text-xs font-bold ${
               tab === t.valor ? "bg-accent text-white" : "text-muted"
             }`}
           >

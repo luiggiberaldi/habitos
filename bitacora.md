@@ -532,3 +532,16 @@
 **Verificación (real, 2026-09-27):** tsc limpio, ESLint limpio, `npm run build` limpio.
 
 **Pendiente (no verificado):** verificación visual en el teléfono de luigi.
+
+## 2026-09-27 — Sin scroll horizontal en pestañas (pedido de luigi)
+
+**Qué cambió:**
+- `app/mercado/page.tsx`: las pestañas de "Movimiento de inventario" (Comprar/Gastar/Ajustar/Se dañó) y las principales del módulo (Inventario/Lista/Registrar) pasaron de `flex + overflow-x-auto + whitespace-nowrap` (desbordaba en móvil) a `grid` de columnas iguales sin scroll.
+- `app/control/page.tsx`: el nav de 5 secciones (Pagos/Presupuestos/Deudas/Metas/Cierre) igual, a `grid-cols-5`.
+- El `overflow-x-auto` del mapa de calor anual en estadísticas se dejó: es una visualización ancha por diseño (como el gráfico de contribuciones de GitHub).
+
+**Por qué:** luigi reportó desde el teléfono que "Se dañó" quedaba cortada con scroll lateral.
+
+**Verificación (real, 2026-09-27):** tsc limpio, ESLint limpio, build limpio.
+
+**Pendiente (no verificado):** verificación visual en el teléfono de luigi.
