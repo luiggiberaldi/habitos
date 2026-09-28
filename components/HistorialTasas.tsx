@@ -12,11 +12,11 @@ import {
   IconTendenciaSube,
 } from "../lib/core/ui/icons";
 
-type ClaveTasa = "bcv" | "paralelo" | "usdt";
+type ClaveTasa = "bcv" | "euro" | "usdt";
 
 const TASAS: Array<{ clave: ClaveTasa; nombre: string }> = [
   { clave: "bcv", nombre: "BCV" },
-  { clave: "paralelo", nombre: "Paralelo" },
+  { clave: "euro", nombre: "Euro" },
   { clave: "usdt", nombre: "USDT" },
 ];
 
