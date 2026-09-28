@@ -301,6 +301,7 @@ function cargarLibRecibos() {
     "recibos/tipos.ts", "recibos/calculos.ts", "recibos/formato.ts",
     "recibos/garantia.ts", "recibos/tasas.ts",
     "recibos/pdf/shared.ts", "recibos/pdf/logo.ts", "recibos/pdf/builder.ts",
+    "recibos/pdf/synaptica.ts",
   ];
   const marcador = join(cacheDir, ".built-at");
   let recompilar = !existsSync(marcador);
@@ -326,7 +327,10 @@ function cargarLibRecibos() {
   }
   const req = createRequire(join(cacheDir, "cargador.cjs"));
   // tsc aplana la salida (raíz común: lib/recibos) → pdf/builder.js
-  libPdf = { builder: req(join(cacheDir, "pdf", "builder.js")) };
+  libPdf = {
+    builder: req(join(cacheDir, "pdf", "builder.js")),
+    synaptica: req(join(cacheDir, "pdf", "synaptica.js")),
+  };
   return libPdf;
 }
 
@@ -381,15 +385,24 @@ async function tasaBsParaPdf(moneda) {
   }
 }
 
+function dataUrlLocal(rel) {
+  try {
+    const buf = readFileSync(join(root, "public", rel));
+    return `data:image/png;base64,${buf.toString("base64")}`;
+  } catch {
+    return undefined;
+  }
+}
+
 async function generarPdf(fila) {
-  const { builder } = cargarLibRecibos();
+  const { synaptica } = cargarLibRecibos();
   const recibo = filaARecibo(fila);
   const bsRate = await tasaBsParaPdf(fila.moneda);
-  const doc = builder.buildReceiptPdf(recibo, {
+  const doc = synaptica.buildSynapticaPdf(recibo, {
     bsRate,
-    marca: "SENDA",
-    subtitulo: "Comprobante de pago",
     anulado: fila.estado === "anulado",
+    logoDataUrl: dataUrlLocal("synaptica/logo.png"),
+    firmaDataUrl: dataUrlLocal("synaptica/firma-luigi.png"),
   });
   const buf = Buffer.from(doc.output("arraybuffer"));
   const limpio = String(fila.cliente_nombre || "cliente")
@@ -397,7 +410,7 @@ async function generarPdf(fila) {
     .replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "cliente";
   return {
     base64: buf.toString("base64"),
-    nombre: `senda-recibo-${fila.numero}-${limpio}.pdf`,
+    nombre: `synaptica-recibo-${fila.numero}-${limpio}.pdf`,
     bytes: buf.length,
   };
 }

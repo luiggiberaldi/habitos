@@ -141,5 +141,5 @@ export function sanitizeNumberForFilename(number: string): string {
 export function buildPdfFilename(receiptNumber: string, clientName: string): string {
   const num = sanitizeNumberForFilename(receiptNumber) || "000";
   const client = sanitizeForFilename(clientName);
-  return `senda-recibo-${num}-${client}.pdf`;
+  return `synaptica-recibo-${num}-${client}.pdf`;
 }

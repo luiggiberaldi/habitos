@@ -7,6 +7,7 @@ import {
   type FinDatos,
 } from "../../lib/finanzas/finanzas";
 import { IconAlerta } from "../../lib/core/ui/icons";
+import { flameGradientX } from "../../lib/core/ui/design-tokens";
 
 const VERDE = "text-green-700 dark:text-green-400";
 const ROJO = "text-red-700 dark:text-red-400";
@@ -16,6 +17,41 @@ function formatoCorto(usd: number): string {
   const abs = Math.abs(usd);
   if (abs >= 10000) return `$ ${(usd / 1000).toFixed(1).replace(".", ",")}k`;
   return formatearMonto(usd, "USD");
+}
+
+/** Sub-fila de ingresos/egresos dentro de un mes: etiqueta + barra + valor. */
+function BarraMes({
+  etiqueta,
+  valor,
+  max,
+  colorBarra,
+  colorTexto,
+  signo,
+}: {
+  etiqueta: string;
+  valor: number;
+  max: number;
+  colorBarra: string;
+  colorTexto: string;
+  signo: "+" | "−";
+}) {
+  const ancho = valor > 0 ? Math.max(3, (valor / max) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-16 shrink-0 text-[11px] font-semibold text-muted">{etiqueta}</span>
+      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-surface-2">
+        <div
+          className={`h-full rounded-full ${colorBarra}`}
+          style={{ width: `${ancho}%` }}
+          title={`${etiqueta}: ${formatearMonto(valor, "USD")}`}
+        />
+      </div>
+      <span className={`w-20 shrink-0 text-right text-xs font-bold ${colorTexto}`}>
+        {signo}
+        {formatoCorto(valor)}
+      </span>
+    </div>
+  );
 }
 
 /**
@@ -82,6 +118,10 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
   const minPatrimonio = Math.min(...historialPatrimonio.map((m) => m.patrimonioUsd), 0);
   const rangoPatrimonio = Math.max(maxPatrimonio - minPatrimonio, 1);
   const maxCategoria = Math.max(...datos.topCategorias.map((c) => c.usd), 1);
+  const deltaPatrimonio =
+    historialPatrimonio.length > 0
+      ? historialPatrimonio[historialPatrimonio.length - 1].patrimonioUsd - historialPatrimonio[0].patrimonioUsd
+      : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -89,33 +129,33 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
         <h2 id="fin-datos-balance" className="mb-3 text-base font-bold text-foreground">
           Balance mensual
         </h2>
-        <ul className="flex flex-col gap-3 rounded-3xl bg-surface p-4 shadow-sm">
+        <ul className="divide-y divide-border rounded-3xl bg-surface px-4 py-1 shadow-sm">
           {datos.meses.map((m) => (
-            <li key={m.clave} className="flex flex-col gap-1.5">
+            <li key={m.clave} className="flex flex-col gap-2 py-3.5">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xs font-bold capitalize text-muted">{m.etiqueta}</span>
-                <span className={`text-sm font-bold ${m.flujoNetoUsd >= 0 ? VERDE : ROJO}`}>
+                <span className="text-xs font-bold uppercase tracking-wide text-muted">{m.etiqueta}</span>
+                <span className={`text-lg font-extrabold ${m.flujoNetoUsd >= 0 ? VERDE : ROJO}`}>
                   {m.flujoNetoUsd >= 0 ? "+" : "−"}
                   {formatearMonto(Math.abs(m.flujoNetoUsd), "USD")}
                 </span>
               </div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
-                    <div className="h-full rounded-full bg-green-500/80" style={{ width: `${(m.ingresosUsd / maxBarra) * 100}%` }} />
-                  </div>
-                  <span className={`w-24 shrink-0 text-right text-xs font-semibold ${VERDE}`}>
-                    +{formatoCorto(m.ingresosUsd)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
-                    <div className="h-full rounded-full bg-red-500/80" style={{ width: `${(m.egresosUsd / maxBarra) * 100}%` }} />
-                  </div>
-                  <span className={`w-24 shrink-0 text-right text-xs font-semibold ${ROJO}`}>
-                    −{formatoCorto(m.egresosUsd)}
-                  </span>
-                </div>
+              <div className="flex flex-col gap-1.5">
+                <BarraMes
+                  etiqueta="Ingresos"
+                  valor={m.ingresosUsd}
+                  max={maxBarra}
+                  colorBarra="bg-green-500"
+                  colorTexto={VERDE}
+                  signo="+"
+                />
+                <BarraMes
+                  etiqueta="Egresos"
+                  valor={m.egresosUsd}
+                  max={maxBarra}
+                  colorBarra="bg-accent"
+                  colorTexto={ROJO}
+                  signo="−"
+                />
               </div>
             </li>
           ))}
@@ -127,19 +167,41 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
           Patrimonio en el tiempo
         </h2>
         <div className="rounded-3xl bg-surface p-4 shadow-sm">
-          <div className="flex h-36 items-end justify-between gap-2" role="img" aria-label="Evolución del patrimonio en los últimos 6 meses">
-            {historialPatrimonio.map((m) => (
-              <div key={m.clave} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
-                <span className="text-[10px] font-bold text-foreground">{formatoCorto(m.patrimonioUsd)}</span>
-                <div
-                  className="w-full max-w-10 rounded-t-lg bg-accent/70"
-                  style={{ height: `${Math.max(8, ((m.patrimonioUsd - minPatrimonio) / rangoPatrimonio) * 100)}%` }}
-                />
-                <span className="text-[10px] font-bold capitalize text-muted">{m.etiqueta}</span>
-              </div>
-            ))}
+          <div
+            className="flex h-40 items-end justify-between gap-2"
+            role="img"
+            aria-label="Evolución del patrimonio en los últimos 6 meses"
+          >
+            {historialPatrimonio.map((m, i) => {
+              const esActual = i === historialPatrimonio.length - 1;
+              return (
+                <div key={m.clave} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
+                  <span className={`text-[10px] font-bold ${esActual ? "text-accent" : "text-foreground"}`}>
+                    {formatoCorto(m.patrimonioUsd)}
+                  </span>
+                  <div
+                    className={`w-full max-w-10 rounded-t-full ${esActual ? "" : "bg-accent/30"}`}
+                    style={{
+                      height: `${Math.max(10, ((m.patrimonioUsd - minPatrimonio) / rangoPatrimonio) * 100)}%`,
+                      ...(esActual ? { background: flameGradientX } : {}),
+                    }}
+                    title={`${m.etiqueta}: ${formatearMonto(m.patrimonioUsd, "USD")}`}
+                  />
+                  <span className={`text-[10px] font-bold capitalize ${esActual ? "text-accent" : "text-muted"}`}>
+                    {m.etiqueta}
+                  </span>
+                </div>
+              );
+            })}
           </div>
-          <p className="mt-3 text-xs text-muted">
+          <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3">
+            <span className="text-xs font-semibold text-muted">Variación en 6 meses</span>
+            <span className={`text-sm font-extrabold ${deltaPatrimonio >= 0 ? VERDE : ROJO}`}>
+              {deltaPatrimonio >= 0 ? "+" : "−"}
+              {formatearMonto(Math.abs(deltaPatrimonio), "USD")}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-muted">
             Reconstruido desde tu patrimonio actual y tus movimientos registrados.
           </p>
         </div>

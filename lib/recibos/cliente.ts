@@ -14,8 +14,8 @@ import type {
   PaymentMethod,
 } from "./tipos";
 import { computeTotals } from "./calculos";
-import { buildReceiptPdf } from "./pdf/builder";
 import { buildPdfFilename, formatDate } from "./formato";
+import { buildSynapticaPdf } from "./pdf/synaptica";
 import type { TasaBs } from "./tasas";
 
 export interface ReciboFila {
@@ -160,15 +160,36 @@ async function tasaBsParaPdf(moneda: FinMoneda): Promise<TasaBs | null> {
   return { etiqueta: moneda === "USD" ? "Paralelo" : "USDT", tasa };
 }
 
-/** Genera y descarga el PDF de un recibo. */
+/** Data URLs en caché de los assets de marca Synaptica (logo + firma). */
+const marcaCache: { logo?: string; firma?: string } = {};
+
+async function dataUrlImagen(ruta: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(ruta);
+    if (!res.ok) return undefined;
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(new Error("FileReader"));
+      fr.readAsDataURL(blob);
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+/** Genera y descarga el PDF 2.0 de un recibo (marca Synaptica). */
 export async function descargarPdf(fila: ReciboFila): Promise<void> {
   const recibo = filaARecibo(fila);
   const bsRate = await tasaBsParaPdf(fila.moneda);
-  const doc = buildReceiptPdf(recibo, {
+  if (!marcaCache.logo) marcaCache.logo = await dataUrlImagen("/synaptica/logo.png");
+  if (!marcaCache.firma) marcaCache.firma = await dataUrlImagen("/synaptica/firma-luigi.png");
+  const doc = buildSynapticaPdf(recibo, {
     bsRate,
-    marca: "SENDA",
-    subtitulo: "Comprobante de pago",
     anulado: fila.estado === "anulado",
+    logoDataUrl: marcaCache.logo,
+    firmaDataUrl: marcaCache.firma,
   });
   doc.save(buildPdfFilename(fila.numero, fila.cliente_nombre));
 }

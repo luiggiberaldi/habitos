@@ -688,3 +688,18 @@
 - tsc limpio, eslint limpio (2 warnings eliminados), `npm run build` OK.
 
 **Limpieza:** eliminados todos los datos de prueba (E2E Temporal, Prueba Cartera, Distribuidora XYZ, Prueba Producto, Harina Pan, Prod Hogar OK + sus movimientos). Tablas en cero.
+
+## 2026-09-28 — PDF 2.0 marca Synaptica + mejoras Finanzas (Datos y Esta semana)
+
+**Qué pidió luigi:** (1) el PDF de recibos con SU marca (Synaptica), no Senda, siguiendo el diseño del PDF que adjuntó (`synaptica-recibo-syn-2026-158-kelman-herrera.pdf`); (2) mejorar la zona "Datos" de Finanzas (Balance mensual, Patrimonio en el tiempo); (3) mejorar el gráfico "Esta semana".
+
+**Logo oficial:** no estaba en el repo. Se extrajo del PDF de referencia con `pdfimages` (el S de nodos + wordmark, y la firma manuscrita de luigi), se les quitó el fondo negro a transparente y quedaron en `public/synaptica/logo.png` y `public/synaptica/firma-luigi.png`. Son los assets oficiales de la marca, no un wordmark inventado.
+
+**PDF 2.0 (`lib/recibos/pdf/synaptica.ts`, nuevo):** `buildSynapticaPdf()` réplica fiel del diseño aprobado — banda navy con diagonal naranja, logo oficial, "RECIBO" en serif, tagline, "Nº 158" + pastilla de estado, regla naranja, franja de metadatos (emisión/vencimiento/modalidad/moneda), tarjetas Facturado a / Emitido por con barras de acento, tabla de conceptos bicolor (naranja + navy, con línea de licencia), Pagos registrados + Resumen lado a lado (con equivalencia en Bs), calendario de cuotas, banda de garantía (vigente/por vencer/vencida), firma manuscrita real + "FIRMADO DIGITALMENTE" + cargo, marca de agua PAGADO/ANULADO en diagonal, pie navy con diagonal naranja, logo y "Página N de M". Emisor con defaults de la marca (SYNAPTICA.CA, RIF V24457713, 04124051793, synapticaia@gmail.com, Ricardo Urriera Sector 3, Valencia) cuando el recibo no trae datos de emisor. Multi-página con pie en cada hoja si el contenido desborda.
+- `lib/recibos/cliente.ts` `descargarPdf()` ahora usa el builder Synaptica (assets vía `/synaptica/*.png`, caché en memoria); `scripts/whatsapp-recibos.mjs` compila `synaptica.ts` con tsc y genera el PDF con los PNG leídos de disco. Nombre de archivo: `synaptica-recibo-<num>-<cliente>.pdf` (`buildPdfFilename` en `formato.ts`).
+
+**Finanzas UI (delegado, solo presentacional):**
+- `components/finanzas/DatosFinanzas.tsx`: Balance mensual con neto prominente por mes + sub-filas etiquetadas Ingresos/Egresos con barra; Patrimonio en el tiempo con mes actual destacado (gradiente flama), valores con title y fila "Variación en 6 meses".
+- `app/finanzas/page.tsx` (`ResumenSemanal`): barras más altas (120px), neto del día sobre cada columna, día actual resaltado, estado vacío amable, leyenda mejorada, role="img" con aria-label.
+
+**Verificación:** muestra generada con los datos del recibo de referencia (SYN-2026-158, Kelman Herrera) renderizada con pdftoppm — una sola página, idéntica en estructura al diseño aprobado; casos borde (pendiente sin imágenes, anulado) OK. tsc limpio, eslint limpio, `npm run build` OK.

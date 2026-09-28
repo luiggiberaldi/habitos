@@ -685,41 +685,83 @@ function FilaMovimiento({
   );
 }
 
+/** Etiqueta corta para los valores del gráfico semanal: $ 38, $ 1,2k. */
+function formatoCortoSemanal(usd: number): string {
+  const abs = Math.abs(usd);
+  if (abs >= 1000) return `$ ${(usd / 1000).toFixed(1).replace(".", ",")}k`;
+  return `$ ${Math.round(usd).toLocaleString("es-VE")}`;
+}
+
 function ResumenSemanal({ dias }: { dias: FinResumenDia[] }) {
+  const hoy = hoyCaracas();
+  const hayDatos = dias.some((d) => d.ingresosUsd > 0 || d.egresosUsd > 0);
   const max = Math.max(1, ...dias.flatMap((d) => [d.ingresosUsd, d.egresosUsd]));
-  const nombreDia = (fecha: string) => {
-    const n = new Intl.DateTimeFormat("es-VE", { weekday: "narrow" }).format(
-      new Date(`${fecha}T12:00:00`),
+  const ALTURA = 120;
+  const nombreDia = (fecha: string) =>
+    new Intl.DateTimeFormat("es-VE", { weekday: "narrow" })
+      .format(new Date(`${fecha}T12:00:00`))
+      .toUpperCase();
+
+  if (!hayDatos) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+        <p className="text-sm font-semibold text-foreground">Sin movimientos esta semana</p>
+        <p className="mt-1 text-xs text-muted">
+          Registra un ingreso o un egreso y aquí verás el pulso de tu semana.
+        </p>
+      </div>
     );
-    return n.toUpperCase();
-  };
+  }
+
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
-      <div className="flex items-end justify-between gap-1" style={{ height: 96 }}>
-        {dias.map((d) => (
-          <div key={d.fecha} className="flex flex-1 flex-col items-center justify-end gap-1">
-            <div className="flex w-full items-end justify-center gap-0.5" style={{ height: 72 }}>
-              <div
-                className="w-2.5 rounded-full bg-green-500/80"
-                style={{ height: `${Math.max(3, (d.ingresosUsd / max) * 72)}px` }}
-                title={`Ingresos $${d.ingresosUsd}`}
-              />
-              <div
-                className="w-2.5 rounded-full bg-accent/80"
-                style={{ height: `${Math.max(3, (d.egresosUsd / max) * 72)}px` }}
-                title={`Egresos $${d.egresosUsd}`}
-              />
+      <div
+        className="flex items-stretch justify-between gap-1"
+        role="img"
+        aria-label="Ingresos y egresos de cada día de la semana"
+      >
+        {dias.map((d) => {
+          const esHoy = d.fecha === hoy;
+          const neto = d.ingresosUsd - d.egresosUsd;
+          const hIng = d.ingresosUsd > 0 ? Math.max(6, (d.ingresosUsd / max) * ALTURA) : 0;
+          const hEgr = d.egresosUsd > 0 ? Math.max(6, (d.egresosUsd / max) * ALTURA) : 0;
+          return (
+            <div
+              key={d.fecha}
+              className={`flex min-w-0 flex-1 flex-col items-center justify-end rounded-xl px-0.5 py-1.5 ${esHoy ? "bg-accent-soft" : ""}`}
+            >
+              <span
+                className={`h-4 whitespace-nowrap text-[10px] font-bold ${
+                  neto > 0 ? "text-green-700 dark:text-green-400" : neto < 0 ? "text-red-700 dark:text-red-400" : ""
+                }`}
+              >
+                {neto !== 0 ? `${neto > 0 ? "+" : "−"}${formatoCortoSemanal(Math.abs(neto))}` : ""}
+              </span>
+              <div className="flex w-full items-end justify-center gap-1" style={{ height: ALTURA }}>
+                <div
+                  className="w-3.5 rounded-full bg-green-500"
+                  style={{ height: `${hIng}px` }}
+                  title={`Ingresos: ${formatearMonto(d.ingresosUsd, "USD")}`}
+                />
+                <div
+                  className="w-3.5 rounded-full bg-accent"
+                  style={{ height: `${hEgr}px` }}
+                  title={`Egresos: ${formatearMonto(d.egresosUsd, "USD")}`}
+                />
+              </div>
+              <span className={`mt-1.5 text-[10px] font-bold ${esHoy ? "text-accent" : "text-muted"}`}>
+                {nombreDia(d.fecha)}
+              </span>
             </div>
-            <span className="text-[10px] font-bold text-muted">{nombreDia(d.fecha)}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <div className="mt-2 flex justify-center gap-4 text-[11px] text-muted">
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-green-500/80" aria-hidden="true" /> Ingresos
+      <div className="mt-3 flex justify-center gap-5 text-xs font-semibold text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-green-500" aria-hidden="true" /> Ingresos
         </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-accent/80" aria-hidden="true" /> Egresos
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-accent" aria-hidden="true" /> Egresos
         </span>
       </div>
     </div>
