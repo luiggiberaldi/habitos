@@ -17,6 +17,7 @@
 // El usuario: --user-id o HABITOS_USER_ID.
 
 import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cargarLib, resolverPerfilId } from "./whatsapp-comun.mjs";
@@ -179,6 +180,9 @@ const main = async () => {
     if (!sueno) fail("sin-habito", "no hay hábito Sueño activo");
     habit = sueno;
     args.moment = suenoForzado;
+    // Hora explícita ("me acosté a las 1:40"): se respeta en vez de la hora actual.
+    const mh = norm(args.q || "").match(/\b(\d{1,2}):(\d{2})\b/);
+    if (mh) args.horaSueno = `${mh[1].padStart(2, "0")}:${mh[2]}`;
   } else if (args.habit) {
     habit = habits.find((h) => h.id === args.habit) || habits.find((h) => norm(h.nombre) === norm(args.habit));
     if (!habit) fail("sin-habito", `no existe hábito ${args.habit}`);
@@ -202,7 +206,7 @@ const main = async () => {
     const ahora = new Date();
     const hhmmAhora = `${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}`;
     let cual = args.moment === "levantar" || args.moment === "acostar" ? args.moment : null;
-    let horaReal = hhmmAhora;
+    let horaReal = args.horaSueno || hhmmAhora;
     if (!cual && args.moment) {
       const mm = String(args.moment).match(/^(\d{1,2}):?(\d{2})$/);
       if (mm) horaReal = `${mm[1].padStart(2, "0")}:${mm[2]}`;

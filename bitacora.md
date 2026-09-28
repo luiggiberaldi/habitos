@@ -793,3 +793,9 @@ luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en
 - Fix: `perfilEmisor` se evaluaba antes de `EMISOR_PATH` (TDZ) y el catch lo dejaba vacío en silencio.
 - Backfill: snapshot de SEN-202609-007 con los datos del emisor; PDF regenerado.
 - La app ya persistía el perfil del emisor en localStorage (`senda-recibo-emisor`); sin cambios ahí.
+
+## 2026-09-28 — WhatsApp registrar: fix spawnSync + hora explícita en sueño
+
+- `whatsapp-registrar.mjs` crasheaba al arrancar: `spawnSync is not defined` en el bloque que fuerza TZ=America/Caracas (faltaba el import de `node:child_process`). Nunca había fallado porque... fallaba siempre que TZ no venía seteado; se arregló el import.
+- Bug real: "me acosté a las 1:40" ignoraba la hora explícita y marcaba con la hora actual (08:10). Ahora `args.horaSueno` captura `\d{1,2}:\d{2}` del texto cuando hay verbo de sueño y se usa como horaReal.
+- Corrección de datos: el registro de anoche quedó con created_at 08:10; se ajustó a 01:40 (2026-09-28T05:40Z) para que la duración de la noche calcule bien. El -10 XP se mantuvo (220 min tarde igual da -10).
