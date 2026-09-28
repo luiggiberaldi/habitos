@@ -375,6 +375,141 @@ async function calcularDebidos(): Promise<
     }));
 }
 
+// ── Motor genérico de recordatorios (Fase 0.5) ──────────────────────────
+// La lógica de hábitos (calcularDebidos) se conserva intacta como adaptador;
+// este pase lee la tabla `recordatorios` y envía los vencidos. Cada fila
+// es su propio dedupe: pendiente → enviado (o reprogramado si recurre).
+
+type RecordatorioFila = {
+  id: string;
+  user_id: string;
+  modulo: string;
+  titulo: string;
+  cuerpo: string;
+  programado_para: string;
+  regla_recurrencia: string | null;
+  datos_json: { ruta?: string } | null;
+};
+
+async function calcularGenericosDebidos(): Promise<RecordatorioFila[]> {
+  const ahora = new Date().toISOString();
+  const debidos: RecordatorioFila[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("recordatorios")
+      .select("id,user_id,modulo,titulo,cuerpo,programado_para,regla_recurrencia,datos_json")
+      .eq("estado", "pendiente")
+      .lte("programado_para", ahora)
+      .order("programado_para")
+      .range(from, from + 999);
+    if (error) {
+      console.error("Error leyendo recordatorios:", error.message);
+      break;
+    }
+    for (const r of data ?? []) debidos.push(r as RecordatorioFila);
+    if (!data || data.length < 1000) break;
+  }
+  return debidos;
+}
+
+/** Próxima ocurrencia para regla_recurrencia; null si no recurre. */
+function siguienteRecurrencia(
+  programadoPara: string,
+  regla: string | null,
+): string | null {
+  if (regla !== "diaria" && regla !== "semanal" && regla !== "mensual") {
+    return null;
+  }
+  const d = new Date(programadoPara);
+  if (regla === "diaria") d.setDate(d.getDate() + 1);
+  else if (regla === "semanal") d.setDate(d.getDate() + 7);
+  else d.setMonth(d.getMonth() + 1);
+  // Si la próxima ya quedó en el pasado (la función estuvo caída), avanzar
+  // hasta el futuro para no disparar una ráfaga de pendientes.
+  const ahora = Date.now();
+  while (d.getTime() <= ahora) {
+    if (regla === "diaria") d.setDate(d.getDate() + 1);
+    else if (regla === "semanal") d.setDate(d.getDate() + 7);
+    else d.setMonth(d.getMonth() + 1);
+  }
+  return d.toISOString();
+}
+
+/** Envía los recordatorios genéricos vencidos y actualiza su estado. */
+async function enviarGenericos(debidos: RecordatorioFila[]): Promise<number> {
+  if (debidos.length === 0) return 0;
+  const userIds = [...new Set(debidos.map((d) => d.user_id))];
+  const { data: subs, error: subError } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, user_id, p256dh, auth")
+    .in("user_id", userIds);
+  if (subError) {
+    console.error("Error leyendo suscripciones (genéricos):", subError.message);
+    return 0;
+  }
+  const porUsuario = new Map<string, typeof subs>();
+  for (const s of subs ?? []) {
+    const list = porUsuario.get(s.user_id) ?? [];
+    list.push(s);
+    porUsuario.set(s.user_id, list);
+  }
+
+  let enviados = 0;
+  for (const r of debidos) {
+    const userSubs = porUsuario.get(r.user_id) ?? [];
+    if (userSubs.length === 0) continue;
+    const ruta =
+      r.datos_json && typeof r.datos_json.ruta === "string"
+        ? r.datos_json.ruta
+        : "/";
+    const payload = {
+      title: r.titulo,
+      body: r.cuerpo || undefined,
+      data: {
+        habitId: "",
+        momentId: "",
+        perfilId: null,
+        url: ruta,
+        fecha: "",
+        modulo: r.modulo,
+        recordatorioId: r.id,
+      },
+    };
+    let exito = false;
+    for (const sub of userSubs) {
+      if (
+        await enviarPush(
+          {
+            endpoint: sub.endpoint,
+            user_id: sub.user_id,
+            perfil_id: null,
+            p256dh: (sub as { p256dh?: string | null }).p256dh ?? null,
+            auth: (sub as { auth?: string | null }).auth ?? null,
+          },
+          payload,
+        )
+      ) {
+        exito = true;
+        break;
+      }
+    }
+    if (!exito) continue;
+    enviados++;
+    const proximo = siguienteRecurrencia(r.programado_para, r.regla_recurrencia);
+    const { error: upErr } = await supabase
+      .from("recordatorios")
+      .update(
+        proximo
+          ? { programado_para: proximo }
+          : { estado: "enviado", enviado_en: new Date().toISOString() },
+      )
+      .eq("id", r.id)
+      .eq("estado", "pendiente"); // Dedupe: si otro run lo tomó, no pisa.
+    if (upErr) console.error("Error actualizando recordatorio:", upErr.message);
+  }
+  return enviados;
+}
+
 async function enviarPush(
   row: { endpoint: string; user_id: string; perfil_id: string | null; p256dh?: string | null; auth?: string | null },
   payload: {
@@ -417,66 +552,72 @@ async function run(req: Request): Promise<Response> {
   }
 
   const debidos = await calcularDebidos();
-  if (debidos.length === 0) {
-    return new Response(JSON.stringify({ ok: true, sent: 0 }), { headers: { "Content-Type": "application/json" } });
-  }
-
-  // Agrupar por (usuario, perfil) y cargar sus suscripciones: cada perfil
-  // tiene su propia fila por endpoint (unique endpoint+perfil_id).
-  const userIds = [...new Set(debidos.map((d) => d.userId))];
-  const { data: subs, error: subError } = await supabase
-    .from("push_subscriptions")
-    .select("endpoint, user_id, perfil_id, p256dh, auth")
-    .in("user_id", userIds);
-
-  if (subError) {
-    console.error("Error leyendo suscripciones:", subError.message);
-  }
-
-  const clave = (userId: string, perfilId: string | null) => `${userId}:${perfilId ?? ""}`;
-  const porPerfil = new Map<string, typeof subs>();
-  for (const s of subs ?? []) {
-    const k = clave(s.user_id, (s as { perfil_id?: string | null }).perfil_id ?? null);
-    const list = porPerfil.get(k) ?? [];
-    list.push(s);
-    porPerfil.set(k, list);
-  }
-
   let sent = 0;
-  const logs: { event_id: string; habit_id: string; moment_id: string; user_id: string }[] = [];
 
-  for (const d of debidos) {
-    const userSubs = porPerfil.get(clave(d.userId, d.perfilId)) ?? [];
-    if (userSubs.length === 0) continue;
+  if (debidos.length > 0) {
+    // Agrupar por (usuario, perfil) y cargar sus suscripciones: cada perfil
+    // tiene su propia fila por endpoint (unique endpoint+perfil_id).
+    const userIds = [...new Set(debidos.map((d) => d.userId))];
+    const { data: subs, error: subError } = await supabase
+      .from("push_subscriptions")
+      .select("endpoint, user_id, perfil_id, p256dh, auth")
+      .in("user_id", userIds);
 
-    const fecha = d.fecha; // P1.9: ya calculada en la zona del usuario.
-    const payload = {
-      title: d.title,
-      body: d.body,
-      actions: [{ action: "hecho", title: "Listo" }],
-      data: { habitId: d.habitId, momentId: d.momentId, perfilId: d.perfilId, url: d.url, fecha: d.fecha },
-    };
+    if (subError) {
+      console.error("Error leyendo suscripciones:", subError.message);
+    }
 
-    let exito = false;
-    for (const sub of userSubs) {
-      if (await enviarPush(sub, payload)) {
-        exito = true;
-        break;
+    const clave = (userId: string, perfilId: string | null) => `${userId}:${perfilId ?? ""}`;
+    const porPerfil = new Map<string, typeof subs>();
+    for (const s of subs ?? []) {
+      const k = clave(s.user_id, (s as { perfil_id?: string | null }).perfil_id ?? null);
+      const list = porPerfil.get(k) ?? [];
+      list.push(s);
+      porPerfil.set(k, list);
+    }
+
+    const logs: { event_id: string; habit_id: string; moment_id: string; user_id: string }[] = [];
+
+    for (const d of debidos) {
+      const userSubs = porPerfil.get(clave(d.userId, d.perfilId)) ?? [];
+      if (userSubs.length === 0) continue;
+
+      const fecha = d.fecha; // P1.9: ya calculada en la zona del usuario.
+      const payload = {
+        title: d.title,
+        body: d.body,
+        actions: [{ action: "hecho", title: "Listo" }],
+        data: { habitId: d.habitId, momentId: d.momentId, perfilId: d.perfilId, url: d.url, fecha: d.fecha },
+      };
+
+      let exito = false;
+      for (const sub of userSubs) {
+        if (await enviarPush(sub, payload)) {
+          exito = true;
+          break;
+        }
+      }
+      if (exito) {
+        sent++;
+        logs.push({ event_id: eventId(d.habitId, d.momentId, fecha), habit_id: d.habitId, moment_id: d.momentId, user_id: d.userId });
       }
     }
-    if (exito) {
-      sent++;
-      logs.push({ event_id: eventId(d.habitId, d.momentId, fecha), habit_id: d.habitId, moment_id: d.momentId, user_id: d.userId });
+
+    // Persistir el log de envíos (dedupe idempotente para el próximo minuto).
+    if (logs.length > 0) {
+      const { error: insErr } = await supabase.from("push_log").insert(logs);
+      if (insErr) console.error("Error escribiendo push_log:", insErr.message);
     }
   }
 
-  // Persistir el log de envíos (dedupe idempotente para el próximo minuto).
-  if (logs.length > 0) {
-    const { error: insErr } = await supabase.from("push_log").insert(logs);
-    if (insErr) console.error("Error escribiendo push_log:", insErr.message);
-  }
+  // Pase genérico (Fase 0.5): recordatorios explícitos de cualquier módulo.
+  const genericosDebidos = await calcularGenericosDebidos();
+  const sentGenericos = await enviarGenericos(genericosDebidos);
 
-  return new Response(JSON.stringify({ ok: true, sent }), { headers: { "Content-Type": "application/json" } });
+  return new Response(
+    JSON.stringify({ ok: true, sent, genericos: sentGenericos }),
+    { headers: { "Content-Type": "application/json" } },
+  );
 }
 
 Deno.serve(async (req) => {

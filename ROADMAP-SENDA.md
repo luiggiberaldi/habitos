@@ -70,8 +70,7 @@ Objetivo: el núcleo compartido sobre el que se montan los módulos. Hábitos no
    cuenta la crea vía crear-usuario y reintenta), expulsar/salir con confirmación en dos
    toques. Smoke E2E: 15 checks OK contra la nube.
 4. **Servicio de tasas**: `fin_tasas` (fecha, bcv, paralelo, usdt, fuente), proxy servidor (`GET/POST /api/tasas` + Edge Function `actualizar-tasas`), job horario pg_cron (`actualizar-tasas-horario`, `5 * * * *`), fallback en cadena (fresca → última guardada desactualizada → manual). Tarjeta "Tasas del día" en el hub con fecha y fuente.
-5. **Motor de recordatorios genérico**: la Edge Function pasa a leer una tabla `recordatorios`
-   (hoy hardcodea hábitos). La lógica actual de hábitos se conserva vía adaptador, intacta.
+5. **Motor de recordatorios genérico**: tabla `recordatorios` (modulo, titulo, cuerpo, programado_para, regla_recurrencia, datos_json, estado); la Edge Function push-notifications v11 lee los vencidos cada minuto (la lógica de hábitos quedó intacta como adaptador); reprograma diaria/semanal/mensual; UI en Ajustes para crear/cancelar. E2E: push de prueba llegó (enviado a los 37s).
 6. **Router de WhatsApp por módulo** (`finanzas …`, `mercado …`; hábitos sigue por defecto).
 
 - Salida: la app abre como Senda (hub + tabs), Hábitos se ve idéntico, hogar creado,

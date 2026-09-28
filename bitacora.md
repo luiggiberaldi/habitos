@@ -313,3 +313,15 @@
 **Por qué:** Fase 0.4 del roadmap. Finanzas y Mercado necesitan la tasa histórica y del día para conversiones Bs↔$; el cron la mantiene fresca y el refresco al abrir cubre el resto.
 
 **Verificación:** `tsc` limpio, `eslint` 0 errores, `npm run build` ok (ruta `ƒ /api/tasas`). Función invocada directo: `{"ok":true,"fecha":"2026-09-27","bcv":855.66,"paralelo":952.1,"usdt":966.66,"fuente":"DolarAPI + CriptoYa"}`; 401 sin secreto; manual probado (preserva los campos no enviados) y revertido a valores reales. `TASAS_SECRET` configurado como secreto de la función y env de producción en Vercel.
+
+## 2026-09-28 — Fase 0.5: motor de recordatorios genérico
+
+**Qué cambió:**
+- Migración `0018_recordatorios.sql`: tabla `recordatorios` (id, user_id, hogar_id→hogares, modulo, titulo, cuerpo, programado_para, regla_recurrencia, datos_json, estado pendiente/enviado/cancelado, creado_por). RLS: cada usuario solo ve los suyos.
+- Edge Function `push-notifications` v11: la lógica de hábitos (`calcularDebidos`) quedó intacta como adaptador; nuevo pase genérico `calcularGenericosDebidos` + `enviarGenericos`: lee vencidos cada minuto, envía push (título/cuerpo, deep link desde `datos_json.ruta`), y marca enviado o reprograma (`diaria`/`semanal`/`mensual`, con avance anti-ráfaga si estuvo caída). Respuesta ahora `{ok, sent, genericos}`.
+- `lib/core/recordatorios.ts`: `crearRecordatorio`, `listarPendientes`, `cancelarRecordatorio` (RLS por dueño).
+- `components/GestionRecordatorios.tsx`: sección en Ajustes para crear (título, detalle, fecha/hora, repetición), listar pendientes y cancelar. Sin alert/confirm; iconos propios.
+
+**Por qué:** Fase 0.5 del roadmap: Finanzas y Mercado necesitan programar avisos sin hardcodear cada módulo en la función.
+
+**Verificación:** `tsc` + `eslint` limpios. E2E real: recordatorio de prueba insertado para luigi con `programado_para` +1 min → el cron lo tomó a los 37s (`estado='enviado'`, `enviado_en` seteado; el pase solo marca enviado si webpush aceptó en alguna de sus 6 suscripciones). Runs del cron `push-notifications-minuto` en `succeeded`.

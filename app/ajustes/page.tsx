@@ -8,6 +8,7 @@ import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSoni
 import { IconAlerta, IconCampana, IconCerrarSesion, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/core/ui/icons";
 import AvatarPerfil from "../../components/AvatarPerfil";
 import GestionHogar from "../../components/GestionHogar";
+import GestionRecordatorios from "../../components/GestionRecordatorios";
 import { TimeField } from "../../components/core/ui/TimeField";
 
 export default function Ajustes() {
@@ -274,6 +275,9 @@ export default function Ajustes() {
 
       {/* Hogar: datos compartidos de Senda (Fase 0). */}
       <GestionHogar />
+
+      {/* Recordatorios genéricos (Fase 0.5). */}
+      <GestionRecordatorios />
 
       {/* Zona de peligro */}
       <section className="card border-red-500/30 p-4 sm:p-5">
