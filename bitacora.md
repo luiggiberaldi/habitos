@@ -864,3 +864,4 @@ luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en
 - `app/coach/page.tsx`: la sección Tasas muestra las 3 tasas visibles con su % 7d. `lib/coach/coach.ts`: tipos actualizados.
 - Fix: al pulsar "Actualizar" en la tarjeta de tasas, el historial se remontaba con datos viejos (leía `fin_tasas` una sola vez). Ahora se remonta con `key` y relee los valores frescos.
 - Nota de implementación: en 0034 el primer intento usó `cross join` entre tasa_hoy y tasa_7d, lo que vaciaba el resultado cuando aún no hay 7 días de historia; se cambió a `left join` para que `hoy` siempre esté presente aunque `pct_7d` sea null.
+- Deploy 7b8f4590: `vercel --prod` → https://habitos-amber.vercel.app/ 200, /coach 200.
