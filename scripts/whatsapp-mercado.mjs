@@ -295,9 +295,20 @@ try {
   {
     const mCons = nq.match(/^(?:gaste|consumi|use)\s+(.+)$/);
     if (mCons) {
-      const it = parsearItem(mCons[1]);
-      if (!it) out({ ok: false, codigo: "ambiguo", pregunta: "¿Qué consumiste y cuánto? Ej. «gasté 1L de leche».", detalle: "no se pudo parsear el consumo" });
       const inv = await rpc("rpc_mer_inventario", { p_user_id: cfg.USER_ID });
+      let it = parsearItem(mCons[1]);
+      if (!it) {
+        // Sin unidad explícita: "2 huevos" → cantidad + producto (unidad = la del inventario)
+        const mf = norm(mCons[1]).match(/^([\d.,]+)\s+(.+)$/);
+        if (mf) {
+          const prod0 = matchProducto(inv, mf[2].trim());
+          const cant = numEsVe(mf[1]);
+          if (prod0 && cant) {
+            it = { cantidad: Math.round(cant * 1000) / 1000, unidad: prod0.unidad, nombre: mf[2].trim(), precio: null, moneda: null };
+          }
+        }
+      }
+      if (!it) out({ ok: false, codigo: "ambiguo", pregunta: "¿Qué consumiste y cuánto? Ej. «gasté 1L de leche».", detalle: "no se pudo parsear el consumo" });
       const prod = matchProducto(inv, it.nombre);
       if (!prod) out({ ok: false, codigo: "producto_no_encontrado", pregunta: `No encontré "${it.nombre}" en el inventario.`, detalle: "producto inexistente" });
       const r = await rpc("rpc_mer_movimiento", {

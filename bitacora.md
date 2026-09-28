@@ -760,3 +760,9 @@ luigi auditó el PDF demo (SEN-202609-004) y encontró 3 fallas reales, todas co
 **3. "Total abonado $0,00" en recibos pendientes.** El PDF demo lo imprimía dos veces. Causa: el tema Synaptica dibujaba "Total abonado" sin condición (sección de pagos y tarjeta RESUMEN); el tema default tenía el mismo hueco en el camino sin pagos (el resumen sí estaba bien condicionado). Ahora las tres líneas solo se dibujan si `totalPaid > 0`.
 
 **Verificación:** recibo SEN-202609-005 creado por WhatsApp con todos los campos (María González, tel, email, Caracas, vence 15/10/2026) — el PDF muestra "15 oct. 2026" en VENCIMIENTO, los datos del cliente, y cero ocurrencias de "abonado". tsc limpio. Sin migración (snapshot JSONB).
+
+## 2026-09-28 — Mercado WhatsApp: consumo sin unidad ("gasté 2 huevos")
+
+luigi por nota de voz: "acabo de gastar 2 huevos, 3 huevos". Dos hallazgos:
+- El parser de consumo exigía `<cantidad><unidad> de <producto>` ("1L de leche") y rechazaba "2 huevos" (unidad implícita), aunque el comentario del propio código decía que "consumí 2 huevos" debía funcionar. Ahora hay fallback: `<cantidad> <producto>` sin unidad usa la unidad del producto en el inventario.
+- La nota quedó ambigua (¿2 o 3 huevos?) → se le pregunta antes de registrar.
