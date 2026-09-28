@@ -181,7 +181,6 @@ try {
     const cuenta = payload.cuenta;
     if (!items.length) out({ ok: false, codigo: "args", detalle: "la factura no trae artículos" });
     if (!cuenta) out({ ok: false, codigo: "args", detalle: "falta la cuenta del pago" });
-    const inventario = await rpc("rpc_mer_inventario", { p_user_id: cfg.USER_ID });
     const registrados = [];
     for (const it of items) {
       if (!it.producto_id) {
