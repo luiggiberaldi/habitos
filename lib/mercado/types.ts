@@ -29,6 +29,9 @@ export interface MerInventarioItem {
   variacion_pct: number | null;
   consumo_diario: number | null;
   consumo_mensual: number | null;
+  consumo_estimado: boolean;
+  horizonte_compra_dias: number;
+  consumo_semanal_estim: number | null;
   dias_agotamiento: number | null;
   fecha_agotamiento: string | null;
   sugerido_comprar: number | null;
@@ -55,6 +58,21 @@ export interface MerListaItem {
   cantidad: number;
   estado: "pendiente" | "comprado";
   creado_en: string;
+}
+
+export interface MerMovReciente {
+  id: string;
+  tipo: MerTipoMov;
+  cantidad: number;
+  precio_total: number | null;
+  moneda: string | null;
+  comercio: string | null;
+  fecha: string;
+  nota: string | null;
+  creado_en: string;
+  anulado: boolean;
+  producto: string;
+  unidad: string;
 }
 
 export interface MerPresupuestoItem {

@@ -13,6 +13,7 @@ import { getSupabase, getSessionUser } from "../core/supabase";
 import type {
   MerInventarioItem,
   MerListaItem,
+  MerMovReciente,
   MerPrecio,
   MerPresupuesto,
   MerTipoMov,
@@ -90,6 +91,56 @@ export const merRpc = {
       },
     ),
   presupuesto: () => rpc<MerPresupuesto>("rpc_mer_presupuesto", {}),
+  productoActualizar: (p: {
+    productoId: string;
+    nombre?: string | null;
+    categoria?: string | null;
+    horizonteDias?: number | null;
+    consumoSemanalEstim?: number | null;
+    quitarEstimado?: boolean;
+    activo?: boolean | null;
+  }) =>
+    rpc<{ ok: boolean; id: string; nombre: string }>(
+      "rpc_mer_producto_actualizar",
+      {
+        p_producto_id: p.productoId,
+        p_nombre: p.nombre ?? null,
+        p_categoria: p.categoria ?? null,
+        p_horizonte_dias: p.horizonteDias ?? null,
+        p_consumo_semanal_estim: p.consumoSemanalEstim ?? null,
+        p_quitar_estimado: p.quitarEstimado ?? false,
+        p_activo: p.activo ?? null,
+      },
+    ),
+  anular: (movimientoId: string) =>
+    rpc<{ ok: boolean; anulado: boolean }>("rpc_mer_anular", {
+      p_movimiento_id: movimientoId,
+    }),
+  recientes: (limite = 15) =>
+    rpc<MerMovReciente[]>("rpc_mer_recientes", { p_limite: limite }),
+  listaComprar: (p: {
+    productoId: string;
+    cantidad?: number | null;
+    precioTotal: number;
+    moneda?: string | null;
+    comercio?: string | null;
+    cuentaId?: string | null;
+    nota?: string | null;
+  }) =>
+    rpc<{
+      ok: boolean;
+      duplicado: boolean;
+      movimiento: { id: string; tipo: string; cantidad: number };
+    }>("rpc_mer_lista_comprar", {
+      p_producto_id: p.productoId,
+      p_cantidad: p.cantidad ?? null,
+      p_precio_total: p.precioTotal,
+      p_moneda: p.moneda ?? "VES",
+      p_comercio: p.comercio ?? null,
+      p_cuenta_id: p.cuentaId ?? null,
+      p_nota: p.nota ?? null,
+      p_clave_evento: `web-${p.productoId}-${Date.now()}`,
+    }),
 };
 
 export const fmtCantidad = (n: number | null | undefined) =>

@@ -17,6 +17,7 @@
 //   "lista"                                          → lista de compras
 //   "agrega 2kg de arroz a la lista"                 → agrega a la lista
 //   "presupuesto"                                    → presupuesto mensual
+//   "precio del arroz" / "cuánto cuesta el arroz"    → último precio y rango
 //   "ayuda"
 //
 // REGLA DE luigi: una factura SIEMPRE se presenta como resumen y espera
@@ -233,7 +234,7 @@ try {
   if (/^ayuda$/.test(nq)) {
     out({
       ok: true, codigo: "ayuda", modulo: "mercado",
-      mensaje: "Mercado por WhatsApp:\n• factura 2kg arroz 8$, 1L leche 150bs en Makro → te muestro el resumen y lo confirmas\n• compré 2kg de arroz en 8$ → igual que factura\n• gasté 1L de leche → registra consumo\n• se acabó el arroz → stock a cero\n• se dañó 1kg de arroz\n• inventario → qué hay y qué se acaba\n• lista → lista de compras\n• agrega 2kg de arroz a la lista\n• presupuesto → gasto mensual estimado",
+      mensaje: "Mercado por WhatsApp:\n• factura 2kg arroz 8$, 1L leche 150bs en Makro → te muestro el resumen y lo confirmas\n• compré 2kg de arroz en 8$ → igual que factura\n• gasté 1L de leche → registra consumo\n• se acabó el arroz → stock a cero\n• se dañó 1kg de arroz\n• inventario → qué hay y qué se acaba\n• lista → lista de compras\n• agrega 2kg de arroz a la lista\n• presupuesto → gasto mensual estimado\n• precio del arroz → último precio y rango",
     });
   }
 
@@ -339,6 +340,30 @@ try {
         p_cantidad: it.cantidad, p_nota: "se dañó (WhatsApp)",
       });
       out({ ok: true, codigo: "danado", mensaje: `Registrado: se dañaron ${fmtN(it.cantidad)} ${prod.unidad} de ${prod.nombre}. No afecta el historial de precios.` });
+    }
+  }
+
+  // ── precio de X ──
+  {
+    const mPr = nq.match(/^(?:precio|costo|cuesta|cu[aá]nto cuesta|a ?como est[aá]|en cuanto est[aá])\s+(?:el|la|los|las|de)?\s*(.+)$/);
+    if (mPr && !/factura|compr[eé]/.test(nq)) {
+      const inv = await rpc("rpc_mer_inventario", { p_user_id: cfg.USER_ID });
+      const prod = matchProducto(inv, mPr[1].trim());
+      if (!prod) {
+        out({ ok: false, codigo: "producto_no_encontrado", pregunta: `No encontré "${mPr[1].trim()}" en el inventario.`, detalle: "producto inexistente" });
+      }
+      if (prod.precio_usd_unitario === null || prod.precio_usd_unitario === undefined) {
+        out({ ok: true, codigo: "precio", mensaje: `${prod.nombre}: sin compras registradas todavía.` });
+      }
+      const rango = (prod.precio_min_usd !== null && prod.precio_max_usd !== null && prod.precio_min_usd !== prod.precio_max_usd)
+        ? ` (rango $${fmtN(prod.precio_min_usd)}–$${fmtN(prod.precio_max_usd)})` : "";
+      const variacion = (prod.variacion_pct !== null && prod.variacion_pct !== undefined && prod.variacion_pct !== 0)
+        ? ` ${prod.variacion_pct > 0 ? "▲" : "▼"}${Math.abs(prod.variacion_pct)}% vs prom.` : "";
+      out({
+        ok: true, codigo: "precio",
+        mensaje: `${prod.nombre}: $${fmtN(prod.precio_usd_unitario)}/${prod.unidad}${rango}${variacion}` +
+          (prod.ultimo_comercio ? ` · últ. en ${prod.ultimo_comercio}` : ""),
+      });
     }
   }
 

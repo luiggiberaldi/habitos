@@ -726,3 +726,9 @@
 **Finanzas → Datos:** luigi pidió quitar los meses pasados en $0,00 ("estamos empezando en este mes"). `DatosFinanzas.tsx` ahora solo muestra meses con movimientos (ingresos o egresos > 0) en Balance mensual y en Patrimonio en el tiempo; la etiqueta de variación y el aria-label se adaptan ("en 6 meses" / "en el período" / "este mes"). El estado vacío se mantiene cuando no hay ningún mes con datos.
 
 **Verificación:** muestra regenerada con datos correctos del recibo 158 (métodos `mobile`/`transfer`, cuota con `date`/`note`, nombre en mayúsculas) — una página, fiel al diseño. tsc y eslint limpios.
+
+## 2026-09-28 — Logo del PDF Synaptica: aplicado de verdad (17→24mm, x 13→20)
+
+- El ajuste anterior del logo se perdió: otra sesión pisó `synaptica.ts` (lo dejó en 17mm, x=13, parcialmente tapado por el triángulo naranja) y ese estado quedó commiteado por un `git add -A`. Por eso luigi veía todo igual.
+- Ahora: logo a 24mm de ancho, x=20 (antes 17mm, x=13). Queda completamente fuera del triángulo (hipotenusa x+y=34) — antes el wordmark se cortaba ("NAPTICA"). Lección: commitear con paths explícitos cuando otra sesión trabaja en paralelo, nunca `git add -A`.
+- Muestra v4 regenerada con el generador real (`buildSynapticaPdf`, recibo 158, tasa paralela 400): logo visible completo, Bs 27.000,00 por pago.
