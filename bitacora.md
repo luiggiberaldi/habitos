@@ -732,3 +732,8 @@
 - El ajuste anterior del logo se perdió: otra sesión pisó `synaptica.ts` (lo dejó en 17mm, x=13, parcialmente tapado por el triángulo naranja) y ese estado quedó commiteado por un `git add -A`. Por eso luigi veía todo igual.
 - Ahora: logo a 24mm de ancho, x=20 (antes 17mm, x=13). Queda completamente fuera del triángulo (hipotenusa x+y=34) — antes el wordmark se cortaba ("NAPTICA"). Lección: commitear con paths explícitos cuando otra sesión trabaja en paralelo, nunca `git add -A`.
 - Muestra v4 regenerada con el generador real (`buildSynapticaPdf`, recibo 158, tasa paralela 400): logo visible completo, Bs 27.000,00 por pago.
+
+## 2026-09-28 — Deploy fixeo Mercado/Alacena
+- Commits cf87ad8 (+ cb9b209 de la sesión paralela, que barrió los archivos de Mercado) pusheados a master y desplegados con `vercel --prod`.
+- https://habitos-amber.vercel.app/mercado → 200; / → 200.
+- Migración 0029 ya estaba aplicada en Supabase antes del deploy (RPC probados en vivo).
