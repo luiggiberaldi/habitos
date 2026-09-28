@@ -81,7 +81,7 @@ export default function TarjetaTasas() {
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-bold text-foreground">Tasas del día</h2>
-          <p className="truncate text-xs text-muted">
+          <p className="text-xs text-muted">
             {tasas
               ? `Actualizado ${formatoFechaCorta(tasas.fecha)} · ${tasas.fuente || "—"}`
               : "Cargando…"}

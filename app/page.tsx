@@ -119,7 +119,7 @@ export default function Hub() {
               className="mt-2.5 inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/25"
             >
               <IconEstadisticas className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{coachLinea}</span>
+              <span>{coachLinea}</span>
               <IconChevronDerecha className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             </Link>
           )}
@@ -188,7 +188,7 @@ export default function Hub() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-base font-bold text-foreground">Hábitos</span>
-              <span className="block truncate text-xs text-muted">
+              <span className="block text-xs text-muted">
                 {habitosCompletados} de {habitosHoy.length} hábitos hoy
               </span>
             </span>
@@ -209,7 +209,7 @@ export default function Hub() {
               <span className="block text-base font-bold text-foreground">
                 Finanzas
               </span>
-              <span className="block truncate text-xs text-muted">
+              <span className="block text-xs text-muted">
                 {patrimonio === null
                   ? "Cuentas, gastos e ingresos del hogar"
                   : `Patrimonio: $ ${new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(patrimonio)}`}
@@ -232,7 +232,7 @@ export default function Hub() {
               <span className="block text-base font-bold text-foreground">
                 Mercado
               </span>
-              <span className="block truncate text-xs text-muted">
+              <span className="block text-xs text-muted">
                 {mercadoResumen ?? "Inventario, lista de compras y precios"}
               </span>
             </span>
@@ -253,7 +253,7 @@ export default function Hub() {
               <span className="block text-base font-bold text-foreground">
                 Control
               </span>
-              <span className="block truncate text-xs text-muted">
+              <span className="block text-xs text-muted">
                 Pagos, presupuestos, deudas, metas y cierre
               </span>
             </span>
@@ -274,7 +274,7 @@ export default function Hub() {
               <span className="block text-base font-bold text-foreground">
                 Coach
               </span>
-              <span className="block truncate text-xs text-muted">
+              <span className="block text-xs text-muted">
                 Tu semana cruzada con señales verificables
               </span>
             </span>

@@ -545,3 +545,14 @@
 **Verificación (real, 2026-09-27):** tsc limpio, ESLint limpio, build limpio.
 
 **Pendiente (no verificado):** verificación visual en el teléfono de luigi.
+
+## 2026-09-27 — Textos sin recorte en móvil (pedido de luigi)
+
+**Qué cambió:**
+- Quitado `truncate` (puntos suspensivos) en: subtítulo de `TarjetaTasas` ("Actualizado 27 sep 2026 · fuente", el del reporte), línea del coach en el header del hub y subtítulos de las 5 tarjetas de espacios (Hábitos, Finanzas, Mercado, Control, Coach). Ahora el texto baja a segunda línea en vez de cortarse.
+
+**Por qué:** luigi reportó "Actualizado 27 sep 2026 ..." recortado en su teléfono.
+
+**Verificación (real, 2026-09-27):** tsc limpio, build limpio.
+
+**Pendiente (no verificado):** verificación visual en el teléfono de luigi. Nota: su captura aún mostraba "Ingresar tasas manualmente" y el header sin la línea del coach — es la versión vieja en caché de la PWA; el cambio ya estaba desplegado.
