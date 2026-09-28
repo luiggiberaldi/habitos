@@ -500,3 +500,23 @@
 - Datos de prueba eliminados (verificado: 0 recordatorios, 0 cuentas, 0 movimientos para el UUID de luigi).
 
 **Pendiente (no verificado):** verificación visual de `/control` en el teléfono de luigi; entrega física del push financiero; compra real en USDT nunca probada.
+
+## 2026-09-28 — Fase 4 Inteligencia cruzada: coach, consultas globales, alertas
+
+**Qué cambió:**
+- `supabase/migrations/0026_coach.sql` (aplicada, HTTP 201): `rpc_coach_briefing(p_user_id) returns jsonb` — solo lectura, agregaciones directas con alcance propio/hogar (sin llamar a los RPC con secreto, que siguen intactos para scripts). Doble autenticación: secreto de integración O `auth.uid() = p_user_id` (el navegador llama sin secreto y no puede suplantar). Devuelve ventana 7d, resumen (hábitos, finanzas, mercado, control, tasas) y `correlaciones` con reglas: `gasto_categoria_subio` (≥20%), `tasa_paralelo` (≥3%), `ritmo_presupuesto` (≥50% con >7 días), `precio_producto_subio` (≥10%), `deuda_proxima` (≤7 días). Cada correlación trae `ver_en` y `datos`. Sin datos → 0 correlaciones, nunca inventa.
+- `supabase/migrations/0027_coach_alertas.sql` (aplicada, HTTP 201): `coach_alertas_enviadas` (dedupe por usuario+correlación+ventana).
+- `supabase/functions/coach-alertas` (desplegada, ACTIVE, verify_jwt=false): corre el briefing por usuario con push, envía web push "Senda · Coach" solo por correlaciones nuevas (tag `coach-<id>-<ventana>`), abre `/coach`, sin emojis, fail-closed sin CRON_SECRET. pg_cron `coach-alertas-diario` (`0 12,22 * * *` UTC = 8am/6pm Caracas), activo.
+- `lib/coach/coach.ts` + `app/coach/page.tsx` (nuevo): briefing 7d, tarjetas resumen, correlaciones con enlace a `ver_en`, tasas. Tono serio, sin XP. Tarjeta "Coach" en el hub (`app/page.tsx`).
+- `scripts/coach-senda.mjs` (nuevo): `rpc_coach_briefing` por secreto; `--texto` genera informe WhatsApp sin emojis.
+- `scripts/whatsapp-global.mjs` (nuevo) + detección en `whatsapp-router.mjs` (antes del fallback de hábitos): "cuánto debo en total", "qué me falta comprar", "cuánto gasté esta semana", "coach". Hábitos intacto (verificado: "cómo voy" sigue respondiendo estado).
+
+**Por qué:** Fase 4 del roadmap — Senda cruza los módulos y avisa solo con datos verificables.
+
+**Verificación (real, 2026-09-28):**
+- E2E con datos de prueba (UUID de luigi, fechas Caracas): 4 correlaciones dispararon con cifras correctas (`gasto_categoria_subio` comida +100%, `tasa_paralelo` +5.8%, `precio_producto_subio` E2E Arroz +20%, `deuda_proxima`); regla 3 verificada por simulación SQL (dispara con 10 días restantes, no con 3). Sin datos → 0 correlaciones. Rechazo sin secreto (`no_autorizado`, HTTP 400) verificado.
+- Función coach-alertas: 1ª invocación → `alertas:1`; 2ª → `alertas:0` (dedupe OK); sin secreto → 401. Datos de prueba y filas de dedupe eliminados (0 deudas, 0 alertas).
+- WhatsApp router: las 4 consultas globales devuelven JSON válido con `modulo:global`.
+- tsc limpio, ESLint limpio, build limpio con `/coach` generada, grep de reglas UI limpio.
+
+**Pendiente (no verificado):** verificación visual de `/coach` en el teléfono de luigi; entrega física de una alerta coach en su teléfono (el push se envió en el E2E pero no se confirmó recepción).

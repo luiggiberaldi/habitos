@@ -16,6 +16,7 @@ import {
   IconCaja,
   IconCampana,
   IconChevronDerecha,
+  IconEstadisticas,
   IconFuego,
   IconMaletin,
 } from "../lib/core/ui/icons";
@@ -233,6 +234,27 @@ export default function Hub() {
               </span>
               <span className="block truncate text-xs text-muted">
                 Pagos, presupuestos, deudas, metas y cierre
+              </span>
+            </span>
+            <IconChevronDerecha className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+          </Link>
+
+          <Link
+            href="/coach"
+            className="flex items-center gap-4 rounded-3xl bg-surface p-4 shadow-sm transition-transform active:scale-[.99]"
+          >
+            <span
+              className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl p-3"
+              style={{ background: "#FFF3E2" }}
+            >
+              <IconEstadisticas className="h-7 w-7 text-[#C77B1E]" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-bold text-foreground">
+                Coach
+              </span>
+              <span className="block truncate text-xs text-muted">
+                Tu semana cruzada con señales verificables
               </span>
             </span>
             <IconChevronDerecha className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />

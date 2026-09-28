@@ -117,13 +117,13 @@ Objetivo: que el dinero se maneje solo por defecto.
   (Todas verificadas el 2026-09-28; ver bitacora.md. Pendiente: entrega física del
   push en el teléfono de luigi y verificación visual de /control.)
 
-### Fase 4 — Inteligencia cruzada
+### Fase 4 — Inteligencia cruzada ✅ COMPLETADA 2026-09-28
 Objetivo: la suite como un solo sistema, no módulos pegados.
-- Coach correlacionado ("subió tu gasto en delivery y cayó tu hábito de cocinar").
-- Consultas WhatsApp globales ("¿cuánto debo en total?", "¿qué me falta comprar?").
-- Alertas inteligentes (paralelo se movió X%, producto subió Y%).
-- Salida: 3 correlaciones útiles generadas sin que luigi las pida.
-- Verificación: cada correlación cita datos reales; nada enviado sin ser verificable en la app.
+- Coach correlacionado: `rpc_coach_briefing` + UI `/coach` + `scripts/coach-senda.mjs --texto`.
+- Consultas WhatsApp globales: "¿cuánto debo en total?", "¿qué me falta comprar?", "¿cuánto gasté esta semana?", "coach".
+- Alertas inteligentes: Edge Function `coach-alertas` (2×/día, dedupe por ventana, push abre `/coach`).
+- Salida: 5 reglas de correlación, 4 verificadas E2E con datos reales el 2026-09-28.
+- Verificación: cada correlación trae `ver_en` + `datos`; E2E real con datos de prueba (luego eliminados); sin datos → 0 correlaciones.
 
 ## 4. Modelo de datos (resumen)
 

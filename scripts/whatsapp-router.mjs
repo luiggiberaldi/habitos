@@ -47,6 +47,24 @@ for (const p of PREFIJOS) {
   }
 }
 
+// ── Consultas globales (Fase 4): cruzan módulos sin prefijo ──────────────────
+// Van antes del fallback de hábitos; los patrones son específicos para no
+// robarle intenciones ("cuánto debo", "qué me falta comprar", "cuánto gasté",
+// "coach"). Si no matchean, cae al comportamiento actual de hábitos.
+if (modulo === "habitos") {
+  const g = texto.toLowerCase();
+  const esGlobal =
+    /cu[aá]nto (debo|deben|me deben|gast[eé])/.test(g) ||
+    /qu[eé] (me )?falta comprar/.test(g) ||
+    /lista de compras/.test(g) ||
+    /^coach\b/.test(g);
+  if (esGlobal) {
+    modulo = "global";
+    script = "whatsapp-global.mjs";
+    resto = texto;
+  }
+}
+
 // ── Hábitos por defecto: conserva el comportamiento actual ──────────────────
 // Comandos explícitos → intencion del asistente; lo demás → registrar.
 if (modulo === "habitos") {

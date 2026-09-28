@@ -53,3 +53,12 @@ En la Edge Function de push, `.neq("ultimo_aviso", hoy)` nunca actualizaba filas
 
 ## 2026-09-28 — Pagos/abonos/aportes de Control van por RPC con clave estable
 El primer borrador del cliente hacía movimiento + update como pasos sueltos (no atómico, clave aleatoria). La versión final llama a los RPC transaccionales (`rpc_fin_recordatorio_pagar`, `rpc_fin_deuda_abonar`, `rpc_fin_meta_aportar`) con `clave_evento` determinista: reintentar no duplica el movimiento ni el abonado. Patrón a repetir en todo módulo nuevo con efectos financieros.
+
+## 2026-09-28 — Lecciones de Fase 4 (coach)
+
+- **Los CTEs no sobreviven entre sentencias.** El primer borrador de `rpc_coach_briefing` definía CTEs (`top_cats`, `pres_alerta`) en el SELECT que armaba `v_out` y los referenciaba en un SELECT posterior que armaba las correlaciones → "relation does not exist". Fix: las reglas leen de `v_out` con `jsonb_to_recordset`.
+- **No asumir nombres de columnas/estados de los RPC internos.** El borrador usó `limite_usd` (real: `monto_limite`), `proximo` en `fin_recordatorios` (real: se calcula con `fin_proximo_vencimiento`), y estados `aviso`/`limite` (reales: `alerta`/`excedido`). Todo se detectó en el E2E real, no en revisión.
+- **UTC vs America/Caracas en datos de prueba.** El servidor corre en UTC; los RPC usan fecha Caracas. Datos E2E con `current_date` caían un día desplazados. Regla: en E2E usar fechas explícitas Caracas.
+- **Doble autenticación para RPC que usan scripts Y navegador.** `rpc_coach_llamada_ok(p_user_id)`: secreto de integración O `auth.uid() = p_user_id`. Los RPC internos con secreto quedaron intactos; el coach agrega sus propias agregaciones en vez de llamarlos (menos superficie, mismo alcance).
+- **PostgREST PGRST301 "Expected 3 parts in JWT"** en la Edge Function: el `fetch` manual con `apikey`/`Authorization` armados a mano falló; el cliente supabase-js con `global: { headers: { "x-...-secret": ... } }` maneja las claves correctamente. Regla: en Edge Functions, headers custom vía `global.headers` del cliente, nunca fetch manual.
+- **Dedupe de alertas por (usuario, correlación, ventana).** La primera invocación envía, la segunda no. Tabla `coach_alertas_enviadas`, tag push `coach-<id>-<ventana>`.
