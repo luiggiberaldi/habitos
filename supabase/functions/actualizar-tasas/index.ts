@@ -1,12 +1,19 @@
 // Edge Function actualizar-tasas — Servicio de tasas (Fase 0.4 de Senda).
 //
 // Acciones (body JSON):
-//   {"accion":"actualizar"} — trae BCV/paralelo de DolarAPI y USDT de
-//     CriptoYa (fallback: Binance P2P); hace upsert en fin_tasas para la
-//     fecha de hoy (America/Caracas). Cada fuente falla por separado sin
-//     tumbar a las demás: se conserva el valor previo del campo fallido.
-//   {"accion":"manual","bcv":n,"paralelo":n,"usdt":n} — guarda tasas
-//     ingresadas a mano por el usuario (fuente "manual").
+//   {"accion":"actualizar"} — trae BCV ($ oficial), paralelo ($), euro oficial
+//     (BCV) de DolarAPI y USDT de CriptoYa (fallback: Binance P2P); hace
+//     upsert en fin_tasas para la fecha de hoy (America/Caracas). Cada fuente
+//     falla por separado sin tumbar a las demás: se conserva el valor previo
+//     del campo fallido.
+//   {"accion":"manual","bcv":n,"euro":n,"usdt":n} — guarda tasas ingresadas a
+//     mano por el usuario (fuente "manual"). El paralelo ya no se edita a mano
+//     (solo automático): se sigue guardando porque Finanzas lo usa para
+//     convertir VES→USD.
+//
+// Auth: header x-tasas-secret igual a TASAS_SECRET. Fail-closed: sin el
+// secreto configurado o con valor incorrecto responde 401 y no ejecuta nada.
+// verify_jwt=false (la llama pg_cron y el proxy del servidor, no el browser).
 //
 // Auth: header x-tasas-secret igual a TASAS_SECRET. Fail-closed: sin el
 // secreto configurado o con valor incorrecto responde 401 y no ejecuta nada.
@@ -58,16 +65,19 @@ async function fetchJson(
   }
 }
 
-/** DolarAPI: { promedio } para oficial (BCV) y paralelo. */
-async function dolarApi(fuente: "oficial" | "paralelo"): Promise<number | null> {
+/** DolarAPI: { promedio } para oficial/paralelo del $ o del €. */
+async function dolarApi(
+  moneda: "dolares" | "euros",
+  fuente: "oficial" | "paralelo",
+): Promise<number | null> {
   try {
     const d = (await fetchJson(
-      `https://ve.dolarapi.com/v1/dolares/${fuente}`,
+      `https://ve.dolarapi.com/v1/${moneda}/${fuente}`,
     )) as { promedio?: unknown };
     const v = Number(d?.promedio);
     return Number.isFinite(v) && v > 0 ? v : null;
   } catch (e) {
-    console.error(`DolarAPI ${fuente} falló:`, e);
+    console.error(`DolarAPI ${moneda}/${fuente} falló:`, e);
     return null;
   }
 }
@@ -148,12 +158,13 @@ Deno.serve(async (req: Request) => {
   const fecha = fechaHoy();
   const { data: previa } = await supabase
     .from("fin_tasas")
-    .select("bcv,paralelo,usdt")
+    .select("bcv,paralelo,euro,usdt")
     .eq("fecha", fecha)
     .maybeSingle();
 
   let bcv: number | null = null;
   let paralelo: number | null = null;
+  let euro: number | null = null;
   let usdt: number | null = null;
   let fuente = "";
 
@@ -161,20 +172,23 @@ Deno.serve(async (req: Request) => {
     const num = (v: unknown) =>
       typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
     bcv = num(body.bcv) ?? previa?.bcv ?? null;
+    // El paralelo ya no se edita a mano: se conserva el previo (lo mantiene el cron).
     paralelo = num(body.paralelo) ?? previa?.paralelo ?? null;
+    euro = num(body.euro) ?? previa?.euro ?? null;
     usdt = num(body.usdt) ?? previa?.usdt ?? null;
     fuente = "manual";
-    if (bcv === null && paralelo === null && usdt === null) {
+    if (bcv === null && euro === null && usdt === null) {
       return Response.json(
         { error: "Sin valores válidos para guardar" },
         { status: 400 },
       );
     }
   } else if (body.accion === "actualizar") {
-    // Las tres fuentes en paralelo: el peor caso es un solo timeout.
-    const [bcvApi, paraleloApi, usdtCripto] = await Promise.all([
-      dolarApi("oficial"),
-      dolarApi("paralelo"),
+    // Las cuatro fuentes en paralelo: el peor caso es un solo timeout.
+    const [bcvApi, paraleloApi, euroApi, usdtCripto] = await Promise.all([
+      dolarApi("dolares", "oficial"),
+      dolarApi("dolares", "paralelo"),
+      dolarApi("euros", "oficial"),
       usdtCriptoYa(),
     ]);
     let usdtApi = usdtCripto;
@@ -185,12 +199,15 @@ Deno.serve(async (req: Request) => {
     }
     bcv = redondear(bcvApi) ?? previa?.bcv ?? null;
     paralelo = redondear(paraleloApi) ?? previa?.paralelo ?? null;
+    euro = redondear(euroApi) ?? previa?.euro ?? null;
     usdt = redondear(usdtApi) ?? previa?.usdt ?? null;
     const partes: string[] = [];
-    if (bcvApi !== null || paraleloApi !== null) partes.push("DolarAPI");
+    if (bcvApi !== null || paraleloApi !== null || euroApi !== null) {
+      partes.push("DolarAPI");
+    }
     if (usdtApi !== null) partes.push(fuenteUsdt);
     fuente = partes.join(" + ") || "sin datos nuevos";
-    if (bcv === null && paralelo === null && usdt === null) {
+    if (bcv === null && paralelo === null && euro === null && usdt === null) {
       return Response.json(
         { error: "Todas las fuentes fallaron y no hay tasas guardadas" },
         { status: 502 },
@@ -208,6 +225,7 @@ Deno.serve(async (req: Request) => {
       fecha,
       bcv,
       paralelo,
+      euro,
       usdt,
       fuente,
       updated_at: new Date().toISOString(),

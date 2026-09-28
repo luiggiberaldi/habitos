@@ -6,7 +6,8 @@
 export type TasasDelDia = {
   fecha: string;
   bcv: number | null;
-  paralelo: number | null;
+  paralelo: number | null; // interno (Finanzas lo usa para VES→USD); ya no se muestra
+  euro: number | null; // euro oficial BCV
   usdt: number | null;
   fuente: string;
   actualizadaEn: string;
@@ -35,7 +36,7 @@ export async function obtenerTasas(refresh = false): Promise<TasasDelDia> {
 /** Guarda tasas ingresadas a mano (fuente "manual"). */
 export async function guardarTasasManual(input: {
   bcv?: number;
-  paralelo?: number;
+  euro?: number;
   usdt?: number;
 }): Promise<TasasDelDia> {
   const r = await fetch("/api/tasas", {

@@ -336,3 +336,14 @@
 **Por qué:** Fase 0.6 del roadmap: el punto de entrada único por módulo, con hábitos por defecto intacto.
 
 **Verificación:** router → `finanzas …`/`mercado …`/`finanzas` (ayuda) responden `proximamente`/`ayuda` con el módulo correcto; `crea un hábito…`, `cómo voy` → intenciones ok; `tomé agua` en `HABITOS_MOCK=1` → `{"ok":true,"habito":"Tomar agua",…}` tras el fix (caché `.cache/whatsapp-lib` regenerada).
+
+## 2026-09-28 — Tasas: paralelo → euro BCV en la tarjeta
+
+**Qué cambió:** la tarjeta "Tasas del día" muestra ahora BCV ($), Euro (BCV) y USDT; el paralelo sale de la tarjeta.
+- Migración `0020_euro.sql`: columna `euro` en `fin_tasas`. El paralelo SE SIGUE guardando (el cron lo actualiza) porque Finanzas lo usa para convertir VES→USD (`fin_tasa_usd_para`, migración 0019); solo deja de mostrarse y de editarse a mano.
+- Edge Function `actualizar-tasas` v3: trae el euro oficial de `ve.dolarapi.com/v1/euros/oficial` (`promedio`) junto a BCV/paralelo/USDT; la acción `manual` acepta `{bcv, euro, usdt}`.
+- `app/api/tasas/route.ts`, `lib/core/tasas.ts` y `components/TarjetaTasas.tsx`: el campo `euro` viaja hasta la tarjeta; el formulario manual pide BCV/Euro/USDT.
+
+**Por qué:** pedido de luigi (screenshot de la tarjeta).
+
+**Verificación:** tsc/eslint limpios; endpoint de DolarAPI verificado por curl (`promedio` 972.64…); función v3 desplegada (201 ACTIVE); E2E pendiente vía `/api/tasas?refresh=1` en producción tras el deploy.

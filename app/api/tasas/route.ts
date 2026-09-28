@@ -8,7 +8,7 @@ import { createClient } from "@supabase/supabase-js";
  * ("refresco al abrir"). Si todo falla, devuelve la última guardada con
  * desactualizada=true (fallback en cadena); si no hay ninguna, 503.
  *
- * POST /api/tasas — { bcv?, paralelo?, usdt? } guarda tasas manuales
+ * POST /api/tasas — { bcv?, euro?, usdt? } guarda tasas manuales
  * (fuente "manual") vía la Edge Function.
  */
 
@@ -21,6 +21,7 @@ type FilaTasa = {
   fecha: string;
   bcv: number | null;
   paralelo: number | null;
+  euro: number | null;
   usdt: number | null;
   fuente: string;
   updated_at: string;
@@ -47,7 +48,7 @@ async function leerUltima(): Promise<FilaTasa | null> {
   if (!sb) return null;
   const { data, error } = await sb
     .from("fin_tasas")
-    .select("fecha,bcv,paralelo,usdt,fuente,updated_at")
+    .select("fecha,bcv,paralelo,euro,usdt,fuente,updated_at")
     .order("fecha", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -87,6 +88,7 @@ function respuesta(t: FilaTasa) {
     fecha: t.fecha,
     bcv: t.bcv,
     paralelo: t.paralelo,
+    euro: t.euro,
     usdt: t.usdt,
     fuente: t.fuente,
     actualizadaEn: t.updated_at,
@@ -120,9 +122,9 @@ export async function POST(req: Request) {
   const num = (v: unknown) =>
     typeof v === "number" && Number.isFinite(v) && v > 0 ? v : undefined;
   const bcv = num(body.bcv);
-  const paralelo = num(body.paralelo);
+  const euro = num(body.euro);
   const usdt = num(body.usdt);
-  if (bcv === undefined && paralelo === undefined && usdt === undefined) {
+  if (bcv === undefined && euro === undefined && usdt === undefined) {
     return NextResponse.json(
       { ok: false, error: "Indica al menos una tasa válida" },
       { status: 400 },
@@ -131,7 +133,7 @@ export async function POST(req: Request) {
   const ok = await invocarFuncion({
     accion: "manual",
     ...(bcv !== undefined ? { bcv } : {}),
-    ...(paralelo !== undefined ? { paralelo } : {}),
+    ...(euro !== undefined ? { euro } : {}),
     ...(usdt !== undefined ? { usdt } : {}),
   });
   if (!ok) {

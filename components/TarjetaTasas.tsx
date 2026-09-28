@@ -25,9 +25,9 @@ function parsearMonto(texto: string): number | null {
 }
 
 /**
- * Tarjeta "Tasas del día" del hub. Muestra BCV, paralelo y USDT con fecha y
- * fuente. Fallback en cadena: refresca al abrir; si falla, muestra la última
- * guardada marcada como desactualizada; siempre ofrece el ingreso manual.
+ * Tarjeta "Tasas del día" del hub. Muestra BCV ($), Euro (BCV) y USDT con
+ * fecha y fuente. Fallback en cadena: refresca al abrir; si falla, muestra la
+ * última guardada marcada como desactualizada; siempre ofrece el ingreso manual.
  */
 export default function TarjetaTasas() {
   const [tasas, setTasas] = useState<TasasDelDia | null>(null);
@@ -36,7 +36,7 @@ export default function TarjetaTasas() {
   const [error, setError] = useState<string | null>(null);
   const [manualAbierto, setManualAbierto] = useState(false);
   const [fBcv, setFBcv] = useState("");
-  const [fParalelo, setFParalelo] = useState("");
+  const [fEuro, setFEuro] = useState("");
   const [fUsdt, setFUsdt] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -77,9 +77,9 @@ export default function TarjetaTasas() {
 
   const guardarManual = async () => {
     const bcv = parsearMonto(fBcv);
-    const paralelo = parsearMonto(fParalelo);
+    const euro = parsearMonto(fEuro);
     const usdt = parsearMonto(fUsdt);
-    if (bcv === null && paralelo === null && usdt === null) {
+    if (bcv === null && euro === null && usdt === null) {
       setError("Escribe al menos una tasa válida para guardar");
       return;
     }
@@ -88,13 +88,13 @@ export default function TarjetaTasas() {
     try {
       const t = await guardarTasasManual({
         ...(bcv !== null ? { bcv } : {}),
-        ...(paralelo !== null ? { paralelo } : {}),
+        ...(euro !== null ? { euro } : {}),
         ...(usdt !== null ? { usdt } : {}),
       });
       setTasas(t);
       setManualAbierto(false);
       setFBcv("");
-      setFParalelo("");
+      setFEuro("");
       setFUsdt("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar");
@@ -106,7 +106,7 @@ export default function TarjetaTasas() {
   const filas = tasas
     ? [
         { nombre: "BCV", valor: tasas.bcv },
-        { nombre: "Paralelo", valor: tasas.paralelo },
+        { nombre: "Euro", valor: tasas.euro },
         { nombre: "USDT", valor: tasas.usdt },
       ]
     : [];
@@ -197,7 +197,7 @@ export default function TarjetaTasas() {
             <div className="mt-2 grid grid-cols-3 gap-2">
               {[
                 { etiqueta: "BCV", valor: fBcv, set: setFBcv },
-                { etiqueta: "Paralelo", valor: fParalelo, set: setFParalelo },
+                { etiqueta: "Euro", valor: fEuro, set: setFEuro },
                 { etiqueta: "USDT", valor: fUsdt, set: setFUsdt },
               ].map((c) => (
                 <label key={c.etiqueta} className="block">
