@@ -9,6 +9,7 @@ import { completadosPara, esDescanso, todayKey } from "../lib/habitos/dates";
 import { flameGradient } from "../lib/core/ui/design-tokens";
 import { AvatarNivel } from "../components/AvatarNivel";
 import Logo from "../components/Logo";
+import TarjetaTasas from "../components/TarjetaTasas";
 import {
   IconCaja,
   IconChevronDerecha,
@@ -117,6 +118,9 @@ export default function Hub() {
           <IconChevronDerecha className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </section>
+
+      {/* Tasas del día (Fase 0.4: servicio de tasas) */}
+      <TarjetaTasas />
 
       {/* Espacios */}
       <section aria-label="Tus espacios">

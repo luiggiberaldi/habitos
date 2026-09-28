@@ -69,7 +69,7 @@ Objetivo: el núcleo compartido sobre el que se montan los módulos. Hábitos no
    (`components/GestionHogar.tsx`): crear hogar, renombrar, invitar por correo (si no hay
    cuenta la crea vía crear-usuario y reintenta), expulsar/salir con confirmación en dos
    toques. Smoke E2E: 15 checks OK contra la nube.
-4. **Servicio de tasas**: `fin_tasas` (fecha, bcv, paralelo, usdt, fuente), proxy servidor, job horario, fallback en cadena. Tasa del día visible con fecha y fuente.
+4. **Servicio de tasas**: `fin_tasas` (fecha, bcv, paralelo, usdt, fuente), proxy servidor (`GET/POST /api/tasas` + Edge Function `actualizar-tasas`), job horario pg_cron (`actualizar-tasas-horario`, `5 * * * *`), fallback en cadena (fresca → última guardada desactualizada → manual). Tarjeta "Tasas del día" en el hub con fecha y fuente.
 5. **Motor de recordatorios genérico**: la Edge Function pasa a leer una tabla `recordatorios`
    (hoy hardcodea hábitos). La lógica actual de hábitos se conserva vía adaptador, intacta.
 6. **Router de WhatsApp por módulo** (`finanzas …`, `mercado …`; hábitos sigue por defecto).

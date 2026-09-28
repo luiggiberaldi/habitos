@@ -66,7 +66,7 @@
   perfil); el sidebar ahora muestra solo el avatar y el nombre.
   El correo sigue disponible donde corresponde (Ajustes → Cuenta).
 - Validación: tsc limpio; eslint 0 errores; build exit 0.
-- Commit `dccbe8a2`, pusheado a master y desplegado a producción
+- Commit `9c80113`, pusheado a master y desplegado a producción
   (https://habitos-amber.vercel.app, 200 ok).
 
 ## 2026-09-27 (push + deploy del núcleo lib/core/ — DESPLEGADO a producción)
@@ -299,3 +299,17 @@
 **Por qué:** Fase 0 del roadmap: el núcleo neutro es la base que Finanzas y Mercado van a importar sin arrastrar lógica de hábitos.
 
 **Verificación:** `tsc` limpio, `eslint` limpio, `npm run build` ok (15 rutas), smokes p0 5/5, p1p2 16/16, juego 110/110, sueño 59/59, anclas 10/10, cola-sync 11/11 (211 total), bridge de WhatsApp verificado en modo mock. Frontera verificada por grep: nada en `lib/core` ni `components/core` importa de `lib/habitos`. Commit local SIN push: el refactor cruza todo el repo y espera revisión de luigi antes de pushear/desplegar.
+
+## 2026-09-28 — Fase 0.4: servicio de tasas (BCV, paralelo, USDT)
+
+**Qué cambió:** nuevo servicio de tasas, base de Finanzas y Mercado:
+- Migración `0017_tasas.sql`: tabla `fin_tasas` (fecha PK, bcv, paralelo, usdt, fuente, timestamps). Lectura pública por RLS (son datos de referencia); sin policies de escritura (solo service_role).
+- Edge Function `actualizar-tasas` (verify_jwt=false, secreto `TASAS_SECRET` fail-closed): acción `actualizar` trae BCV+paralelo de DolarAPI (`ve.dolarapi.com/v1/dolares/oficial|paralelo`, campo `promedio`) y USDT de CriptoYa (`criptoya.com/api/binancep2p/usdt/ves/1`, promedio ask/bid; fallback Binance P2P con mediana de 5 anuncios); cada fuente falla por separado y conserva el valor previo; acción `manual` guarda tasas a mano (fuente "manual"). Upsert por fecha de America/Caracas.
+- Job pg_cron `actualizar-tasas-horario` (`5 * * * *`) → POST a la función con el secreto (vive solo en la BD, como el patrón push).
+- Proxy servidor `app/api/tasas` (route): GET devuelve la última fila y, si está desactualizada (>2h o fecha distinta), refresca vía la función antes de responder; si todo falla devuelve la última guardada con `desactualizada:true` (fallback en cadena); POST guarda manuales.
+- `lib/core/tasas.ts`: `obtenerTasas`, `guardarTasasManual`, `formatoBs` (es-VE), `formatoFechaCorta`.
+- `components/TarjetaTasas.tsx`: tarjeta en el hub con BCV/Paralelo/USDT, "Actualizado {fecha} · {fuente}", badge "Desactualizada", botón Actualizar e ingreso manual en línea (parsea coma decimal). Sin alert/confirm; iconos del set propio.
+
+**Por qué:** Fase 0.4 del roadmap. Finanzas y Mercado necesitan la tasa histórica y del día para conversiones Bs↔$; el cron la mantiene fresca y el refresco al abrir cubre el resto.
+
+**Verificación:** `tsc` limpio, `eslint` 0 errores, `npm run build` ok (ruta `ƒ /api/tasas`). Función invocada directo: `{"ok":true,"fecha":"2026-09-27","bcv":855.66,"paralelo":952.1,"usdt":966.66,"fuente":"DolarAPI + CriptoYa"}`; 401 sin secreto; manual probado (preserva los campos no enviados) y revertido a valores reales. `TASAS_SECRET` configurado como secreto de la función y env de producción en Vercel.
