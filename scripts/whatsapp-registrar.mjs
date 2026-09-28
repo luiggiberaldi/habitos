@@ -16,7 +16,7 @@
 // y NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local o env.
 // El usuario: --user-id o HABITOS_USER_ID.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cargarLib, resolverPerfilId } from "./whatsapp-comun.mjs";
