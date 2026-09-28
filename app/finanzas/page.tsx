@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  actualizarCuenta,
   anularMovimiento,
   archivarCuenta,
   crearCuenta,
@@ -32,6 +33,7 @@ import { flameGradient } from "../../lib/core/ui/design-tokens";
 import {
   IconAlerta,
   IconCheck,
+  IconEditar,
   IconFlechaAtras,
   IconMaletin,
   IconMovimiento,
@@ -117,12 +119,28 @@ function Encabezado({ patrimonio, cuentas, cargando }: { patrimonio: number; cue
 function TarjetaCuenta({
   cuenta,
   onArchivar,
+  onLista,
 }: {
   cuenta: FinCuentaConSaldo;
   onArchivar: (id: string) => void;
+  onLista: () => void;
 }) {
   const [confirmando, setConfirmando] = useState(false);
+  const [editando, setEditando] = useState(false);
   const tipoEtiqueta = TIPOS_CUENTA.find((t) => t.valor === cuenta.tipo)?.etiqueta ?? cuenta.tipo;
+
+  if (editando) {
+    return (
+      <li className="rounded-2xl border border-border bg-surface p-4">
+        <FormEditarCuenta
+          cuenta={cuenta}
+          onLista={() => { setEditando(false); onLista(); }}
+          onCancelar={() => setEditando(false)}
+        />
+      </li>
+    );
+  }
+
   return (
     <li className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-2">
@@ -152,13 +170,24 @@ function TarjetaCuenta({
             </button>
           </span>
         ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmando(true)}
-            className="shrink-0 rounded-full px-2 py-1 text-[11px] font-bold text-muted hover:text-foreground"
-          >
-            Archivar
-          </button>
+          <span className="inline-flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setEditando(true)}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-bold text-muted hover:text-foreground"
+              aria-label={`Editar cuenta ${cuenta.nombre}`}
+            >
+              <IconEditar className="h-3 w-3" aria-hidden="true" />
+              Editar
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmando(true)}
+              className="shrink-0 rounded-full px-2 py-1 text-[11px] font-bold text-muted hover:text-foreground"
+            >
+              Archivar
+            </button>
+          </span>
         )}
       </div>
       <p className="mt-2 text-xl font-bold text-foreground">
@@ -169,6 +198,125 @@ function TarjetaCuenta({
         {cuenta.nMovimientos > 0 ? ` · ${cuenta.nMovimientos} movimientos` : " · sin movimientos"}
       </p>
     </li>
+  );
+}
+
+function FormEditarCuenta({
+  cuenta,
+  onLista,
+  onCancelar,
+}: {
+  cuenta: FinCuentaConSaldo;
+  onLista: () => void;
+  onCancelar: () => void;
+}) {
+  const [nombre, setNombre] = useState(cuenta.nombre);
+  const [moneda, setMoneda] = useState<FinMoneda>(cuenta.moneda);
+  const [tipo, setTipo] = useState<FinTipoCuenta>(cuenta.tipo);
+  const [tasaManual, setTasaManual] = useState(
+    cuenta.tasaUsdManual != null ? String(cuenta.tasaUsdManual).replace(".", ",") : ""
+  );
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // La moneda no se puede cambiar si ya hay movimientos: corrompería el
+  // historial en USD registrado con la moneda anterior.
+  const puedeCambiarMoneda = cuenta.nMovimientos === 0;
+
+  const guardar = async () => {
+    setError(null);
+    setGuardando(true);
+    try {
+      const tasa = tasaManual.trim() === "" ? null : Number(tasaManual.replace(",", "."));
+      await actualizarCuenta(cuenta.id, {
+        nombre,
+        tipo,
+        tasaUsdManual: tasa,
+        moneda: puedeCambiarMoneda ? moneda : undefined,
+      });
+      onLista();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo actualizar la cuenta");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div>
+      <p className="text-sm font-bold text-foreground">Editar cuenta</p>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <label className={labelCls}>
+          <span className={tituloCls}>Nombre</span>
+          <input
+            type="text"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Tipo</span>
+          <Select
+            value={tipo}
+            options={TIPOS_CUENTA.map((t) => ({ value: t.valor, label: t.etiqueta }))}
+            onChange={(v) => setTipo(v as FinTipoCuenta)}
+            ariaLabel="Tipo de cuenta"
+            className="mt-1"
+          />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Moneda</span>
+          <Select
+            value={moneda}
+            options={MONEDAS.map((m) => ({ value: m.valor, label: m.etiqueta }))}
+            onChange={(v) => setMoneda(v as FinMoneda)}
+            ariaLabel="Moneda"
+            className="mt-1"
+            disabled={!puedeCambiarMoneda}
+          />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Tasa manual {moneda === "COP" ? "(obligatoria)" : "(opcional)"}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={tasaManual}
+            onChange={(e) => setTasaManual(e.target.value)}
+            placeholder={moneda === "COP" ? "COP por $1" : "Vacío = tasa del día"}
+            className={inputCls}
+          />
+        </label>
+      </div>
+      {!puedeCambiarMoneda && (
+        <p className="mt-2 text-xs text-muted">
+          La moneda no se puede cambiar porque la cuenta ya tiene movimientos.
+        </p>
+      )}
+      {error && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-accent" role="alert">
+          <IconAlerta className="h-3.5 w-3.5" aria-hidden="true" />
+          {error}
+        </p>
+      )}
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={guardar}
+          disabled={guardando}
+          className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          <IconCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          {guardando ? "Guardando…" : "Guardar"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          className="rounded-full border border-border px-4 py-2 text-xs font-bold text-muted"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -694,7 +842,7 @@ export default function Finanzas() {
           <div className="flex flex-col gap-3">
             <ul className="grid gap-3 sm:grid-cols-2">
               {cuentas.map((c) => (
-                <TarjetaCuenta key={c.id} cuenta={c} onArchivar={archivar} />
+                <TarjetaCuenta key={c.id} cuenta={c} onArchivar={archivar} onLista={recargar} />
               ))}
             </ul>
             <FormNuevaCuenta onLista={recargar} />

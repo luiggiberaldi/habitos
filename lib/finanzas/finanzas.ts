@@ -132,6 +132,54 @@ export async function archivarCuenta(cuentaId: string): Promise<void> {
   lanzarSiHayError(error, "No se pudo archivar la cuenta");
 }
 
+/** Actualiza nombre, tipo y tasa manual de una cuenta. La moneda solo se puede
+ * cambiar si la cuenta aún no tiene movimientos (cambiarla con historial
+ * corrompería los equivalentes en USD ya registrados). */
+export async function actualizarCuenta(
+  cuentaId: string,
+  input: {
+    nombre: string;
+    tipo: FinCuenta["tipo"];
+    tasaUsdManual?: number | null;
+    moneda?: FinMoneda;
+  }
+): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Sin conexión con la nube");
+  const nombre = input.nombre.trim();
+  if (!nombre) throw new Error("La cuenta necesita un nombre");
+  const cambios: Record<string, unknown> = {
+    nombre,
+    tipo: input.tipo,
+    tasa_usd_manual:
+      input.tasaUsdManual && input.tasaUsdManual > 0 ? input.tasaUsdManual : null,
+  };
+  if (input.moneda) {
+    const { data: actual, error: eActual } = await supabase
+      .from("fin_cuentas")
+      .select("moneda")
+      .eq("id", cuentaId)
+      .single();
+    lanzarSiHayError(eActual, "No se pudo leer la cuenta");
+    if ((actual as { moneda: string }).moneda !== input.moneda) {
+      const { count, error: eMov } = await supabase
+        .from("fin_movimientos")
+        .select("id", { count: "exact", head: true })
+        .eq("cuenta_id", cuentaId);
+      lanzarSiHayError(eMov, "No se pudieron revisar los movimientos");
+      if ((count ?? 0) > 0) {
+        throw new Error("No se puede cambiar la moneda: la cuenta ya tiene movimientos");
+      }
+      cambios.moneda = input.moneda;
+    }
+  }
+  const { error } = await supabase
+    .from("fin_cuentas")
+    .update(cambios)
+    .eq("id", cuentaId);
+  lanzarSiHayError(error, "No se pudo actualizar la cuenta");
+}
+
 /** Última tasa VES→USD (1 Bs → USD) desde fin_tasas. */
 async function tasaVesSnapshot(): Promise<number> {
   const supabase = getSupabase();

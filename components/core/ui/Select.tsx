@@ -14,6 +14,7 @@ interface SelectProps {
   onChange: (value: string) => void;
   ariaLabel: string;
   className?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -21,7 +22,7 @@ interface SelectProps {
  * Reemplaza al <select> nativo, cuya lista abierta la dibuja el SO
  * y no admite border-radius.
  */
-export function Select({ value, options, onChange, ariaLabel, className = "" }: SelectProps) {
+export function Select({ value, options, onChange, ariaLabel, className = "", disabled = false }: SelectProps) {
   const [abierto, setAbierto] = useState(false);
   const [indiceActivo, setIndiceActivo] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -85,9 +86,11 @@ export function Select({ value, options, onChange, ariaLabel, className = "" }: 
         aria-expanded={abierto}
         aria-controls={listaId}
         aria-label={ariaLabel}
-        onClick={() => (abierto ? setAbierto(false) : abrir())}
-        onKeyDown={teclaBoton}
-        className="input-field flex min-h-10 w-full items-center justify-between gap-2 !py-1.5 text-left"
+        aria-disabled={disabled}
+        disabled={disabled}
+        onClick={() => { if (!disabled) (abierto ? setAbierto(false) : abrir()); }}
+        onKeyDown={(e) => { if (!disabled) teclaBoton(e); }}
+        className={`input-field flex min-h-10 w-full items-center justify-between gap-2 !py-1.5 text-left ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
       >
         <span className="truncate">{seleccionada?.label ?? ""}</span>
         <IconChevronAbajo className={`h-4 w-4 shrink-0 text-muted transition-transform ${abierto ? "rotate-180" : ""}`} />
