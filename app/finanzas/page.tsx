@@ -293,7 +293,7 @@ function FormEditarCuenta({
         </p>
       )}
       {error && (
-        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-accent" role="alert">
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-accent" role="alert">
           <IconAlerta className="h-3.5 w-3.5" aria-hidden="true" />
           {error}
         </p>
@@ -415,7 +415,7 @@ function FormNuevaCuenta({ onLista }: { onLista: () => void }) {
         <Switch checked={compartida} onChange={setCompartida} />
       </div>
       {error && (
-        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-accent" role="alert">
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-accent" role="alert">
           <IconAlerta className="h-3.5 w-3.5" aria-hidden="true" />
           {error}
         </p>
@@ -577,7 +577,7 @@ function FormMovimiento({
         </label>
       </div>
       {error && (
-        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-accent" role="alert">
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-accent" role="alert">
           <IconAlerta className="h-3.5 w-3.5" aria-hidden="true" />
           {error}
         </p>
