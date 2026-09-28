@@ -5,6 +5,7 @@
 //
 // Detecta el módulo por prefijo y delega al script del módulo:
 //   "finanzas ..." / "fin ..."   → scripts/whatsapp-finanzas.mjs
+//   "recibo ..."  / "recibos ..." → scripts/whatsapp-recibos.mjs
 //   "mercado ..."  / "merca ..." → scripts/whatsapp-mercado.mjs
 //   (sin prefijo)                → hábitos (comportamiento actual)
 //
@@ -31,6 +32,7 @@ if (!texto) out({ ok: false, codigo: "args", modulo: "ninguno", detalle: "se req
 
 const PREFIJOS = [
   { modulo: "finanzas", script: "whatsapp-finanzas.mjs", rx: /^(finanzas|fin)\b[\s:,]*/i },
+  { modulo: "recibos", script: "whatsapp-recibos.mjs", rx: /^(recibos?)\b[\s:,]*/i },
   { modulo: "mercado", script: "whatsapp-mercado.mjs", rx: /^(mercado|merca)\b[\s:,]*/i },
   { modulo: "control", script: "whatsapp-control.mjs", rx: /^(control|ctrl)\b[\s:,]*/i },
 ];
@@ -96,6 +98,8 @@ if (!resto) {
     ok: false, codigo: "ayuda", modulo,
     detalle: modulo === "finanzas"
       ? 'Escribe p. ej. "finanzas gasté 5$ en pan" (disponible en Fase 1).'
+      : modulo === "recibos"
+      ? 'Escribe p. ej. "recibo para Ana: reparación laptop 150" o "recibo ayuda".'
       : 'Escribe p. ej. "mercado compré 2kg de arroz" (disponible en Fase 2).',
   });
 }

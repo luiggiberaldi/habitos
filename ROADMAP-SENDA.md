@@ -125,6 +125,52 @@ Objetivo: la suite como un solo sistema, no módulos pegados.
 - Salida: 5 reglas de correlación, 4 verificadas E2E con datos reales el 2026-09-28.
 - Verificación: cada correlación trae `ver_en` + `datos`; E2E real con datos de prueba (luego eliminados); sin datos → 0 correlaciones.
 
+### Fase 5 — Recibos 🚧 EN CURSO 2026-09-28
+Objetivo: comprobantes de pago/cobro en PDF con el diseño de recibera
+(auditado 2026-09-28: motor jsPDF desacoplado y portable), desde la web y desde WhatsApp.
+
+**Fase 5.1 — Fundación**
+- Migración 0029: `fin_recibos` (id, user_id, hogar_id, numero único `SEN-AAAAMM-XXX`,
+  estado[pendiente|parcial|pagado|anulado], moneda, cliente_nombre, snapshot JSONB,
+  total, total_pagado, saldo, fecha_emision, fecha_vencimiento, creado_por, creado_en)
+  + secuencia mensual atómica + RPCs (crear, listar, obtener, abonar, anular, duplicar).
+  RLS dueño-o-hogar.
+- Motor PDF portado de recibera a `lib/recibos/pdf/` (builder + shared + cálculos + formato):
+  tema `senda` (petróleo #0C3544 + menta #4CBF9A), textos 100% configurables
+  (nada de SYNAPTICA quemado), logo Senda en base64. Deps: jspdf + jspdf-autotable.
+- Conversión a Bs con `fin_tasas` (BCV/paralelo) en vez del módulo rates de recibera.
+
+**Fase 5.2 — Web**
+- Tercera pestaña "Recibos" en /finanzas (Resumen | Recibos | Datos).
+- Editor: emisor (perfil del hogar), cliente, conceptos (líneas), moneda USD/VES/USDT,
+  descuento global, impuesto, notas; pagos parciales con validación de sobrepago.
+- Historial: buscar por número/cliente, filtro por estado, descargar PDF, duplicar, anular.
+- PDF generado en el cliente (funciona offline en la PWA); compartir vía Web Share API.
+
+**Fase 5.3 — WhatsApp** (requisito explícito de luigi: todo funcional desde WhatsApp)
+- `scripts/whatsapp-recibos.mjs` + prefijo `recibo` en el router.
+- Intenciones: `recibo nuevo` (flujo conversacional), `recibos` (últimos),
+  `recibo <número>` (detalle), `abonar <monto> al recibo <número>`, `anular recibo <número>`.
+- Borrador conversacional con estado en `~/.config/senda/recibo-borrador.json`: el asistente
+  pide lo que falta (cliente → conceptos → moneda → resumen) y SOLO crea con confirmación
+  explícita. El PDF se entrega por link (`/api/recibos/[id]/pdf`).
+- Salida: crear un recibo completo solo por WhatsApp, de punta a punta.
+- Verificación: resumen → confirmación → número secuencial sin huecos; PDF descargable
+  desde el link; anular deja marca ANULADO.
+
+**Guardarraíles de Recibos**
+1. Nada se crea sin resumen + confirmación explícita (web y WhatsApp).
+2. Numeración secuencial atómica por mes (`SEN-AAAAMM-XXX`); sin huecos ni duplicados
+   aunque dos sesiones creen a la vez.
+3. Anular = soft delete; el PDF de un anulado siempre lleva marca de agua ANULADO.
+4. Validación con zod antes de construir el PDF (misma regla que recibera).
+5. Moneda bloqueada si el recibo ya tiene pagos (igual que cuentas).
+6. Sobrepago imposible: un abono nunca supera el saldo pendiente.
+7. Sin gamificación: Finanzas es serio, sin XP.
+8. Un solo borrador activo por usuario en WhatsApp; la confirmación es idempotente
+   (reenviar "sí" no duplica el recibo).
+9. Diseño del PDF: se mantiene el de recibera; solo cambian marca, colores y textos.
+
 ## 4. Modelo de datos (resumen)
 
 ```
@@ -140,6 +186,8 @@ fin_recordatorios(id, hogar_id, concepto, monto_est, moneda, regla[dia_mes], cue
 fin_deudas(id, hogar_id, contraparte, tipo[cobrar|pagar], monto, moneda, vence, saldada, creado_por)
 fin_metas(id, hogar_id, nombre, objetivo, moneda, creada_por)
 fin_presupuestos(id, hogar_id, categoria_id, mes, monto, moneda)
+fin_recibos(id, hogar_id, numero[SEN-AAAAMM-XXX], estado, moneda, cliente_nombre,
+            snapshot JSONB, total, total_pagado, saldo, creado_por)   ← Fase 5
 
 mer_productos(id, hogar_id, nombre, unidad, categoria, precio_ref, creado_por)
 mer_lotes(id, producto_id, cantidad, unidad, fecha_compra, precio_total, moneda,

@@ -615,3 +615,21 @@
 - `lib/mercado/mercado.ts`: el cliente ahora llama con `supabase.rpc()` y el JWT de la sesión (como `lib/coach/coach.ts`); eliminado todo rastro de `NEXT_PUBLIC_HABITOS_RPC_SECRET` del repo.
 
 **Verificación (real, 2026-09-27):** migración HTTP 201; `rpc_mer_lista` con secreto → HTTP 200 (vía WhatsApp/scripts intacta); sin secreto ni JWT → `no_autorizado` (fail-closed intacto); tsc limpio, build limpio. La vía JWT del navegador sigue el patrón probado del coach; pendiente la confirmación visual de luigi en su teléfono.
+
+## 2026-09-27 — Fase 5 Recibos completa: web + WhatsApp + PDF (auditoría de recibera)
+
+**Qué cambió:**
+- `supabase/migrations/0029_recibos.sql` (aplicada, HTTP 201): tabla `fin_recibos` (snapshot JSONB + columnas desnormalizadas), secuencia mensual atómica `SEN-AAAAMM-XXX`, RPC `rpc_recibo_numero/crear/abonar/anular` con auth dual (secreto o JWT), RLS dueño o miembro del hogar.
+- `supabase/migrations/0030_recibos_whatsapp.sql` (aplicada, HTTP 201): RPC `rpc_recibo_listar/ver/duplicar` para WhatsApp (pertenencia al hogar por `p_user_id`, porque `es_miembro_de_hogar()` depende de `auth.uid()` nulo en llamadas con secreto). **Endurecido:** revocado el execute de `rpc_recibo_numero` a anon/authenticated — ahora es interna (guardarraíl #2, sin huecos).
+- Motor PDF portado de recibera (`lib/recibos/`: tipos, cálculos, formato, garantía, tasas, pdf/builder, shared, logo): mismo diseño (banda superior, tabla de conceptos, panel de pagos, resumen financiero, firma, marca de agua PAGADO/ANULADO, footer), marca SENDA, colores petróleo `#0C3544` / menta `#4CBF9A`, monedas USD/VES/COP/USDT, conversión a Bs con `fin_tasas`.
+- Web: pestaña **Recibos** en Finanzas (`components/recibos/RecibosTab.tsx` + `lib/recibos/cliente.ts`): editor con conceptos múltiples, descuentos e impuesto, resumen obligatorio + confirmación explícita, historial con búsqueda, descargar PDF, abonar, anular (soft delete), duplicar.
+- WhatsApp: `scripts/whatsapp-recibos.mjs` + prefijo `recibo` en el router. Borrador conversacional (un borrador activo por usuario en `~/.config/habitos/recibo-borrador.json`): pide cliente/conceptos/precios/emisor faltantes, muestra resumen, espera "sí" explícito, confirmación idempotente (fase `ejecutando` antes del RPC). Intenciones: crear, listar, ver, pdf (genera el PDF con el motor real y lo devuelve en base64), abonar (con validación anti-sobrepago), anular, duplicar, cancelar, ayuda.
+- `ROADMAP-SENDA.md`: Fase 5 con fases y 9 guardarraíles (resumen+confirmación, numeración atómica, soft-delete, Zod antes del PDF, moneda bloqueada con pagos, sin sobrepago, sin gamificación, un borrador por usuario, mantener el diseño de recibera).
+
+**Por qué:** luigi pidió incorporar la recibera (repo `luiggiberaldi/recibera`) en Senda manteniendo el diseño del PDF, y que todo fuera funcional desde WhatsApp.
+
+**Verificación (real, 2026-09-27):** tsc limpio, ESLint limpio, `npm run build` limpio. E2E real contra producción vía WhatsApp: crear (SEN-202609-001) → ver → pdf (48 KB, válido) → abonar $10 → sobrepago rechazado → duplicar (SEN-202609-002) → anular ambos → listar. Recibos de prueba eliminados con SQL (números 001/002 de 202609 consumidos por la prueba, documentado). Migración 0030 verificada: nuevas firmas existen, `rpc_recibo_numero` ya no es ejecutable por anon/authenticated.
+
+**Decisión documentada:** no se creó el endpoint `/api/recibos/[id]/pdf` del roadmap — el script genera el PDF localmente con el mismo motor y lo entrega en base64 (el canal de WhatsApp soporta documentos PDF). Menos superficie pública, misma funcionalidad.
+
+**Pendiente (no verificado):** verificación visual de la pestaña Recibos y del PDF en el teléfono de luigi.

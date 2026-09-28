@@ -29,6 +29,7 @@ import {
 } from "../../lib/finanzas/types";
 import { Select } from "../../components/core/ui/Select";
 import { DatosFinanzas } from "../../components/finanzas/DatosFinanzas";
+import { RecibosTab } from "../../components/recibos/RecibosTab";
 import { flameGradient } from "../../lib/core/ui/design-tokens";
 import {
   IconAlerta,
@@ -729,7 +730,7 @@ export default function Finanzas() {
   const [semana, setSemana] = useState<FinResumenDia[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"resumen" | "datos">("resumen");
+  const [tab, setTab] = useState<"resumen" | "recibos" | "datos">("resumen");
 
   const recargar = useCallback(async () => {
     setError(null);
@@ -796,10 +797,11 @@ export default function Finanzas() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <Encabezado patrimonio={patrimonio} cuentas={cuentas} cargando={cargando} />
 
-      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-surface p-1.5" role="tablist" aria-label="Secciones de Finanzas">
+      <div className="grid grid-cols-3 gap-2 rounded-2xl bg-surface p-1.5" role="tablist" aria-label="Secciones de Finanzas">
         {(
           [
             { id: "resumen", etiqueta: "Resumen" },
+            { id: "recibos", etiqueta: "Recibos" },
             { id: "datos", etiqueta: "Datos" },
           ] as const
         ).map((t) => (
@@ -873,6 +875,8 @@ export default function Finanzas() {
             )}
           </section>
         </>
+        ) : tab === "recibos" ? (
+        <RecibosTab />
         ) : (
         <DatosFinanzas patrimonio={patrimonio} />
       )}
