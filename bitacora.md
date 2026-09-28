@@ -2,14 +2,15 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
-## 2026-09-28 (Editar cuentas en Finanzas — PENDIENTE de revisión, sin push ni deploy)
+## 2026-09-28 (Editar cuentas en Finanzas — DESPLEGADO a producción)
 
 - luigi (WhatsApp): "Necesito que agregues un botón a la app para modificar las cuentas creadas".
+- Implementado en otra sesión (commit 3a3549f); luigi preguntó "todo esta desplegado?" → se pusheó y desplegó en este turno.
 - lib/finanzas/finanzas.ts: nueva `actualizarCuenta(cuentaId, { nombre, tipo, tasaUsdManual, moneda? })` — update directo vía RLS (la policy `fin_cuentas_dueno_o_hogar` es `for all`, igual que ya hacía `archivarCuenta`). La moneda solo cambia si la cuenta no tiene movimientos (protege el historial en USD); si hay movimientos y cambia, lanza error claro.
 - app/finanzas/page.tsx: `TarjetaCuenta` ahora tiene botón "Editar" (IconEditar del set propio) junto a "Archivar"; abre `FormEditarCuenta` inline en la tarjeta (Nombre, Tipo, Moneda, Tasa manual) con Guardar/Cancelar y manejo de error sin alert().
 - components/core/ui/Select.tsx: nuevo prop opcional `disabled` (botón deshabilitado + `aria-disabled` + estilo tenue) para el caso "moneda bloqueada con movimientos".
 - Reglas UI respetadas: todo redondeado, sin select nativo, foco con un solo indicador, iconos del set SVG, sin alert/confirm/prompt.
-- Validación: tsc --noEmit limpio. Commit local; push/deploy solo con revisión explícita de luigi.
+- Validación: tsc --noEmit limpio; build exit 0; push a GitHub ok; deploy a habitos-amber; /finanzas y / 200.
 
 ## 2026-09-28 (Desglose por moneda en Finanzas + cartera Efectivo — DESPLEGADO a producción)
 
