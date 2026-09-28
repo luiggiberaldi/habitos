@@ -2,6 +2,17 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-27 (push + deploy del núcleo lib/core/ — DESPLEGADO a producción)
+
+- luigi autorizó: "Revisado, pushea y despliega".
+- Commit `c9a4b86` ("Extraer lib/core/: nucleo neutro + cola offline generica")
+  pusheado a master en `luiggiberaldi/senda` vía git-push.py (fast-forward
+  desde `886c56a`).
+- Desplegado a producción con `vercel --prod` (token de `.env.local`,
+  VERCEL_NO_UPDATE_CHECK=1).
+- Verificación post-deploy: HTTP 200 en `/`, `/habitos`, `/finanzas` y
+  `/mercado` (https://habitos-amber.vercel.app).
+
 ## 2026-09-27 ("Salir" vuelve al selector de perfiles — DESPLEGADO a producción)
 
 - luigi: en móvil, "Salir" debe llevar al login de usuarios (selector de
