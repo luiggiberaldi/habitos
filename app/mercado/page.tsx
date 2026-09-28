@@ -45,6 +45,11 @@ const fmtUsd = (n: number | null | undefined) =>
     ? "—"
     : `$${new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`;
 
+const fmtBs = (n: number | null | undefined) =>
+  n === null || n === undefined
+    ? "—"
+    : `Bs ${new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`;
+
 /** Encabezado serio: presupuesto mensual + estado del inventario. */
 function Encabezado({
   presupuesto,
@@ -163,7 +168,12 @@ function HistorialPrecios({ productoId }: { productoId: string }) {
         {precios.slice(0, 6).map((p, i) => (
           <li key={i} className="flex justify-between text-xs text-muted">
             <span>{p.fecha}{p.comercio ? ` · ${p.comercio}` : ""}</span>
-            <span>{fmtUsd(p.precio_usd_unitario)}/{p.moneda === "USD" ? "$" : p.moneda}</span>
+            <span>
+              {fmtUsd(p.precio_usd_unitario)}/{p.moneda === "USD" ? "$" : p.moneda}
+              {p.precio_bs_historico !== null && p.precio_bs_historico !== undefined && (
+                <span className="text-muted"> · {fmtBs(p.precio_bs_historico)}</span>
+              )}
+            </span>
           </li>
         ))}
       </ul>
@@ -251,6 +261,7 @@ export default function MercadoPage() {
   const [pUnidad, setPUnidad] = useState<MerUnidad>("und");
   const [pCategoria, setPCategoria] = useState("");
   const [pPrecioRef, setPPrecioRef] = useState("");
+  const [pStock, setPStock] = useState("");
   // Formulario de movimiento.
   const [mProducto, setMProducto] = useState("");
   const [mTipo, setMTipo] = useState<MerTipoMov>("compra");
@@ -326,6 +337,11 @@ export default function MercadoPage() {
       setError("El producto necesita nombre y categoría.");
       return;
     }
+    const stockIni = Number(pStock);
+    if (!pStock.trim() || Number.isNaN(stockIni) || stockIni <= 0) {
+      setError("Indica la cantidad inicial que tienes del producto.");
+      return;
+    }
     setGuardando(true);
     try {
       await merRpc.productoUpsert({
@@ -333,8 +349,9 @@ export default function MercadoPage() {
         unidad: pUnidad,
         categoria: pCategoria.trim(),
         precioRef: pPrecioRef ? Number(pPrecioRef) : null,
+        stockInicial: stockIni,
       });
-      setPNombre(""); setPCategoria(""); setPPrecioRef("");
+      setPNombre(""); setPCategoria(""); setPPrecioRef(""); setPStock("");
       setAviso("Producto creado.");
       await recargar();
     } catch (e) {
@@ -588,6 +605,18 @@ export default function MercadoPage() {
                       value={pCategoria}
                       onChange={(e) => setPCategoria(e.target.value)}
                       placeholder="granos"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={tituloCls}>Cantidad inicial *</span>
+                    <input
+                      className={inputCls}
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={pStock}
+                      onChange={(e) => setPStock(e.target.value)}
+                      placeholder="5"
                     />
                   </label>
                   <label className="block">

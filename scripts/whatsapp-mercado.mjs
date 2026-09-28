@@ -23,7 +23,7 @@
 // confirmación explícita antes de ejecutar. Nunca se registra directo.
 // Los productos nuevos exigen unidad + categoría (los 4 obligatorios).
 
-import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { cargarConfig, norm } from "./whatsapp-comun.mjs";
 
 const args = {};
@@ -181,7 +181,13 @@ try {
     const cuenta = payload.cuenta;
     if (!items.length) out({ ok: false, codigo: "args", detalle: "la factura no trae artículos" });
     if (!cuenta) out({ ok: false, codigo: "args", detalle: "falta la cuenta del pago" });
+    // Clave estable por factura: el mismo resumen confirmado dos veces no duplica.
+    const huella = createHash("sha256")
+      .update(JSON.stringify({ items, cuenta, comercio: payload.comercio ?? null }))
+      .digest("hex")
+      .slice(0, 16);
     const registrados = [];
+    let idx = 0;
     for (const it of items) {
       if (!it.producto_id) {
         if (!it.categoria) {
@@ -193,7 +199,7 @@ try {
         });
         it.producto_id = up.id;
       }
-      const clave = `mer-wa-${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
+      const clave = `mer-wa-${huella}-${idx++}`;
       const r = await rpc("rpc_mer_movimiento", {
         p_user_id: cfg.USER_ID,
         p_producto_id: it.producto_id,
@@ -206,7 +212,12 @@ try {
         p_nota: "factura por WhatsApp",
         p_clave_evento: clave,
       });
-      registrados.push({ producto: r.producto, cantidad: it.cantidad, unidad: it.unidad, egreso: !!r.fin_movimiento_id });
+      registrados.push({ producto: r.producto, cantidad: it.cantidad, unidad: it.unidad, egreso: !!r.fin_movimiento_id, duplicado: !!r.duplicado });
+    }
+    const nDup = registrados.filter((r) => r.duplicado).length;
+    if (nDup === registrados.length) {
+      out({ ok: true, codigo: "factura_duplicada", items: registrados,
+        mensaje: `Esta factura ya estaba registrada (${registrados.length} artículos). No se duplicó nada.` });
     }
     const lineas = registrados.map((r) => `• ${fmtN(r.cantidad)} ${r.unidad} ${r.producto}`);
     out({

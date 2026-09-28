@@ -54,12 +54,14 @@ export const merRpc = {
     unidad: MerUnidad;
     categoria: string;
     precioRef?: number | null;
+    stockInicial?: number | null;
   }) =>
-    rpc<{ ok: boolean; id: string; nombre: string }>("rpc_mer_producto_upsert", {
+    rpc<{ ok: boolean; id: string; nombre: string; nuevo?: boolean }>("rpc_mer_producto_upsert", {
       p_nombre: p.nombre,
       p_unidad: p.unidad,
       p_categoria: p.categoria,
       p_precio_ref: p.precioRef ?? null,
+      p_stock_inicial: p.stockInicial ?? null,
     }),
   movimiento: (p: {
     productoId: string;

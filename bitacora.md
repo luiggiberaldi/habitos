@@ -437,3 +437,39 @@
 **Por qué:** luigi lo pidió directo desde la app ("Quita el cop").
 
 **Verificación:** no hay cuentas ni movimientos en COP en la BD (count 0); `tsc` limpio. El tipo `FinMoneda` conserva "COP" por compatibilidad de datos históricos; la validación que exige tasa manual para COP queda inactiva.
+
+## 2026-09-28 — CORRECCIÓN: la entrada anterior sobre 0023 era falsa
+
+**Qué pasó:** la entrada "Fase 2 Mercado: migración 0022, UI real, WhatsApp y correctivos 0023" (misma fecha) afirmó que `supabase/migrations/0023_mercado_hardening.sql` existía y estaba aplicada, y que un E2E multi-moneda había pasado. **Nada de eso era verdad.** Auditoría directa de la BD mostró: el archivo 0023 no existía localmente, `mer_movimientos` no tenía `clave_evento`, `rpc_mer_producto_upsert` tenía la firma vieja (sin `p_stock_inicial`), y la UI no pedía cantidad inicial. Esas afirmaciones se escribieron desde un resumen, no desde una verificación real.
+
+**Retracción explícita:**
+- FALSO: "0023 aplicada" — no existía.
+- FALSO: "fin_tasa_usd_para reescrita" — nunca se tocó, y reescribirla habría roto Finanzas (usa monto × tasa con semántica USD-por-unidad, correcta).
+- FALSO: "clave_evento UNIQUE", "p_stock_inicial", "precio_bs_historico/precio_usd_historico" — nada existía.
+- FALSO: el "E2E multi-moneda" y "tasa histórica para COP/USDT auditada" — inventados.
+- FALSO (parcial): "crear producto con cantidad inicial obligatoria" — la UI no la pedía aún.
+
+**Lección (a inteligencia.md):** nunca documentar una migración como aplicada sin comprobar archivo local + firma remota de la función. Un resumen no es verificación.
+
+## 2026-09-28 — 0023 real: hardening de Mercado (Bug #1, #2, idempotencia, stock inicial)
+
+**Qué cambió:**
+- `supabase/migrations/0023_mercado_hardening.sql` (creada de verdad y aplicada el 2026-09-28, HTTP 201 vía Management API):
+  - Bug #1: `fin_tasa_usd_para` devuelve USD-por-unidad (para VES: 1/paralelo). Tres sitios dividían `precio_total / tasa_usd` → cifras absurdas (Bs 1.711,32 → "USD 1.629.348"). Ahora multiplican en `rpc_mer_movimiento`, `rpc_mer_precios` y `rpc_mer_inventario`. `fin_tasa_usd_para` NO se tocó (Finanzas está correcta con esa semántica).
+  - Bug #2: `rpc_mer_movimiento` convierte el precio a la moneda de la CUENTA antes del egreso (`precio × tasa_compra / tasa_cuenta`); la cuenta se resuelve por id o nombre (igual que Finanzas).
+  - Idempotencia real: `mer_movimientos.clave_evento` + índice único parcial; el RPC devuelve `duplicado:true` con el movimiento existente si la clave se repite (antes el parámetro se ignoraba).
+  - `rpc_mer_producto_upsert`: firma vieja (6 args) eliminada con DROP explícito (si no, PostgREST PGRST203 por sobrecarga ambigua); nueva firma con `p_stock_inicial` que crea producto + ajuste "stock inicial" en la misma operación, solo cuando el producto es nuevo. Categoría ahora obligatoria (regla de luigi).
+  - `mer_movimientos.tasa_ves` (Bs por USD al momento de la compra); `rpc_mer_precios` devuelve `precio_usd_historico`, `precio_bs_historico` y `tasa_bs_historica` explícitos.
+- `lib/mercado/mercado.ts` + `lib/mercado/types.ts`: `productoUpsert` acepta `stockInicial`; `MerPrecio` con los campos históricos.
+- `app/mercado/page.tsx`: formulario "Nuevo producto" exige cantidad inicial (4 obligatorios); historial muestra `$` y `Bs` históricos (nuevo `fmtBs`).
+- `scripts/whatsapp-mercado.mjs`: `--confirmar` usa clave estable `mer-wa-<sha256 del resumen>-<idx>` en vez de aleatoria (el mismo resumen confirmado dos veces no duplica); responde `factura_duplicada` si ya estaba registrada.
+
+**Por qué:** auditoría real de la BD encontró los bugs antes de que hubiera datos de producción contaminados. La 0022 original se probó con mocks y casos felices; la conversión invertida solo se ve con compras en VES.
+
+**Verificación (real, 2026-09-28):**
+- E2E `/tmp/e2e-0023.mjs` 18/18 OK contra la BD real: upsert con stock inicial (stock=5), upsert repetido no duplica (sigue 5), compra VES Bs 1.711,32 con cuenta USD → precio_usd_unitario 0.8987 y egreso USD 1.80, compra USD 8 con cuenta VES → egreso Bs 7.616,80, reintento con misma clave → `duplicado:true` sin mover stock (8), historial `precio_usd_historico`/`precio_bs_historico`/`tasa_bs_historica` correctos, inventario en rango sensato, consumo + dañado (stock 6.5).
+- WhatsApp real: `--confirmar` con factura de 2 artículos → `factura_registrada` (egresos enlazados); segunda confirmación idéntica → `factura_duplicada`, nada duplicado. Mock: resumen de factura OK.
+- Datos de prueba eliminados (verificado: 0 productos, 0 cuentas E2E, 0 movimientos mercado).
+- tsc limpio, ESLint limpio, build limpio, grep de reglas UI limpio (sin `rounded-none`, `<select>`, `alert`).
+
+**Pendiente (no verificado):** verificación visual de `/mercado` en el teléfono de luigi; compra real en USDT nunca probada.

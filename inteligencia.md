@@ -37,3 +37,10 @@
 - Patrón de alcance: `c.user_id = p_user_id OR (c.hogar_id IS NOT NULL AND EXISTS (SELECT 1 FROM hogar_miembros WHERE hogar_id = c.hogar_id AND user_id = p_user_id))`.
 - PostgREST no embebe vistas sin FK (`fin_saldos!inner` falla): para vista+tabla, dos consultas unidas en código. Los nombres de FK autogeneradas (`tabla_columna_fkey`) sí sirven para embeds con `!`.
 - Transferencia = una sola fila (origen + destino + `monto_destino` autoconvertido con los snapshots del momento); el patrimonio en USD usa snapshots históricos, nunca se recalcula retroactivo.
+
+## 2026-09-28 — Lecciones de la auditoría de Mercado
+- **Nunca documentar una migración como aplicada desde un resumen.** Una entrada de bitácora afirmó que la 0023 existía y estaba verificada; la auditoría directa (archivo local + `information_schema`/`pg_proc` remoto) mostró que no existía. Regla: antes de escribir "aplicada", comprobar (1) el archivo en `supabase/migrations/` y (2) la firma real de la función en la BD.
+- **`fin_tasa_usd_para` = USD-por-unidad de moneda** (para VES: `1/paralelo`). Finanzas hace `monto * tasa` y está correcta. Quien la lea para convertir al revés (precio_local / tasa) invierte la conversión. No "corregir" la función global: corregir los call sites.
+- **CREATE OR REPLACE con firma distinta crea una sobrecarga**, no reemplaza. PostgREST devuelve PGRST203 (ambigüedad) si quedan dos firmas. Añadir `DROP FUNCTION` explícito de la firma vieja en la migración.
+- **PostgreSQL no admite `unique (user_id, lower(nombre))`** en la definición de tabla; usar índice de expresión `create unique index ... on t (user_id, lower(nombre))`.
+- **`returning *, (xmax = 0) into v_prod, v_nuevo` no compila** ("record variable cannot be part of multiple-item INTO list"). Para detectar insert-vs-update, hacer select-then-insert/update separados.

@@ -41,6 +41,9 @@ export interface MerPrecio {
   precio_unitario: number;
   moneda: string;
   precio_usd_unitario: number;
+  precio_usd_historico?: number | null;
+  precio_bs_historico?: number | null;
+  tasa_bs_historica?: number | null;
   cantidad: number;
 }
 

@@ -89,7 +89,7 @@ Objetivo: el registro contable del hogar, usable en el día a día. Sin gamifica
 - Verificación: suma de movimientos por cuenta == saldo mostrado; egreso en Bs convertido
   con la tasa de su fecha; transferencia no aparece como gasto.
 
-### Fase 2 — Mercado
+### Fase 2 — Mercado ✅ COMPLETADA 2026-09-28
 Objetivo: saber qué hay, qué se acaba y cuándo comprar.
 - **Productos**: nombre, unidad, categoría, cantidad (obligatorios); precio de referencia (opcional).
 - **Lotes y consumos**: comprar (+cantidad, precio, comercio, cuenta opcional), gastar (−), se acabó (=0), se dañó (no contamina la tasa). Stock = compras − consumos.
@@ -98,6 +98,7 @@ Objetivo: saber qué hay, qué se acaba y cuándo comprar.
 - **Comparador por comercio** ("el arroz más barato en X").
 - Cantidad sugerida de compra + **presupuesto mensual de mercado** (= Σ consumo_mensual × precio actual; alimenta el presupuesto de finanzas).
 - **Factura por WhatsApp**: foto → resumen → confirmación de luigi → registro en inventario + egreso.
+- Hardening 0023: conversión USD-por-unidad corregida en 3 RPCs, egreso convertido a moneda de cuenta, idempotencia por `clave_evento`, stock inicial atómico, historial Bs/$ con `tasa_ves`. Verificado E2E real 18/18.
 - Salida: una compra semanal completa procesada por WhatsApp de punta a punta.
 - Verificación: stock actualizado, egreso creado y linkeado; producto nuevo con los 4
   obligatorios; historial con variación Bs y $.
