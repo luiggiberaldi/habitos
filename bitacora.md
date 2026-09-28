@@ -2,7 +2,7 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
-## 2026-09-28 (Reorganización: cada módulo dueño de sus datos — PENDIENTE despliegue)
+## 2026-09-28 (Reorganización: cada módulo dueño de sus datos — DESPLEGADO a producción)
 
 - luigi: "¿Es buena idea llevar lo de hábitos a la pestaña de hábito? …quiero estadísticas de Finanzas y de mercado, ¿qué propones?" → propuesta aprobada: Logros/Niveles/Estadísticas se mudan a pestañas internas de Hábitos; Finanzas y Mercado ganan su propia vista "Datos"; "Más" queda solo con Ajustes + accesos a Control y Coach.
 - `/habitos` ahora tiene pestañas Hoy | Logros | Niveles | Datos (`?tab=`, con `router.replace` sin scroll):
@@ -48,7 +48,8 @@
   hogar → `ya_tiene_hogar`, renombrar, invitar cuenta existente → entra
   directo (2 miembros), expulsar (vuelve a 1), salir como último → hogar
   eliminado y `obtener_mi_hogar` → null. Datos de prueba limpiados.
-- Commit pusheado a master y desplegado a producción
+- Commit d4984f9 pusheado a master y desplegado a producción
+  (https://habitos-amber.vercel.app; /habitos?tab=datos, /finanzas, /mercado, /mas y /logros → 200 ok; /logros redirige a /habitos?tab=logros) a producción
   (https://habitos-amber.vercel.app, 200 ok).
 - Nota: la Edge Function `crear-usuario` sigue desplegada; su UI
   (GestionUsuarios.tsx) había sido eliminada en 51f4a5d — el flujo de
