@@ -633,3 +633,14 @@
 **Decisión documentada:** no se creó el endpoint `/api/recibos/[id]/pdf` del roadmap — el script genera el PDF localmente con el mismo motor y lo entrega en base64 (el canal de WhatsApp soporta documentos PDF). Menos superficie pública, misma funcionalidad.
 
 **Pendiente (no verificado):** verificación visual de la pestaña Recibos y del PDF en el teléfono de luigi.
+
+## 2026-09-27 — Respaldo automático de Senda en Google Drive (pedido de luigi)
+
+**Qué cambió:**
+- `scripts/respaldo-senda-drive.sh` (nuevo): comprime `~/workspace/habitos` (excluye node_modules/.next/.git/.cache/.vercel), compara sha256 con el último respaldo y solo sube a Drive si hubo cambios. La primera subida crea `senda-respaldo.zip` en la carpeta "Respaldos Senda" (creada en Drive); las siguientes actualizan el mismo archivo (mismo id y enlace).
+- Cron `respaldo-senda-drive`: corre cada 6h; silencioso cuando no hay cambios o el respaldo se actualizó bien, avisa solo si falla.
+- Estado en `~/.respaldo-senda/estado.json` (carpeta_id, archivo_id, hash).
+
+**Por qué:** luigi pidió respaldo de la carpeta de Senda en Drive y que se actualice cada vez que cambie algo. Además del cron, yo mismo lo refresco al final de cada sesión donde toquemos Senda.
+
+**Verificación (real, 2026-09-27):** primera subida OK — `senda-respaldo.zip`, 1.5 MB, verificado en Drive con fecha de modificación actual. Cron creado, próxima corrida en ~6h.
