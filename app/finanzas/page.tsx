@@ -1,40 +1,691 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  anularMovimiento,
+  archivarCuenta,
+  crearCuenta,
+  formatearMonto,
+  hoyCaracas,
+  listarCuentasConSaldos,
+  listarMovimientos,
+  patrimonioUsd,
+  registrarMovimiento,
+  resumenSemanal,
+} from "../../lib/finanzas/finanzas";
+import {
+  CATEGORIAS_EGRESO,
+  CATEGORIAS_INGRESO,
+  MONEDAS,
+  TIPOS_CUENTA,
+  type FinCuentaConSaldo,
+  type FinMoneda,
+  type FinMovimiento,
+  type FinResumenDia,
+  type FinTipoCuenta,
+  type FinTipoMov,
+} from "../../lib/finanzas/types";
+import { Select } from "../../components/core/ui/Select";
 import { flameGradient } from "../../lib/core/ui/design-tokens";
-import { IconMaletin, IconFlechaAtras } from "../../lib/core/ui/icons";
+import {
+  IconAlerta,
+  IconCheck,
+  IconFlechaAtras,
+  IconMaletin,
+  IconMovimiento,
+  IconPlus,
+  IconX,
+} from "../../lib/core/ui/icons";
 
-/** Placeholder de Finanzas hasta la Fase 1. */
-export default function FinanzasProximamente() {
+const TIPOS_MOV: { valor: FinTipoMov; etiqueta: string }[] = [
+  { valor: "ingreso", etiqueta: "Ingreso" },
+  { valor: "egreso", etiqueta: "Egreso" },
+  { valor: "transferencia", etiqueta: "Transferencia" },
+];
+
+const inputCls =
+  "mt-1 w-full rounded-xl border border-transparent bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-accent";
+const labelCls = "block";
+const tituloCls = "text-xs font-bold text-muted";
+
+function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-16 text-center sm:px-6">
-      <span
-        className="flex h-20 w-20 items-center justify-center rounded-3xl"
-        style={{ background: "#E8F0F3" }}
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="switch-track shrink-0"
+      data-checked={checked ? "true" : "false"}
+    >
+      <span className="switch-thumb" />
+    </button>
+  );
+}
+
+/** Encabezado serio: sin juego, sin XP. Solo el patrimonio del hogar. */
+function Encabezado({ patrimonio, cargando }: { patrimonio: number; cargando: boolean }) {
+  return (
+    <header
+      className="relative overflow-hidden rounded-3xl p-5 text-white"
+      style={{ background: flameGradient, boxShadow: "0 18px 40px -12px rgba(248,72,24,.45)" }}
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(120% 90% at 85% 0%, rgba(255,255,255,.18), transparent 60%)" }}
+      />
+      <div className="relative [text-shadow:0_1px_10px_rgba(0,0,0,0.30)]">
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white"
+            aria-label="Volver al inicio"
+          >
+            <IconFlechaAtras className="h-3.5 w-3.5" aria-hidden="true" />
+            Inicio
+          </Link>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold">
+            <IconMaletin className="h-3.5 w-3.5" aria-hidden="true" />
+            Finanzas
+          </span>
+        </div>
+        <p className="mt-4 text-xs text-white/85">Patrimonio total</p>
+        <p className="mt-0.5 text-3xl font-bold tracking-tight">
+          {cargando ? "…" : `$ ${new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(patrimonio)}`}
+        </p>
+        <p className="mt-1 text-xs text-white/75">Suma de saldos en dólares</p>
+      </div>
+    </header>
+  );
+}
+
+function TarjetaCuenta({
+  cuenta,
+  onArchivar,
+}: {
+  cuenta: FinCuentaConSaldo;
+  onArchivar: (id: string) => void;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const tipoEtiqueta = TIPOS_CUENTA.find((t) => t.valor === cuenta.tipo)?.etiqueta ?? cuenta.tipo;
+  return (
+    <li className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-foreground">{cuenta.nombre}</p>
+          <p className="mt-0.5 text-xs text-muted">
+            {tipoEtiqueta} · {cuenta.moneda}
+            {cuenta.hogarId ? " · Compartida" : ""}
+          </p>
+        </div>
+        {confirmando ? (
+          <span className="inline-flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => { onArchivar(cuenta.id); setConfirmando(false); }}
+              className="rounded-full bg-accent px-2.5 py-1 text-[11px] font-bold text-white"
+            >
+              Archivar
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmando(false)}
+              className="rounded-full border border-border px-2.5 py-1 text-[11px] font-bold text-muted"
+              aria-label="Cancelar"
+            >
+              <IconX className="h-3 w-3" aria-hidden="true" />
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmando(true)}
+            className="shrink-0 rounded-full px-2 py-1 text-[11px] font-bold text-muted hover:text-foreground"
+          >
+            Archivar
+          </button>
+        )}
+      </div>
+      <p className="mt-2 text-xl font-bold text-foreground">
+        {formatearMonto(cuenta.saldoMoneda, cuenta.moneda)}
+      </p>
+      <p className="text-xs text-muted">
+        ≈ $ {new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cuenta.saldoUsd)}
+        {cuenta.nMovimientos > 0 ? ` · ${cuenta.nMovimientos} movimientos` : " · sin movimientos"}
+      </p>
+    </li>
+  );
+}
+
+function FormNuevaCuenta({ onLista }: { onLista: () => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [nombre, setNombre] = useState("");
+  const [moneda, setMoneda] = useState<FinMoneda>("USD");
+  const [tipo, setTipo] = useState<FinTipoCuenta>("efectivo");
+  const [tasaManual, setTasaManual] = useState("");
+  const [compartida, setCompartida] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const guardar = async () => {
+    setError(null);
+    setGuardando(true);
+    try {
+      const tasa = tasaManual.trim() === "" ? null : Number(tasaManual.replace(",", "."));
+      await crearCuenta({
+        nombre,
+        moneda,
+        tipo,
+        tasaUsdManual: tasa,
+        compartida,
+      });
+      setNombre(""); setMoneda("USD"); setTipo("efectivo"); setTasaManual(""); setCompartida(false);
+      setAbierto(false);
+      onLista();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo crear la cuenta");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-4 py-2 text-xs font-bold text-muted hover:text-foreground"
       >
-        <IconMaletin className="h-10 w-10" aria-hidden="true" />
+        <IconPlus className="h-3.5 w-3.5" aria-hidden="true" />
+        Nueva cuenta
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface-2 p-4">
+      <div className="grid grid-cols-2 gap-3">
+        <label className={labelCls}>
+          <span className={tituloCls}>Nombre</span>
+          <input
+            type="text"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej. Efectivo"
+            className={inputCls}
+          />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Moneda</span>
+          <Select
+            value={moneda}
+            options={MONEDAS.map((m) => ({ value: m.valor, label: m.etiqueta }))}
+            onChange={(v) => setMoneda(v as FinMoneda)}
+            ariaLabel="Moneda"
+            className="mt-1"
+          />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Tipo</span>
+          <Select
+            value={tipo}
+            options={TIPOS_CUENTA.map((t) => ({ value: t.valor, label: t.etiqueta }))}
+            onChange={(v) => setTipo(v as FinTipoCuenta)}
+            ariaLabel="Tipo de cuenta"
+            className="mt-1"
+          />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Tasa manual {moneda === "COP" ? "(obligatoria)" : "(opcional)"}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={tasaManual}
+            onChange={(e) => setTasaManual(e.target.value)}
+            placeholder={moneda === "COP" ? "COP por $1" : "Vacío = tasa del día"}
+            className={inputCls}
+          />
+        </label>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-xs font-bold text-muted">Compartida con el hogar</span>
+        <Switch checked={compartida} onChange={setCompartida} />
+      </div>
+      {error && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-accent" role="alert">
+          <IconAlerta className="h-3.5 w-3.5" aria-hidden="true" />
+          {error}
+        </p>
+      )}
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={guardar}
+          disabled={guardando}
+          className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          <IconCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          {guardando ? "Creando…" : "Crear cuenta"}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setAbierto(false); setError(null); }}
+          className="rounded-full border border-border px-4 py-2 text-xs font-bold text-muted"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FormMovimiento({
+  cuentas,
+  onListo,
+}: {
+  cuentas: FinCuentaConSaldo[];
+  onListo: () => void;
+}) {
+  const [tipo, setTipo] = useState<FinTipoMov>("egreso");
+  const [cuentaId, setCuentaId] = useState("");
+  const [destinoId, setDestinoId] = useState("");
+  const [monto, setMonto] = useState("");
+  const [categoria, setCategoria] = useState("");
+  const [fecha, setFecha] = useState(hoyCaracas());
+  const [nota, setNota] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  const categorias = tipo === "ingreso" ? CATEGORIAS_INGRESO : CATEGORIAS_EGRESO;
+  const opcionesCuentas = cuentas.map((c) => ({
+    value: c.id,
+    label: `${c.nombre} (${c.moneda})`,
+  }));
+  // Sin efecto: la primera cuenta es el valor por defecto durante el render.
+  const cuentaSel = cuentaId || (cuentas[0]?.id ?? "");
+
+  const guardar = async () => {
+    setError(null); setOk(null); setGuardando(true);
+    try {
+      const m = Number(monto.replace(",", "."));
+      if (!(m > 0)) throw new Error("El monto debe ser mayor a 0");
+      if (!cuentaSel) throw new Error("Elige la cuenta");
+      await registrarMovimiento({
+        tipo,
+        cuentaId: cuentaSel,
+        cuentaDestinoId: tipo === "transferencia" ? destinoId || null : null,
+        monto: m,
+        categoria: categoria || null,
+        fecha: fecha || hoyCaracas(),
+        nota: nota || null,
+      });
+      setOk(tipo === "transferencia" ? "Transferencia registrada" : "Movimiento registrado");
+      setMonto(""); setNota(""); setCategoria("");
+      onListo();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo registrar");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex gap-1 rounded-full bg-surface-2 p-1" role="tablist" aria-label="Tipo de movimiento">
+        {TIPOS_MOV.map((t) => (
+          <button
+            key={t.valor}
+            type="button"
+            role="tab"
+            aria-selected={tipo === t.valor}
+            onClick={() => setTipo(t.valor)}
+            className={`flex-1 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+              tipo === t.valor ? "bg-accent text-white" : "text-muted hover:text-foreground"
+            }`}
+          >
+            {t.etiqueta}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <label className={labelCls}>
+          <span className={tituloCls}>{tipo === "transferencia" ? "Desde" : "Cuenta"}</span>
+          <Select
+            value={cuentaSel}
+            options={opcionesCuentas}
+            onChange={setCuentaId}
+            ariaLabel="Cuenta"
+            className="mt-1"
+          />
+        </label>
+        {tipo === "transferencia" ? (
+          <label className={labelCls}>
+            <span className={tituloCls}>Hacia</span>
+            <Select
+              value={destinoId}
+              options={opcionesCuentas.filter((o) => o.value !== cuentaSel)}
+              onChange={setDestinoId}
+              ariaLabel="Cuenta destino"
+              className="mt-1"
+            />
+          </label>
+        ) : (
+          <label className={labelCls}>
+            <span className={tituloCls}>Categoría</span>
+            <Select
+              value={categoria}
+              options={[{ value: "", label: "Sin categoría" }, ...categorias.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))]}
+              onChange={setCategoria}
+              ariaLabel="Categoría"
+              className="mt-1"
+            />
+          </label>
+        )}
+        <label className={labelCls}>
+          <span className={tituloCls}>Monto</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={monto}
+            onChange={(e) => setMonto(e.target.value)}
+            placeholder="0,00"
+            className={inputCls}
+          />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Fecha</span>
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            className={inputCls}
+          />
+        </label>
+        <label className={`${labelCls} col-span-2`}>
+          <span className={tituloCls}>Nota (opcional)</span>
+          <input
+            type="text"
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            placeholder="Ej. Pan de la panadería"
+            className={inputCls}
+          />
+        </label>
+      </div>
+      {error && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-accent" role="alert">
+          <IconAlerta className="h-3.5 w-3.5" aria-hidden="true" />
+          {error}
+        </p>
+      )}
+      {ok && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-400" role="status">
+          <IconCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          {ok}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={guardar}
+        disabled={guardando || cuentas.length === 0}
+        className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+      >
+        <IconMovimiento className="h-3.5 w-3.5" aria-hidden="true" />
+        {guardando ? "Registrando…" : "Registrar"}
+      </button>
+      {cuentas.length === 0 && (
+        <p className="mt-2 text-xs text-muted">Crea primero una cuenta para registrar movimientos.</p>
+      )}
+    </div>
+  );
+}
+
+function FilaMovimiento({
+  mov,
+  onAnular,
+}: {
+  mov: FinMovimiento;
+  onAnular: (id: string) => void;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const fecha = new Intl.DateTimeFormat("es-VE", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${mov.fecha}T12:00:00`));
+  const signo = mov.tipo === "ingreso" ? "+" : mov.tipo === "egreso" ? "−" : "→";
+  const detalle =
+    mov.tipo === "transferencia"
+      ? `${mov.cuentaNombre ?? ""} → ${mov.destinoNombre ?? ""}`
+      : mov.categoria
+        ? `${mov.categoria[0].toUpperCase()}${mov.categoria.slice(1)}${mov.nota ? ` · ${mov.nota}` : ""}`
+        : (mov.nota ?? mov.cuentaNombre ?? "");
+  return (
+    <li className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2.5">
+      <span
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+          mov.tipo === "ingreso"
+            ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+            : mov.tipo === "egreso"
+              ? "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+              : "bg-surface-2 text-muted"
+        }`}
+        aria-hidden="true"
+      >
+        {signo}
       </span>
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Finanzas</h1>
-        <p className="mt-2 max-w-sm text-sm text-muted">
-          El libro del hogar: cuentas en Bs, $ y crypto, movimientos, presupuestos
-          y deudas. Llega en la Fase 1.
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-foreground">{detalle || "Movimiento"}</p>
+        <p className="text-xs text-muted">
+          {fecha}
+          {mov.tipo === "transferencia" && mov.montoDestino != null && mov.cuentaMoneda
+            ? ` · ${formatearMonto(mov.montoDestino, mov.cuentaMoneda)}`
+            : ""}
         </p>
       </div>
-      <span
-        className="rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white"
-        style={{ background: flameGradient }}
-      >
-        Próximamente
-      </span>
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold"
-        style={{ background: "#FFEDE3", color: "#CE3F14" }}
-      >
-        <IconFlechaAtras className="h-4 w-4" aria-hidden="true" />
-        Volver al inicio
-      </Link>
+      <p className={`shrink-0 text-sm font-bold ${mov.tipo === "ingreso" ? "text-green-700 dark:text-green-400" : mov.tipo === "egreso" ? "text-red-700 dark:text-red-400" : "text-foreground"}`}>
+        {mov.tipo === "ingreso" ? "+" : mov.tipo === "egreso" ? "−" : ""}
+        {mov.cuentaMoneda ? formatearMonto(mov.monto, mov.cuentaMoneda) : mov.monto}
+      </p>
+      {confirmando ? (
+        <span className="inline-flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => { onAnular(mov.id); setConfirmando(false); }}
+            className="rounded-full bg-accent px-2.5 py-1 text-[11px] font-bold text-white"
+          >
+            Anular
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmando(false)}
+            className="rounded-full border border-border px-2 py-1 text-[11px] font-bold text-muted"
+            aria-label="Cancelar"
+          >
+            <IconX className="h-3 w-3" aria-hidden="true" />
+          </button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirmando(true)}
+          className="shrink-0 rounded-full px-2 py-1 text-[11px] font-bold text-muted hover:text-accent"
+          aria-label={`Anular movimiento ${detalle}`}
+        >
+          Anular
+        </button>
+      )}
+    </li>
+  );
+}
+
+function ResumenSemanal({ dias }: { dias: FinResumenDia[] }) {
+  const max = Math.max(1, ...dias.flatMap((d) => [d.ingresosUsd, d.egresosUsd]));
+  const nombreDia = (fecha: string) => {
+    const n = new Intl.DateTimeFormat("es-VE", { weekday: "narrow" }).format(
+      new Date(`${fecha}T12:00:00`),
+    );
+    return n.toUpperCase();
+  };
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex items-end justify-between gap-1" style={{ height: 96 }}>
+        {dias.map((d) => (
+          <div key={d.fecha} className="flex flex-1 flex-col items-center justify-end gap-1">
+            <div className="flex w-full items-end justify-center gap-0.5" style={{ height: 72 }}>
+              <div
+                className="w-2.5 rounded-full bg-green-500/80"
+                style={{ height: `${Math.max(3, (d.ingresosUsd / max) * 72)}px` }}
+                title={`Ingresos $${d.ingresosUsd}`}
+              />
+              <div
+                className="w-2.5 rounded-full bg-accent/80"
+                style={{ height: `${Math.max(3, (d.egresosUsd / max) * 72)}px` }}
+                title={`Egresos $${d.egresosUsd}`}
+              />
+            </div>
+            <span className="text-[10px] font-bold text-muted">{nombreDia(d.fecha)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex justify-center gap-4 text-[11px] text-muted">
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-green-500/80" aria-hidden="true" /> Ingresos
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-accent/80" aria-hidden="true" /> Egresos
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export default function Finanzas() {
+  const [cuentas, setCuentas] = useState<FinCuentaConSaldo[]>([]);
+  const [movimientos, setMovimientos] = useState<FinMovimiento[]>([]);
+  const [semana, setSemana] = useState<FinResumenDia[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const recargar = useCallback(async () => {
+    setError(null);
+    try {
+      const [c, m, s] = await Promise.all([
+        listarCuentasConSaldos(),
+        listarMovimientos(30),
+        resumenSemanal(),
+      ]);
+      setCuentas(c);
+      setMovimientos(m);
+      setSemana(s);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron cargar las finanzas");
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      setError(null);
+      try {
+        const [c, m, s] = await Promise.all([
+          listarCuentasConSaldos(),
+          listarMovimientos(30),
+          resumenSemanal(),
+        ]);
+        if (!vivo) return;
+        setCuentas(c);
+        setMovimientos(m);
+        setSemana(s);
+      } catch (e) {
+        if (vivo) setError(e instanceof Error ? e.message : "No se pudieron cargar las finanzas");
+      } finally {
+        if (vivo) setCargando(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [recargar]);
+
+  const patrimonio = useMemo(() => patrimonioUsd(cuentas), [cuentas]);
+
+  const archivar = async (id: string) => {
+    try {
+      await archivarCuenta(id);
+      recargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo archivar");
+    }
+  };
+
+  const anular = async (id: string) => {
+    try {
+      await anularMovimiento(id);
+      recargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo anular");
+    }
+  };
+
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <Encabezado patrimonio={patrimonio} cargando={cargando} />
+
+      {error && (
+        <p className="inline-flex items-center gap-1.5 rounded-2xl border border-border bg-surface px-4 py-3 text-xs font-bold text-accent" role="alert">
+          <IconAlerta className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {error}
+        </p>
+      )}
+
+      <section aria-labelledby="fin-cuentas">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 id="fin-cuentas" className="text-base font-bold text-foreground">Cuentas</h2>
+        </div>
+        {cargando ? (
+          <p className="text-sm text-muted">Cargando…</p>
+        ) : cuentas.length === 0 ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted">Aún no hay cuentas. Crea la primera para empezar.</p>
+            <FormNuevaCuenta onLista={recargar} />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {cuentas.map((c) => (
+                <TarjetaCuenta key={c.id} cuenta={c} onArchivar={archivar} />
+              ))}
+            </ul>
+            <FormNuevaCuenta onLista={recargar} />
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby="fin-registrar">
+        <h2 id="fin-registrar" className="mb-3 text-base font-bold text-foreground">Registrar movimiento</h2>
+        <FormMovimiento cuentas={cuentas} onListo={recargar} />
+      </section>
+
+      <section aria-labelledby="fin-semana">
+        <h2 id="fin-semana" className="mb-3 text-base font-bold text-foreground">Esta semana</h2>
+        <ResumenSemanal dias={semana} />
+      </section>
+
+      <section aria-labelledby="fin-historial">
+        <h2 id="fin-historial" className="mb-3 text-base font-bold text-foreground">Movimientos</h2>
+        {movimientos.length === 0 ? (
+          <p className="text-sm text-muted">Sin movimientos todavía.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {movimientos.map((m) => (
+              <FilaMovimiento key={m.id} mov={m} onAnular={anular} />
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

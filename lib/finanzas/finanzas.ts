@@ -46,18 +46,31 @@ function filaACuenta(f: Record<string, unknown>): FinCuenta {
   };
 }
 
-/** Cuentas activas del usuario (personales + del hogar) con sus saldos. */
+/** Cuentas activas del usuario (personales + del hogar) con sus saldos.
+ * Dos consultas: la vista fin_saldos no tiene FK hacia fin_cuentas, así que
+ * PostgREST no admite embeberla (`fin_saldos!inner` falla). Se unen en código.
+ */
 export async function listarCuentasConSaldos(): Promise<FinCuentaConSaldo[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
-  const { data, error } = await supabase
+  const { data: cuentas, error: eCuentas } = await supabase
     .from("fin_cuentas")
-    .select("*, fin_saldos!inner(saldo_moneda, saldo_usd, n_movimientos)")
+    .select("*")
     .eq("archivada", false)
     .order("creado_en", { ascending: true });
-  lanzarSiHayError(error, "No se pudieron cargar las cuentas");
-  return ((data ?? []) as Record<string, unknown>[]).map((f) => {
-    const s = (f.fin_saldos ?? {}) as Record<string, unknown>;
+  lanzarSiHayError(eCuentas, "No se pudieron cargar las cuentas");
+  const { data: saldos, error: eSaldos } = await supabase
+    .from("fin_saldos")
+    .select("cuenta_id, saldo_moneda, saldo_usd, n_movimientos");
+  lanzarSiHayError(eSaldos, "No se pudieron cargar los saldos");
+  const porCuenta = new Map(
+    ((saldos ?? []) as Record<string, unknown>[]).map((s) => [
+      String(s.cuenta_id),
+      s,
+    ])
+  );
+  return ((cuentas ?? []) as Record<string, unknown>[]).map((f) => {
+    const s = (porCuenta.get(String(f.id)) ?? {}) as Record<string, unknown>;
     return {
       ...filaACuenta(f),
       saldoMoneda: Number(s.saldo_moneda ?? 0),

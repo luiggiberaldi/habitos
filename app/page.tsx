@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStoreState } from "../lib/habitos/store-context";
 import { useAuth } from "../components/AuthGate";
 import { nivelEfectivo, NIVELES } from "../lib/habitos/gamificacion";
 import { completadosPara, esDescanso, todayKey } from "../lib/habitos/dates";
 import { flameGradient } from "../lib/core/ui/design-tokens";
+import { listarCuentasConSaldos, patrimonioUsd } from "../lib/finanzas/finanzas";
 import { AvatarNivel } from "../components/AvatarNivel";
 import Logo from "../components/Logo";
 import TarjetaTasas from "../components/TarjetaTasas";
@@ -53,6 +54,15 @@ export default function Hub() {
       month: "long",
     }).format(new Date());
     return f.charAt(0).toUpperCase() + f.slice(1);
+  }, []);
+
+  const [patrimonio, setPatrimonio] = useState<number | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    listarCuentasConSaldos()
+      .then((c) => { if (vivo) setPatrimonio(patrimonioUsd(c)); })
+      .catch(() => { if (vivo) setPatrimonio(null); });
+    return () => { vivo = false; };
   }, []);
 
   return (
@@ -158,17 +168,13 @@ export default function Hub() {
               <IconMaletin className="h-7 w-7" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="flex flex-wrap items-center gap-2 text-base font-bold text-foreground">
+              <span className="block text-base font-bold text-foreground">
                 Finanzas
-                <span
-                  className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                  style={{ background: "#EFECE4", color: "#8A969B" }}
-                >
-                  Próximamente
-                </span>
               </span>
               <span className="block truncate text-xs text-muted">
-                Cuentas, gastos y presupuestos del hogar
+                {patrimonio === null
+                  ? "Cuentas, gastos e ingresos del hogar"
+                  : `Patrimonio: $ ${new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(patrimonio)}`}
               </span>
             </span>
             <IconChevronDerecha className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />

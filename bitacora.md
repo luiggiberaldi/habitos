@@ -368,3 +368,43 @@
 **Por qué:** pedido literal de luigi ("tasa bcv euro").
 
 **Verificación:** `GET https://habitos-amber.vercel.app/api/tasas?refresh=1` → `{"ok":true,"fecha":"2026-09-27","bcv":855.66,"paralelo":952.1,"euro":972.65,"usdt":966.75,"fuente":"DolarAPI + CriptoYa","desactualizada":false}` — euro fresco del día. Home responde 200.
+
+## 2026-09-28 — Fase 1 Finanzas: migración 0019 + capa cliente (entrada retroactiva)
+
+**Qué cambió:**
+- `supabase/migrations/0019_finanzas.sql` (aplicada vía Management API, HTTP 201): tablas `fin_cuentas` (USD/VES/COP/USDT; efectivo/banco/cripto/otro; personal o del hogar vía `hogar_id`; `tasa_usd_manual` opcional; `creado_por`) y `fin_movimientos` (ingreso/egreso/transferencia; snapshot `tasa_usd`; `monto_destino` para transferencias; `clave_evento` única para idempotencia; anulación lógica `anulado_en`; `creado_por`). Vista `fin_saldos` (saldos calculados en moneda y USD desde movimientos, nunca almacenados). RLS dueño/miembro del hogar. RPCs fail-closed por secreto (`x-fin-rpc-secret`): `rpc_fin_registrar` (autocrea "Efectivo" USD si no hay cuentas; autoconvierte transferencias con los snapshots), `rpc_fin_saldos`, `rpc_fin_recientes`, `rpc_fin_anular`. Secreto guardado en `fin_rpc_secrets` (mismo valor que el de hábitos).
+- `lib/finanzas/types.ts` + `lib/finanzas/finanzas.ts`: crear/listar/archivar cuentas (COP exige tasa manual), registrar/anular/listar movimientos con snapshot de tasa, transferencias con conversión, resumen semanal, patrimonio, `formatearMonto` es-VE.
+
+**Por qué:** Fase 1 del roadmap: libro de finanzas del hogar, saldos calculados, sin gamificación.
+
+**Verificación:** fail-closed con secreto malo → `no_autorizado`; secreto bueno → 200. E2E real: egreso $5 (comida/pan) autocreó "Efectivo" USD, saldo −$5; idempotencia con misma `clave_evento` → `duplicado:true`; transferencia $10 USD→VES → Bs 9.521 (paralelo 952.1), saldos −$10 / Bs 9.621; anulación lógica OK. Datos de prueba eliminados.
+
+## 2026-09-28 — Fase 1 Finanzas: auditoría y migración 0021 (alcance de hogar)
+
+**Qué cambió:**
+- `supabase/migrations/0021_finanzas_alcance.sql` (aplicada, HTTP 201): los 4 RPC ahora ven "mis cuentas + cuentas de hogares donde soy miembro" en vez de solo `user_id = p_user_id`. No usa `es_miembro_de_hogar()` (depende de `auth.uid()`, NULL en el contexto del secreto por header sin JWT); consulta `hogar_miembros` directamente. En resolución por nombre, la cuenta propia tiene prioridad sobre la compartida.
+- `lib/finanzas/finanzas.ts`: `listarCuentasConSaldos` ya no embebe `fin_saldos!inner` (PostgREST no admite embeber una vista sin FK) — consulta cuentas y saldos por separado y los une en código.
+- Verificado: nombres reales de las FK (`fin_movimientos_cuenta_id_fkey`, `fin_movimientos_cuenta_destino_id_fkey`) que usa `listarMovimientos`.
+
+**Por qué:** una cuenta compartida creada por luigi era invisible para el WhatsApp de su novia aunque ambos sean del mismo hogar.
+
+**Verificación:** suite de RPC re-ejecutada tras la 0021 (fail-closed, saldos, registrar, idempotencia, recientes, anular, transferencia con conversión) — todo OK. Datos de prueba eliminados.
+
+## 2026-09-28 — Fase 1 Finanzas: UI /finanzas real
+
+**Qué cambió:**
+- `app/finanzas/page.tsx` (era placeholder): encabezado serio con patrimonio total en USD (sin juego/XP), sección Cuentas (tarjetas con saldo en moneda + equivalente $, badge Compartida, archivar con confirmación inline), crear cuenta (nombre, moneda/tipo con Select propio, tasa manual, switch de compartida con el hogar), registrar movimiento (tabs ingreso/egreso/transferencia, cuenta y destino con Select propio, monto, categoría, fecha, nota), resumen semanal (barras ingresos vs egresos por día en USD) y movimientos recientes (anular con confirmación inline).
+- `app/page.tsx`: la tarjeta de Finanzas del hub dejó de decir "Próximamente" y muestra el patrimonio vivo.
+
+**Por qué:** Fase 1 del roadmap: libro usable del hogar.
+
+**Verificación:** tsc limpio; eslint limpio (se corrigieron 2 `set-state-in-effect`: default de cuenta derivado en render y carga inicial con IIFE async + guard `vivo`).
+
+## 2026-09-28 — Fase 1 Finanzas: whatsapp-finanzas.mjs real
+
+**Qué cambió:**
+- `scripts/whatsapp-finanzas.mjs` (era stub `proximamente`): intenciones registrar (egreso/ingreso/transferencia con parseo es-VE de montos, detección de moneda/cuenta/categoría, match difuso de cuentas), `saldo`, `movimientos`, `anula el último`, `ayuda`. Ambigüedad de cuenta/moneda → `codigo:ambiguo` con `pregunta` (no se adivina). Header `x-fin-rpc-secret`. Mock con HABITOS_MOCK=1. Documentado en `~/AGENTS.md`.
+
+**Por qué:** el router de la Fase 0.6 delegaba a un stub; ahora Finanzas por WhatsApp es funcional.
+
+**Verificación:** suite mock (registro, transferencia "de X a Y", saldos, recientes, anular, ambiguo, ayuda) OK; E2E real vía router: `finanzas gasté 5 en pan` → registrado ($5, nota "pan"), `fin saldo` → patrimonio −$5, `fin anula el último` → anulado. Datos de prueba eliminados.

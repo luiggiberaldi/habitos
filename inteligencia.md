@@ -30,3 +30,10 @@
 ## Router WhatsApp por módulo (2026-09-28)
 - Un solo punto de entrada (`whatsapp-router.mjs`) que detecta módulo por prefijo y delega por subproceso aislado: cada módulo puede fallar o no existir sin tumbar a los demás; el JSON de cada script gana `modulo` por fusión, sin tocar los scripts. Los módulos futuros (Finanzas, Mercado) se enchufan añadiendo un prefijo + un script.
 - Lección: al reestructurar namespaces, los scripts fuera del build principal (WhatsApp, coach) que compilaban `lib/*` por su cuenta se rompen en silencio (el registrador falló con ENOENT). La compilación debe vivir en UN solo lugar (`whatsapp-comun.mjs::cargarLib()`).
+
+## 2026-09-28 — Finanzas: patrón RPC con alcance de hogar (reutilizable)
+
+- Los RPC conversacionales (header `x-*-rpc-secret`, sin JWT) NO pueden usar `auth.uid()` ni funciones que dependan de él (`es_miembro_de_hogar()`). Para alcance de hogar en ese contexto, consultar `hogar_miembros` directamente con el `p_user_id` que trae el RPC; las funciones son SECURITY DEFINER así que el RLS no las frena.
+- Patrón de alcance: `c.user_id = p_user_id OR (c.hogar_id IS NOT NULL AND EXISTS (SELECT 1 FROM hogar_miembros WHERE hogar_id = c.hogar_id AND user_id = p_user_id))`.
+- PostgREST no embebe vistas sin FK (`fin_saldos!inner` falla): para vista+tabla, dos consultas unidas en código. Los nombres de FK autogeneradas (`tabla_columna_fkey`) sí sirven para embeds con `!`.
+- Transferencia = una sola fila (origen + destino + `monto_destino` autoconvertido con los snapshots del momento); el patrimonio en USD usa snapshots históricos, nunca se recalcula retroactivo.
