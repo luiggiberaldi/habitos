@@ -55,7 +55,6 @@ export interface FinResumenDia {
 export const MONEDAS: { valor: FinMoneda; etiqueta: string }[] = [
   { valor: "USD", etiqueta: "Dólar ($)" },
   { valor: "VES", etiqueta: "Bolívar (Bs)" },
-  { valor: "COP", etiqueta: "Peso (COP)" },
   { valor: "USDT", etiqueta: "USDT" },
 ];
 

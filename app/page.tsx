@@ -8,6 +8,7 @@ import { nivelEfectivo, NIVELES } from "../lib/habitos/gamificacion";
 import { completadosPara, esDescanso, todayKey } from "../lib/habitos/dates";
 import { flameGradient } from "../lib/core/ui/design-tokens";
 import { listarCuentasConSaldos, patrimonioUsd } from "../lib/finanzas/finanzas";
+import { merRpc } from "../lib/mercado/mercado";
 import { AvatarNivel } from "../components/AvatarNivel";
 import Logo from "../components/Logo";
 import TarjetaTasas from "../components/TarjetaTasas";
@@ -57,11 +58,25 @@ export default function Hub() {
   }, []);
 
   const [patrimonio, setPatrimonio] = useState<number | null>(null);
+  const [mercadoResumen, setMercadoResumen] = useState<string | null>(null);
   useEffect(() => {
     let vivo = true;
     listarCuentasConSaldos()
       .then((c) => { if (vivo) setPatrimonio(patrimonioUsd(c)); })
       .catch(() => { if (vivo) setPatrimonio(null); });
+    merRpc.inventario()
+      .then((inv) => {
+        if (!vivo) return;
+        const bajos = inv.filter((i) => i.dias_agotamiento !== null && i.dias_agotamiento <= 7).length;
+        setMercadoResumen(
+          inv.length === 0
+            ? "Inventario, lista de compras y precios"
+            : bajos === 0
+              ? `${inv.length} producto${inv.length === 1 ? "" : "s"} en inventario`
+              : `${bajos} por agotarse · ${inv.length} en inventario`,
+        );
+      })
+      .catch(() => { if (vivo) setMercadoResumen("Inventario, lista de compras y precios"); });
     return () => { vivo = false; };
   }, []);
 
@@ -191,17 +206,11 @@ export default function Hub() {
               <IconCaja className="h-7 w-7 text-[#2E9E7B]" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="flex flex-wrap items-center gap-2 text-base font-bold text-foreground">
+              <span className="block text-base font-bold text-foreground">
                 Mercado
-                <span
-                  className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                  style={{ background: "#EFECE4", color: "#8A969B" }}
-                >
-                  Próximamente
-                </span>
               </span>
               <span className="block truncate text-xs text-muted">
-                Inventario, lista de compras y precios
+                {mercadoResumen ?? "Inventario, lista de compras y precios"}
               </span>
             </span>
             <IconChevronDerecha className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />

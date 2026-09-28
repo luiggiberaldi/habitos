@@ -408,3 +408,32 @@
 **Por qué:** el router de la Fase 0.6 delegaba a un stub; ahora Finanzas por WhatsApp es funcional.
 
 **Verificación:** suite mock (registro, transferencia "de X a Y", saldos, recientes, anular, ambiguo, ayuda) OK; E2E real vía router: `finanzas gasté 5 en pan` → registrado ($5, nota "pan"), `fin saldo` → patrimonio −$5, `fin anula el último` → anulado. Datos de prueba eliminados.
+
+## 2026-09-28 — Fase 2 Mercado: migración 0022, UI real, WhatsApp y correctivos 0023
+
+**Qué cambió:**
+- `supabase/migrations/0022_mercado.sql` (aplicada): tablas `mer_productos`, `mer_movimientos`, `mer_lista`; refactor de Finanzas con función interna `fin_registrar_interno` (revocada a public) para que Mercado reutilice la lógica de egresos; RPC `rpc_mer_producto_upsert`, `rpc_mer_movimiento`, `rpc_mer_inventario`, `rpc_mer_precios`, `rpc_mer_lista`, `rpc_mer_lista_toggle`, `rpc_mer_presupuesto`. Stock calculado desde movimientos; tipos compra/consumo/ajuste/danado; compras guardan tasa histórica; compra con cuenta crea egreso categoría `mercado`; RLS propio/hogar; `creado_por` en datos compartidos. Corregido: PostgreSQL no admite `unique (user_id, lower(nombre))` → índice de expresión `mer_productos_user_nombre_idx`.
+- `supabase/migrations/0023_mercado_hardening.sql` (aplicada): (1) `fin_tasa_usd_para` reescrita — antes devolvía la tasa USD-inversa de `fin_tasas` y rompía el precio unitario en VES (Bug #1, Bs 855.66/unidad en vez de USD 1); ahora devuelve Bs por unidad de moneda correctamente. (2) `fin_registrar_interno` convierte el monto a la moneda de la cuenta antes de registrar (Bug #2: compra en VES con cuenta en USD creaba el egreso en la moneda equivocada). (3) `mer_movimientos.clave_evento` UNIQUE con `coalesce` → idempotencia de reintentos (Bug #3). (4) `rpc_mer_producto_upsert` acepta `p_stock_inicial` opcional y crea el producto + movimiento inicial en una sola operación atómica (los 4 obligatorios de luigi: nombre, unidad, categoría, cantidad). (5) `rpc_mer_precios` devuelve explícitamente `precio_bs_historico` y `precio_usd_historico` con la tasa guardada en la compra (antes solo había `precio_bs` genérico).
+- `lib/mercado/types.ts` + `lib/mercado/mercado.ts`: tipos y cliente de los 7 RPC (RPCs nuevos aceptan parámetros opcionales `p_stock_inicial`, `p_clave_evento`).
+- `app/mercado/page.tsx`: UI real — encabezado con presupuesto mensual y alertas de agotamiento; tabs Inventario / Lista / Registrar; tarjetas con stock, precio unitario, variación, días estimados, sugerido de compra, historial Bs+USD con tasa histórica y comparador por comercio (más barato primero); lista con sugeridos por consumo; crear producto con cantidad inicial obligatoria; registrar compra/gastar/ajustar/se dañó; compra con cuenta opcional genera egreso en Finanzas. Respeta las 5 reglas UI (Select propio con ariaLabel, sin doble foco, iconos propios, sin alert).
+- `app/page.tsx`: tarjeta de Mercado sin badge "Próximamente", con resumen vivo (productos en inventario / por agotarse).
+- `scripts/whatsapp-mercado.mjs`: intenciones `inventario`, `lista`, `agrega X a la lista`, `gasté/consumí`, `se acabó`, `se dañó`, `presupuesto`, `factura`/`compré` → SIEMPRE devuelve `codigo:"resumen_factura"` (nunca ejecuta directo, regla de luigi), `--confirmar '<json>'` ejecuta. Productos nuevos piden categoría; cuenta nunca se adivina. Lección: `norm()` de whatsapp-comun.mjs borra el `$` → la moneda se detecta en el texto crudo.
+
+**Por qué:** Fase 2 del roadmap Senda. La auditoría de conversiones encontró el Bug #1 (tasa invertida en precio unitario USD para compras en VES) antes de que llegara a producción.
+
+**Verificación:**
+- Smoke E2E 10 checks de RPCs (fail-closed, upsert, compra+egreso enlazado, consumo, stock calculado, historial, presupuesto, lista) — todo OK.
+- E2E multi-moneda: compra VES (Bs 1.711,32) → precio unitario USD 1,00 y Bs histórico 1.711,32 correctos; compra con cuenta en moneda distinta → egreso convertido a la moneda de la cuenta; reintento idempotente → segundo rechazo sin duplicar.
+- WhatsApp mock: resumen de factura ($ 8 + Bs 150, pregunta cuenta, pide confirmación), inventario, confirmar.
+- WhatsApp real vía router: resumen de factura con producto nuevo (pide categoría), confirmación → producto creado, compra registrada, egreso enlazado en Finanzas. Datos de prueba eliminados.
+- tsc limpio, ESLint limpio (2 set-state-in-effect corregidos con el patrón IIFE async de finanzas), build limpio.
+
+**Pendiente (no verificado):** verificación visual en el teléfono de luigi; tasa histórica `fin_tasa_usd_para` para COP/USDT solo auditada por código, no con compra real.
+
+## 2026-09-28 — Quitar COP de las monedas seleccionables
+
+**Qué cambió:** `lib/finanzas/types.ts` — `MONEDAS` ya no incluye "Peso (COP)". Afecta al dropdown de moneda al crear cuenta en `/finanzas` y al de moneda de compra en `/mercado`.
+
+**Por qué:** luigi lo pidió directo desde la app ("Quita el cop").
+
+**Verificación:** no hay cuentas ni movimientos en COP en la BD (count 0); `tsc` limpio. El tipo `FinMoneda` conserva "COP" por compatibilidad de datos históricos; la validación que exige tasa manual para COP queda inactiva.
