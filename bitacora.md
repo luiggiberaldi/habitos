@@ -737,3 +737,8 @@
 - Commits cf87ad8 (+ cb9b209 de la sesión paralela, que barrió los archivos de Mercado) pusheados a master y desplegados con `vercel --prod`.
 - https://habitos-amber.vercel.app/mercado → 200; / → 200.
 - Migración 0029 ya estaba aplicada en Supabase antes del deploy (RPC probados en vivo).
+
+## 2026-09-28 — Logo PDF Synaptica: +3mm derecha, +3mm abajo
+
+- luigi: "el logo de synaptica muevelo 3mm a la derecha y 3mm hacia abajo". Posición 20,5 → 23,8 (ancho 24mm sin cambios). Sigue fuera del triángulo y sin chocar con "RECIBO".
+- Muestra v5 regenerada con el generador real.

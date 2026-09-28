@@ -154,11 +154,11 @@ function drawSynHeader(
   doc.line(34, 0, 0, 34);
 
   // Logo oficial — fuera del triángulo naranja (hipotenusa x+y=34):
-  // con W=24 el wordmark arranca en x=20, libre del triángulo a esa altura.
+  // con W=24 el wordmark arranca en x=23, libre del triángulo a esa altura.
   if (options.logoDataUrl) {
     try {
       const lw = 24;
-      doc.addImage(options.logoDataUrl, "PNG", 20, 5, lw, (lw * 1614) / 1904);
+      doc.addImage(options.logoDataUrl, "PNG", 23, 8, lw, (lw * 1614) / 1904);
     } catch {
       /* sin logo: el layout no se rompe */
     }
