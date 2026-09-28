@@ -263,7 +263,7 @@ function drawSynParties(doc: jsPDF, receipt: Receipt, cursor: Cursor): void {
   const em = emisorDe(receipt);
 
   partyCard(doc, 12, y, cardW, cardH, "FACTURADO A", ORANGE, [
-    { t: receipt.client.name?.trim() || "\u2014", bold: true, size: 10.5 },
+    { t: (receipt.client.name?.trim() || "\u2014").toUpperCase(), bold: true, size: 10.5 },
     ...compactLines([
       receipt.client.phone ? `Tlf: ${receipt.client.phone}` : "",
       receipt.client.address ? receipt.client.address.toUpperCase() : "",

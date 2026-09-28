@@ -55,9 +55,10 @@ function BarraMes({
 }
 
 /**
- * Vista "Datos" de Finanzas: balance de los últimos 6 meses, evolución del
- * patrimonio (reconstruida desde el patrimonio actual menos los flujos
- * posteriores) y categorías con más gasto en el mes actual. Tono serio.
+ * Vista "Datos" de Finanzas: balance de los meses con movimientos (los meses
+ * en 0 no se muestran), evolución del patrimonio (reconstruida desde el
+ * patrimonio actual menos los flujos posteriores) y categorías con más
+ * gasto en el mes actual. Tono serio.
  */
 export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
   const [datos, setDatos] = useState<FinDatos | null>(null);
@@ -81,15 +82,20 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
     };
   }, []);
 
+  // Solo meses con movimientos: estamos empezando, los meses viejos en 0 no se muestran.
+  const mesesConDatos = useMemo(
+    () => (datos ? datos.meses.filter((m) => m.ingresosUsd > 0 || m.egresosUsd > 0) : []),
+    [datos]
+  );
+
   const historialPatrimonio = useMemo(() => {
-    if (!datos) return [];
     // P(fin de mes i) = patrimonio actual − flujos netos posteriores a i.
-    const flujos = datos.meses.map((m) => m.flujoNetoUsd);
-    return datos.meses.map((m, i) => {
+    const flujos = mesesConDatos.map((m) => m.flujoNetoUsd);
+    return mesesConDatos.map((m, i) => {
       const posteriores = flujos.slice(i + 1).reduce((a, b) => a + b, 0);
       return { ...m, patrimonioUsd: Math.round((patrimonio - posteriores) * 100) / 100 };
     });
-  }, [datos, patrimonio]);
+  }, [mesesConDatos, patrimonio]);
 
   if (cargando) return <p className="text-sm text-muted">Cargando datos…</p>;
   if (error)
@@ -101,8 +107,7 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
     );
   if (!datos) return null;
 
-  const hayMovimientos = datos.meses.some((m) => m.ingresosUsd > 0 || m.egresosUsd > 0);
-  if (!hayMovimientos) {
+  if (mesesConDatos.length === 0) {
     return (
       <div className="rounded-3xl bg-surface p-6 text-center shadow-sm">
         <p className="text-sm font-semibold text-foreground">Aún no hay datos</p>
@@ -113,7 +118,7 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
     );
   }
 
-  const maxBarra = Math.max(...datos.meses.flatMap((m) => [m.ingresosUsd, m.egresosUsd]), 1);
+  const maxBarra = Math.max(...mesesConDatos.flatMap((m) => [m.ingresosUsd, m.egresosUsd]), 1);
   const maxPatrimonio = Math.max(...historialPatrimonio.map((m) => m.patrimonioUsd), 1);
   const minPatrimonio = Math.min(...historialPatrimonio.map((m) => m.patrimonioUsd), 0);
   const rangoPatrimonio = Math.max(maxPatrimonio - minPatrimonio, 1);
@@ -122,6 +127,9 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
     historialPatrimonio.length > 0
       ? historialPatrimonio[historialPatrimonio.length - 1].patrimonioUsd - historialPatrimonio[0].patrimonioUsd
       : 0;
+  const etiquetaPeriodo =
+    mesesConDatos.length >= 6 ? "en 6 meses" : mesesConDatos.length > 1 ? "en el período" : "este mes";
+  const ariaPatrimonio = `Evolución del patrimonio ${etiquetaPeriodo}`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -130,7 +138,7 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
           Balance mensual
         </h2>
         <ul className="divide-y divide-border rounded-3xl bg-surface px-4 py-1 shadow-sm">
-          {datos.meses.map((m) => (
+          {mesesConDatos.map((m) => (
             <li key={m.clave} className="flex flex-col gap-2 py-3.5">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-xs font-bold uppercase tracking-wide text-muted">{m.etiqueta}</span>
@@ -170,7 +178,7 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
           <div
             className="flex h-40 items-end justify-between gap-2"
             role="img"
-            aria-label="Evolución del patrimonio en los últimos 6 meses"
+            aria-label={ariaPatrimonio}
           >
             {historialPatrimonio.map((m, i) => {
               const esActual = i === historialPatrimonio.length - 1;
@@ -195,7 +203,7 @@ export function DatosFinanzas({ patrimonio }: { patrimonio: number }) {
             })}
           </div>
           <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3">
-            <span className="text-xs font-semibold text-muted">Variación en 6 meses</span>
+            <span className="text-xs font-semibold text-muted">Variación {etiquetaPeriodo}</span>
             <span className={`text-sm font-extrabold ${deltaPatrimonio >= 0 ? VERDE : ROJO}`}>
               {deltaPatrimonio >= 0 ? "+" : "−"}
               {formatearMonto(Math.abs(deltaPatrimonio), "USD")}

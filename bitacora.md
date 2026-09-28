@@ -2,6 +2,21 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-28 (Plan de fixeo Mercado/Alacena — IMPLEMENTADO, pendiente subir)
+
+- luigi: "crea un plan de fixeo completo e implementa" (tras la auditoría E2E: renombrar a Alacena + los tres P0 juntos aprobados).
+- **Migración 0029_mercado_fixeo.sql** (aplicada en Supabase, RPC probados en vivo):
+  - `mer_productos`: +`horizonte_compra_dias` (1–90, defecto 14) y +`consumo_semanal_estim` (opcional).
+  - `rpc_mer_movimiento`: el consumo/dañado ya no deja stock negativo — raise `stock_insuficiente: quedan X und de Y`.
+  - `rpc_mer_inventario`: `consumo_diario` usa el estimado semanal/7 cuando no hay consumos reales en 30d (marca `consumo_estimado`); `sugerido_comprar` usa el horizonte del producto en vez de 30d fijos; devuelve `horizonte_compra_dias`, `consumo_semanal_estim`, `consumo_estimado`.
+  - Nuevos: `rpc_mer_producto_actualizar` (nombre/categoría/horizonte/estimado/activo), `rpc_mer_anular` (toggle anular/rehacer), `rpc_mer_recientes` (últimos 15), `rpc_mer_lista_comprar` (compra atómica + sale de la lista; idempotente por clave: el reintento devuelve `duplicado:true` aunque la lista ya esté limpia).
+  - Auth dual via `rpc_mer_llamada_ok` (igual que 0028); grants anon/authenticated.
+- **UI (app/mercado)**: pestaña "Inventario" → "Alacena" (solo etiquetas; tipos `Mer*` intactos). Buscador en la alacena. Consumo rápido por tarjeta (−1 / −100g / −500g / −250ml según unidad). Hoja "Editar producto" (categoría con datalist, horizonte, consumo semanal estimado, desactivar). Modal "Marcar como comprado" desde la lista: precio total + moneda + comercio + cuenta → registra compra, genera egreso y saca el artículo de la lista (el checkbox ya no tacha en falso). Sección "Recientes" con Deshacer/Rehacer. Crear producto permite stock 0. Banner de calibración cuando no hay consumos (día-0). Tip de WhatsApp en la alacena.
+- **WhatsApp** (whatsapp-mercado.mjs): nuevo comando "precio del arroz" / "cuánto cuesta el azúcar" / "a cómo está el huevo" → último precio $/unidad, rango min–max, variación vs promedio y comercio.
+- Datos de prueba: los movimientos de test (claves test-*) se anularon; el stock quedó como estaba (Arroz 1.5kg).
+- Validación: tsc limpio, eslint 0 errores, `npm run build` exit 0. RPC probados en vivo: stock guard, estimado fallback, lista_comprar atómico + idempotente, anular toggle, recientes.
+- Pendiente: commit + push + deploy (sin autorización de luigi todavía).
+
 ## 2026-09-28 (Fix visual: mensaje de error del formulario de movimientos — DESPLEGADO a producción)
 
 - luigi (viendo captura): "hay un error visual aqui" — en el formulario de registrar movimiento, el mensaje de error (`inline-flex`) quedaba en la misma línea que el botón Registrar, apretado y cortado.
@@ -703,3 +718,11 @@
 - `app/finanzas/page.tsx` (`ResumenSemanal`): barras más altas (120px), neto del día sobre cada columna, día actual resaltado, estado vacío amable, leyenda mejorada, role="img" con aria-label.
 
 **Verificación:** muestra generada con los datos del recibo de referencia (SYN-2026-158, Kelman Herrera) renderizada con pdftoppm — una sola página, idéntica en estructura al diseño aprobado; casos borde (pendiente sin imágenes, anulado) OK. tsc limpio, eslint limpio, `npm run build` OK.
+
+## 2026-09-28 — Ajustes PDF Synaptica + Datos sin meses en 0
+
+**PDF 2.0:** logo del encabezado movido a la derecha y agrandado (32→38mm, x 12→22) a pedido de luigi; nombre del cliente ahora en mayúsculas como en el diseño de referencia ("KELMAN HERRERA").
+
+**Finanzas → Datos:** luigi pidió quitar los meses pasados en $0,00 ("estamos empezando en este mes"). `DatosFinanzas.tsx` ahora solo muestra meses con movimientos (ingresos o egresos > 0) en Balance mensual y en Patrimonio en el tiempo; la etiqueta de variación y el aria-label se adaptan ("en 6 meses" / "en el período" / "este mes"). El estado vacío se mantiene cuando no hay ningún mes con datos.
+
+**Verificación:** muestra regenerada con datos correctos del recibo 158 (métodos `mobile`/`transfer`, cuota con `date`/`note`, nombre en mayúsculas) — una página, fiel al diseño. tsc y eslint limpios.
