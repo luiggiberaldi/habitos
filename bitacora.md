@@ -2,7 +2,7 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
-## 2026-09-28 (Desglose por moneda en Finanzas + cartera Efectivo — PENDIENTE despliegue)
+## 2026-09-28 (Desglose por moneda en Finanzas + cartera Efectivo — DESPLEGADO a producción)
 
 - luigi (viendo captura del encabezado de Finanzas): "aca debe aparecer cuando hay en bs y $ y usdt" + "tambien añade una cartera de dolares en efectivo".
 - app/finanzas/page.tsx: `Encabezado` ahora muestra bajo "Suma de saldos en dólares" una línea con el desglose en moneda nativa (Bs / $ / USDT), sumando `saldoMoneda` por moneda con `formatearMonto`; permite salto de línea en móvil.
