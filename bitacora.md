@@ -2,7 +2,7 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
-## 2026-09-28 (Fix visual: mensaje de error del formulario de movimientos — PENDIENTE despliegue)
+## 2026-09-28 (Fix visual: mensaje de error del formulario de movimientos — DESPLEGADO a producción)
 
 - luigi (viendo captura): "hay un error visual aqui" — en el formulario de registrar movimiento, el mensaje de error (`inline-flex`) quedaba en la misma línea que el botón Registrar, apretado y cortado.
 - app/finanzas/page.tsx: los 3 mensajes de error (FormMovimiento, FormNuevaCuenta, FormEditarCuenta) pasaron de `inline-flex` a `flex`: cada uno ocupa su propia línea sobre el botón.
