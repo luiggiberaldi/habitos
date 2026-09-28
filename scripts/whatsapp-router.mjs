@@ -16,7 +16,7 @@
 // redacte la respuesta. Los módulos corren como subproceso aislado: si
 // uno falla, el router responde el error sin caerse.
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { root, cargarConfig, norm } from "./whatsapp-comun.mjs";
 
@@ -29,7 +29,11 @@ for (let i = 2; i < process.argv.length; i++) {
     args[k] = v;
   }
 }
-const out = (obj) => { console.log(JSON.stringify(obj)); process.exit(obj.ok ? 0 : 1); };
+const out = (obj) => {
+  // writeSync: console.log + process.exit trunca el pipe con salidas grandes (pdf_base64).
+  try { writeSync(1, JSON.stringify(obj) + "\n"); } catch { console.log(JSON.stringify(obj)); }
+  process.exit(obj.ok ? 0 : 1);
+};
 
 const texto = String(args.q ?? "").trim();
 if (!texto) out({ ok: false, codigo: "args", modulo: "ninguno", detalle: "se requiere --q \"<texto>\"" });

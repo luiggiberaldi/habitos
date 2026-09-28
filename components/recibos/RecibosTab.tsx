@@ -94,6 +94,9 @@ function EditorRecibo({ onListo, onCancelar }: { onListo: () => void; onCancelar
   const [descuentoGlobal, setDescuentoGlobal] = useState("");
   const [impuesto, setImpuesto] = useState("");
   const [notas, setNotas] = useState("");
+  const [garantiaDias, setGarantiaDias] = useState("");
+  const [cuotas, setCuotas] = useState<{ monto: string; fecha: string }[]>([]);
+  const [observaciones, setObservaciones] = useState("");
   const [paso, setPaso] = useState<"form" | "confirmar" | "listo">("form");
   const [numeroCreado, setNumeroCreado] = useState("");
   const [idCreado, setIdCreado] = useState("");
@@ -132,6 +135,11 @@ function EditorRecibo({ onListo, onCancelar }: { onListo: () => void; onCancelar
         descuentoGlobal: parseNum(descuentoGlobal),
         impuesto: parseNum(impuesto),
         notas,
+        garantiaDias: Math.max(0, Math.floor(parseNum(garantiaDias))),
+        cuotas: cuotas
+          .filter((c) => parseNum(c.monto) > 0 && c.fecha.trim() !== "")
+          .map((c) => ({ monto: parseNum(c.monto), fecha: c.fecha.trim() })),
+        observaciones,
       };
       const r = await crearRecibo(input);
       try {
@@ -210,6 +218,29 @@ function EditorRecibo({ onListo, onCancelar }: { onListo: () => void; onCancelar
             <div className="flex justify-between gap-2">
               <dt className="text-muted">Vencimiento</dt>
               <dd className="font-bold text-foreground">{formatDate(vencimiento)}</dd>
+            </div>
+          )}
+          {parseNum(garantiaDias) > 0 && (
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted">Garantía</dt>
+              <dd className="font-bold text-foreground">{Math.floor(parseNum(garantiaDias))} días</dd>
+            </div>
+          )}
+          {cuotas.some((c) => parseNum(c.monto) > 0 && c.fecha.trim() !== "") && (
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted">Cuotas</dt>
+              <dd className="text-right font-bold text-foreground">
+                {cuotas
+                  .filter((c) => parseNum(c.monto) > 0 && c.fecha.trim() !== "")
+                  .map((c) => `${formatCurrency(parseNum(c.monto), moneda)} · ${formatDate(c.fecha.trim())}`)
+                  .join("  /  ")}
+              </dd>
+            </div>
+          )}
+          {observaciones.trim() && (
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted">Observaciones</dt>
+              <dd className="text-right font-bold text-foreground">{observaciones.trim()}</dd>
             </div>
           )}
           <div className="flex justify-between gap-2 border-t border-border pt-1.5">
@@ -340,6 +371,42 @@ function EditorRecibo({ onListo, onCancelar }: { onListo: () => void; onCancelar
       <label className={`${labelCls} mt-3`}>
         <span className={tituloCls}>Notas</span>
         <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={2} placeholder="Opcional" className={`${inputCls} resize-none`} />
+      </label>
+
+      <h4 className="mb-2 mt-4 text-sm font-bold text-foreground">Garantía y cuotas <span className="font-normal text-muted">(opcional)</span></h4>
+      <div className="grid grid-cols-2 gap-3">
+        <label className={labelCls}>
+          <span className={tituloCls}>Días de garantía</span>
+          <input type="text" inputMode="numeric" value={garantiaDias} onChange={(e) => setGarantiaDias(e.target.value.replace(/[^0-9]/g, ""))} placeholder="0" className={inputCls} />
+        </label>
+      </div>
+      <div className="mt-3 flex flex-col gap-2">
+        {cuotas.map((c, i) => (
+          <div key={i} className="flex items-end gap-2 rounded-xl bg-surface-2 p-3">
+            <label className={`${labelCls} flex-1`}>
+              <span className={tituloCls}>Monto cuota {i + 1}</span>
+              <input type="text" inputMode="decimal" value={c.monto} onChange={(e) => setCuotas((p) => p.map((x, j) => (j === i ? { ...x, monto: e.target.value } : x)))} placeholder="0" className="mt-1 w-full rounded-xl border border-transparent bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-accent" />
+            </label>
+            <label className={`${labelCls} flex-1`}>
+              <span className={tituloCls}>Fecha</span>
+              <input type="date" value={c.fecha} onChange={(e) => setCuotas((p) => p.map((x, j) => (j === i ? { ...x, fecha: e.target.value } : x)))} className="mt-1 w-full rounded-xl border border-transparent bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-accent" />
+            </label>
+            <button type="button" aria-label="Quitar cuota" onClick={() => setCuotas((p) => p.filter((_, j) => j !== i))} className="shrink-0 rounded-full p-1.5 text-muted hover:bg-surface hover:text-red-600">
+              <IconBorrar className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => setCuotas((p) => [...p, { monto: "", fecha: "" }])}
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-2 text-xs font-bold text-muted hover:text-foreground"
+        >
+          <IconPlus className="h-4 w-4" /> Agregar cuota
+        </button>
+      </div>
+      <label className={`${labelCls} mt-3`}>
+        <span className={tituloCls}>Observaciones</span>
+        <textarea value={observaciones} onChange={(e) => setObservaciones(e.target.value)} rows={2} placeholder="Opcional — salen en el PDF" className={`${inputCls} resize-none`} />
       </label>
 
       <div className="mt-3 flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2.5">

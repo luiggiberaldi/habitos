@@ -12,6 +12,7 @@ import type {
   ReceiptItem,
   PartialPayment,
   PaymentMethod,
+  ScheduledPayment,
 } from "./tipos";
 import { computeTotals } from "./calculos";
 import { buildPdfFilename, formatDate } from "./formato";
@@ -48,6 +49,11 @@ export interface ItemNuevo {
   descuento: number; // %
 }
 
+export interface CuotaNueva {
+  monto: number;
+  fecha: string; // ISO yyyy-mm-dd
+}
+
 export interface NuevoRecibo {
   emisor: EmisorRecibo;
   clienteNombre: string;
@@ -60,6 +66,17 @@ export interface NuevoRecibo {
   descuentoGlobal: number;
   impuesto: number;
   notas: string;
+  garantiaDias: number; // 0 = sin garantía
+  cuotas: CuotaNueva[]; // vacías = pago completo
+  observaciones: string;
+}
+
+/** Suma días a una fecha ISO yyyy-mm-dd (UTC, sin sorpresas de zona horaria). */
+function sumarDiasISO(iso: string, dias: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const f = new Date(Date.UTC(y, m - 1, d));
+  f.setUTCDate(f.getUTCDate() + dias);
+  return f.toISOString().slice(0, 10);
 }
 
 function lanzarSiHayError(error: unknown, contexto: string): void {
@@ -92,8 +109,14 @@ export function filaARecibo(fila: ReciboFila): Receipt {
     descuentoGlobal?: number;
     impuesto?: number;
     notas?: string;
+    garantiaDias?: number;
+    garantiaFin?: string;
+    cuotas?: ScheduledPayment[];
+    observaciones?: string;
   };
   const pagos = Array.isArray(s.pagos) ? (s.pagos as PartialPayment[]) : [];
+  const cuotas = Array.isArray(s.cuotas) ? (s.cuotas as ScheduledPayment[]) : [];
+  const garantiaDias = Math.max(0, Math.floor(Number(s.garantiaDias) || 0));
   return {
     meta: {
       number: fila.numero,
@@ -101,12 +124,12 @@ export function filaARecibo(fila: ReciboFila): Receipt {
       dueDate: fila.fecha_vencimiento ?? "",
       currency: fila.moneda,
       primaryMethod: "transfer",
-      paymentMode: fila.estado === "pagado" ? "full" : fila.total_pagado > 0 ? "partial" : "full",
+      paymentMode: cuotas.length > 0 ? "installments" : fila.estado === "pagado" ? "full" : fila.total_pagado > 0 ? "partial" : "full",
       notes: typeof s.notas === "string" ? s.notas : "",
-      observations: "",
+      observations: typeof s.observaciones === "string" ? s.observaciones : "",
       thankYouMessage: "¡Gracias por su preferencia!",
-      warrantyDays: 0,
-      warrantyEndDate: "",
+      warrantyDays: garantiaDias,
+      warrantyEndDate: typeof s.garantiaFin === "string" ? s.garantiaFin : "",
     },
     issuer: {
       name: s.emisor?.nombre ?? "",
@@ -127,6 +150,7 @@ export function filaARecibo(fila: ReciboFila): Receipt {
     },
     items: Array.isArray(s.items) ? (s.items as ReceiptItem[]) : [],
     payments: pagos,
+    scheduledPayments: cuotas,
     globalDiscount: Number(s.descuentoGlobal ?? 0),
     taxRate: Number(s.impuesto ?? 0),
     declaredTotal: 0,
@@ -212,19 +236,22 @@ export async function crearRecibo(input: NuevoRecibo): Promise<{ id: string; num
   );
   if (items.length === 0) throw new Error("Agrega al menos un concepto");
 
+  const tieneCuotas = input.cuotas.some((c) => c.monto > 0 && c.fecha.trim() !== "");
+  const garantiaDias = Math.max(0, Math.floor(Number(input.garantiaDias) || 0));
+  const fechaEmision = formatDateHoy();
   const receipt: Receipt = {
     meta: {
       number: "",
-      issueDate: formatDateHoy(),
+      issueDate: fechaEmision,
       dueDate: input.vencimiento.trim(),
       currency: input.moneda,
       primaryMethod: "transfer",
-      paymentMode: "full",
+      paymentMode: tieneCuotas ? "installments" : "full",
       notes: input.notas.trim(),
-      observations: "",
+      observations: input.observaciones.trim(),
       thankYouMessage: "¡Gracias por su preferencia!",
-      warrantyDays: 0,
-      warrantyEndDate: "",
+      warrantyDays: garantiaDias,
+      warrantyEndDate: garantiaDias > 0 ? sumarDiasISO(fechaEmision, garantiaDias) : "",
     },
     issuer: {
       name: input.emisor.nombre.trim(),
@@ -251,6 +278,9 @@ export async function crearRecibo(input: NuevoRecibo): Promise<{ id: string; num
       discount: Math.min(100, Math.max(0, Number(it.descuento) || 0)),
     })),
     payments: [],
+    scheduledPayments: input.cuotas
+      .filter((c) => c.monto > 0 && c.fecha.trim() !== "")
+      .map((c, i) => ({ id: `cuota-${i}`, date: c.fecha.trim(), amount: Math.max(0, Number(c.monto) || 0) })),
     globalDiscount: Math.min(100, Math.max(0, Number(input.descuentoGlobal) || 0)),
     taxRate: Math.max(0, Number(input.impuesto) || 0),
     declaredTotal: 0,
@@ -268,6 +298,10 @@ export async function crearRecibo(input: NuevoRecibo): Promise<{ id: string; num
     descuentoGlobal: receipt.globalDiscount,
     impuesto: receipt.taxRate,
     notas: receipt.meta.notes,
+    garantiaDias: receipt.meta.warrantyDays,
+    garantiaFin: receipt.meta.warrantyEndDate,
+    cuotas: receipt.scheduledPayments ?? [],
+    observaciones: receipt.meta.observations,
   };
 
   let hogarId: string | null = null;

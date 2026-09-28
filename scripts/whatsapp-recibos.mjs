@@ -35,7 +35,7 @@
 // --q "sí" también funciona.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
@@ -52,7 +52,11 @@ for (let i = 2; i < process.argv.length; i++) {
     args[k] = v;
   }
 }
-const out = (obj) => { console.log(JSON.stringify(obj)); process.exit(obj.ok ? 0 : 1); };
+const out = (obj) => {
+  // writeSync: console.log + process.exit trunca el pipe con salidas grandes (pdf_base64).
+  try { writeSync(1, JSON.stringify(obj) + "\n"); } catch { console.log(JSON.stringify(obj)); }
+  process.exit(obj.ok ? 0 : 1);
+};
 const q = String(args.q ?? "").trim();
 if (!q) out({ ok: false, codigo: "args", detalle: "se requiere --q \"<texto>\"" });
 
@@ -171,6 +175,13 @@ const fmtFecha = (iso) => {
 const ESTADO_LABEL = { pendiente: "pendiente", parcial: "parcial", pagado: "pagado", anulado: "anulado" };
 const hoyCaracas = () =>
   new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
+/** Suma días a una fecha ISO yyyy-mm-dd (UTC). */
+const sumarDias = (iso, dias) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  const f = new Date(Date.UTC(y, m - 1, d));
+  f.setUTCDate(f.getUTCDate() + dias);
+  return f.toISOString().slice(0, 10);
+};
 
 // ── Parseo ───────────────────────────────────────────────────────────────────
 /** Monto: acepta 1.234,56 (es-VE), 1,234.56 y 1234.56. Devuelve number o null. */
@@ -208,9 +219,25 @@ function normalizarFecha(txt) {
   return null;
 }
 
+/** Como normalizarFecha, pero acepta dd/mm sin año (asume el año actual). */
+function normalizarFechaCorta(txt) {
+  const f = normalizarFecha(txt);
+  if (f) return f;
+  const t = String(txt || "").trim();
+  const m = t.match(/^(\d{1,2})[/.\-](\d{1,2})$/);
+  if (m) {
+    const dd = m[1].padStart(2, "0"), mm = m[2].padStart(2, "0");
+    if (+dd >= 1 && +dd <= 31 && +mm >= 1 && +mm <= 12) {
+      const y = new Date().getFullYear();
+      return `${y}-${mm}-${dd}`;
+    }
+  }
+  return null;
+}
+
 /** Parsea un borrador de creación desde texto libre. */
 function parseCrear(texto) {
-  const d = { emisor: null, cliente: null, clienteTelefono: "", clienteEmail: "", clienteCiudad: "", vencimiento: "", moneda: null, items: [], descuento: 0, impuesto: 0, notas: "" };
+  const d = { emisor: null, cliente: null, clienteTelefono: "", clienteEmail: "", clienteCiudad: "", vencimiento: "", moneda: null, items: [], descuento: 0, impuesto: 0, notas: "", garantiaDias: 0, cuotas: [], observaciones: "" };
   let resto = ` ${texto} `;
 
   let m = resto.match(/\bemisor\s*:\s*([^;]+?)(?=\s*[;]|$)/i);
@@ -257,6 +284,28 @@ function parseCrear(texto) {
   m = resto.match(/\b(?:impuesto|iva)\s+(\d+(?:[.,]\d+)?)\s*%?/i);
   if (m) {
     d.impuesto = Number(m[1].replace(",", "."));
+    resto = resto.replace(m[0], " ");
+  }
+  m = resto.match(/\bgarant[ií]a\s*:?\s*(\d+)\s*d[ií]as?/i);
+  if (m) {
+    d.garantiaDias = Math.max(0, parseInt(m[1], 10));
+    resto = resto.replace(m[0], " ");
+  }
+  m = resto.match(/\bcuotas?\s*:\s*([^;]+?)(?=\s*[;]|$)/i);
+  if (m) {
+    d.cuotas = [];
+    for (const parte of m[1].split(/[,+]/)) {
+      const pm = parte.trim().match(/^(\d+(?:[.,]\d+)?)\s+(.+)$/);
+      if (pm) {
+        const f = normalizarFechaCorta(pm[2].trim());
+        if (f) d.cuotas.push({ monto: Number(pm[1].replace(",", ".")), fecha: f });
+      }
+    }
+    resto = resto.replace(m[0], " ");
+  }
+  m = resto.match(/\bobservaciones?\s*:\s*([^;]+?)(?=\s*[;]|$)/i);
+  if (m) {
+    d.observaciones = m[1].trim().slice(0, 280);
     resto = resto.replace(m[0], " ");
   }
   d.moneda = detectarMoneda(texto);
@@ -347,7 +396,10 @@ function resumenCrear(d) {
   if (d.vencimiento) l.push(`Vencimiento: ${fmtFecha(d.vencimiento)}`);
   if (d.descuento > 0) l.push(`Descuento: ${d.descuento}%`);
   if (d.impuesto > 0) l.push(`Impuesto: ${d.impuesto}%`);
+  if (d.garantiaDias > 0) l.push(`Garantía: ${d.garantiaDias} días`);
+  if (d.cuotas?.length) l.push(`Cuotas: ${d.cuotas.map((c) => `${fmtMoneda(c.monto, moneda)} el ${fmtFecha(c.fecha)}`).join(", ")}`);
   if (d.notas) l.push(`Notas: ${d.notas}`);
+  if (d.observaciones) l.push(`Observaciones: ${d.observaciones}`);
   l.push(`Total: ${fmtMoneda(total, moneda)}`, "", '¿Lo creo? Responde "sí" para confirmar.');
   return l.join("\n");
 }
@@ -397,13 +449,18 @@ function cargarLibRecibos() {
 function filaARecibo(fila) {
   const s = (fila.snapshot && typeof fila.snapshot === "object") ? fila.snapshot : {};
   const pagos = Array.isArray(s.pagos) ? s.pagos : [];
+  const cuotas = Array.isArray(s.cuotas) ? s.cuotas : [];
+  const garantiaDias = Math.max(0, Math.floor(Number(s.garantiaDias) || 0));
   return {
     meta: {
       number: fila.numero, issueDate: fila.fecha_emision, dueDate: fila.fecha_vencimiento || "",
       currency: fila.moneda, primaryMethod: "transfer",
-      paymentMode: fila.estado === "pagado" ? "full" : (fila.total_pagado > 0 ? "partial" : "full"),
-      notes: typeof s.notas === "string" ? s.notas : "", observations: "",
-      thankYouMessage: "¡Gracias por su preferencia!", warrantyDays: 0, warrantyEndDate: "",
+      paymentMode: cuotas.length > 0 ? "installments" : fila.estado === "pagado" ? "full" : (fila.total_pagado > 0 ? "partial" : "full"),
+      notes: typeof s.notas === "string" ? s.notas : "",
+      observations: typeof s.observaciones === "string" ? s.observaciones : "",
+      thankYouMessage: "¡Gracias por su preferencia!",
+      warrantyDays: garantiaDias,
+      warrantyEndDate: typeof s.garantiaFin === "string" ? s.garantiaFin : "",
     },
     issuer: {
       name: s.emisor?.nombre || "", taxId: s.emisor?.doc || "",
@@ -419,6 +476,10 @@ function filaARecibo(fila) {
       id: p.id || randomUUID(), date: p.fecha || fila.fecha_emision,
       amount: Number(p.monto) || 0, method: p.metodo || "transfer",
       reference: p.referencia || "", note: p.nota || "",
+    })),
+    scheduledPayments: cuotas.map((c, i) => ({
+      id: c.id || `cuota-${i}`, date: c.date || c.fecha || "",
+      amount: Number(c.amount ?? c.monto) || 0, note: c.note || "",
     })),
     globalDiscount: Number(s.descuentoGlobal ?? 0),
     taxRate: Number(s.impuesto ?? 0),
@@ -487,6 +548,7 @@ try {
         "Recibos por WhatsApp:",
         "• «recibo para Ana: reparación laptop 150; cargador 25» → arma el borrador",
         "• Opcionales: «emisor: Mi Negocio; tel: 0412-1112233; email: ana@x.com; ciudad: Caracas; vence: 15/10/2026»",
+        "• «garantía: 30 días; cuotas: 50 15/10, 50 15/11; observaciones: incluye instalación» → garantía, cuotas y observaciones",
         "• «recibo listar» → últimos recibos · «recibo ver Ana» → detalle",
         "• «recibo pdf Ana» → te mando el PDF",
         "• «recibo abonar 100 al SEN-202609-001» → registra un pago",
@@ -535,6 +597,8 @@ try {
           quantity: it.cantidad, unitPrice: it.precio, discount: 0,
         }));
         const total = calcularTotal(d.items, d.descuento, d.impuesto);
+        const fechaEmision = hoyCaracas();
+        const garantiaDias = Math.max(0, Math.floor(Number(d.garantiaDias) || 0));
         const snapshot = {
           emisor: {
             nombre: d.emisor.nombre,
@@ -551,6 +615,12 @@ try {
           descuentoGlobal: d.descuento || 0,
           impuesto: d.impuesto || 0,
           notas: d.notas || "",
+          garantiaDias,
+          garantiaFin: garantiaDias > 0 ? sumarDias(fechaEmision, garantiaDias) : "",
+          cuotas: (d.cuotas || [])
+            .filter((c) => c.monto > 0 && c.fecha)
+            .map((c, i) => ({ id: `cuota-${i}`, date: c.fecha, amount: c.monto })),
+          observaciones: d.observaciones || "",
         };
         const r = await rpc("rpc_recibo_crear", {
           p_user_id: cfg.USER_ID,
@@ -850,6 +920,9 @@ try {
     if (parseado.notas && !d.notas) d.notas = parseado.notas;
     if (parseado.descuento > 0) d.descuento = parseado.descuento;
     if (parseado.impuesto > 0) d.impuesto = parseado.impuesto;
+    if (parseado.garantiaDias > 0 && !(d.garantiaDias > 0)) d.garantiaDias = parseado.garantiaDias;
+    if (parseado.cuotas?.length && !(d.cuotas?.length)) d.cuotas = parseado.cuotas;
+    if (parseado.observaciones && !d.observaciones) d.observaciones = parseado.observaciones;
     miDraft.borrador = d;
   } else {
     if (ultimoEmisor && !parseado.emisor) parseado.emisor = { ...ultimoEmisor };

@@ -812,3 +812,13 @@ luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en
 ## 2026-09-28 — Deploy historial de XP
 - Commit 612503d3 pusheado a master y desplegado con `vercel --prod`.
 - https://habitos-amber.vercel.app/ → 200.
+
+## 2026-09-28 — Recibos: garantía, cuotas y observaciones al crear (web + WhatsApp)
+
+- luigi pidió verificar que pagos, pagado/pendiente, garantía y demás lógicas del PDF se puedan cargar al crear el recibo. Hallazgo: los pagos sí estaban completos (abono con método/referencia/nota, estado automático, sin sobrepago), pero garantía y cuotas no se podían agregar en ningún lado — el puente BD→PDF los dejaba en 0 y el diseño Synaptica ni dibujaba observaciones.
+- `lib/recibos/cliente.ts`: NuevoRecibo suma garantiaDias, cuotas [{monto, fecha}] y observaciones; crearRecibo los guarda en el snapshot (garantiaDias/garantiaFin/cuotas/observaciones), calcula warrantyEndDate y pone paymentMode "installments" si hay cuotas; filaARecibo los lee del snapshot (antes hardcodeaba warranty 0 y observations "").
+- `components/recibos/RecibosTab.tsx`: sección "Garantía y cuotas (opcional)" — días de garantía, lista de cuotas (monto+fecha, agregar/quitar), observaciones; todo visible en la pantalla de confirmación.
+- `scripts/whatsapp-recibos.mjs`: parsea «garantía: 30 días», «cuotas: 50 15/10, 50 15/11» (dd/mm asume año actual) y «observaciones: ...»; los muestra en el resumen y los guarda en el snapshot. Su copia local de filaARecibo también mapea los campos nuevos.
+- `lib/recibos/pdf/synaptica.ts`: nueva sección OBSERVACIONES (antes solo existía en el builder genérico).
+- Bug real encontrado y corregido: `out()` hacía console.log + process.exit, lo que trunca el pipe con salidas grandes — «recibo pdf» por el router fallaba siempre (el base64 del PDF se cortaba). Ahora usa writeSync(1) en whatsapp-recibos.mjs y whatsapp-router.mjs.
+- Verificado de punta a punta con el flujo real del router (mock): el PDF muestra "Pago en cuotas", calendario de cuotas, "GARANTÍA VIGENTE 30 días" y OBSERVACIONES.

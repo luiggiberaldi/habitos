@@ -120,6 +120,7 @@ export function buildSynapticaPdf(
   drawSynPagosResumen(doc, receipt, totals, cursor, options);
   drawSynCuotas(doc, receipt, cursor);
   drawSynGarantia(doc, receipt, cursor);
+  drawSynObservaciones(doc, receipt, cursor);
   drawSynFirma(doc, receipt, totals, cursor, options);
 
   // Marca de agua + pie en cada página (el pie siempre al fondo).
@@ -637,6 +638,30 @@ function drawSynGarantia(doc: jsPDF, receipt: Receipt, cursor: Cursor): void {
     y + 6.8
   );
   cursor.y = y + h + 5;
+}
+
+/* ============================================================
+   OBSERVACIONES — bloque de texto libre
+   ============================================================ */
+function drawSynObservaciones(doc: jsPDF, receipt: Receipt, cursor: Cursor): void {
+  const obs = (receipt.meta.observations ?? "").trim();
+  if (!obs) return;
+  salto(doc, cursor, 14);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  setTextColor(doc, ORANGE);
+  doc.text("OBSERVACIONES", 12, cursor.y);
+  cursor.y += 4.5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  setTextColor(doc, C.body);
+  const lines = doc.splitTextToSize(obs, PAGE.w - 24);
+  for (const ln of lines) {
+    salto(doc, cursor, 5);
+    doc.text(ln, 12, cursor.y);
+    cursor.y += 4.2;
+  }
+  cursor.y += 2;
 }
 
 /* ============================================================
