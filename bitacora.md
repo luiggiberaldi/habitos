@@ -520,3 +520,15 @@
 - tsc limpio, ESLint limpio, build limpio con `/coach` generada, grep de reglas UI limpio.
 
 **Pendiente (no verificado):** verificación visual de `/coach` en el teléfono de luigi; entrega física de una alerta coach en su teléfono (el push se envió en el E2E pero no se confirmó recepción).
+
+## 2026-09-27 — Ajustes del hub pedidos por luigi: sin tasas manuales + línea del coach en el header
+
+**Qué cambió:**
+- `components/TarjetaTasas.tsx`: eliminada toda la UI de "Tasas manuales" ("Ingresar tasas manualmente", formulario BCV/Euro/USDT, Guardar/Cancelar) y su código muerto (`parsearMonto`, estados `manualAbierto/fBcv/fEuro/fUsdt/guardando`, `guardarManual`, import de `guardarTasasManual`, iconos `IconCheck`/`IconX`). La tarjeta queda solo con las tasas del servicio + botón Actualizar. `lib/core/tasas.ts` conserva `guardarTasasManual` (función de librería, sin UI).
+- `app/page.tsx`: el encabezado del hub ahora muestra una línea del coach debajo del saludo — la primera correlación de la semana (link a `/coach`), o "Sin señales esta semana: sigue registrando" si no hay. Si falla la sesión/red, el header queda como antes. Pill redondeada translúcida, iconos del set propio.
+
+**Por qué:** luigi lo pidió desde el teléfono: quitar lo manual y llenar el header que se veía vacío.
+
+**Verificación (real, 2026-09-27):** tsc limpio, ESLint limpio, `npm run build` limpio.
+
+**Pendiente (no verificado):** verificación visual en el teléfono de luigi.

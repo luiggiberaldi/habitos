@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   obtenerTasas,
-  guardarTasasManual,
   formatoBs,
   formatoFechaCorta,
   type TasasDelDia,
@@ -11,34 +10,19 @@ import {
 import {
   IconActualizar,
   IconAlerta,
-  IconCheck,
   IconEstadisticas,
-  IconX,
 } from "../lib/core/ui/icons";
-
-/** Convierte "855,66" o "855.66" a número. */
-function parsearMonto(texto: string): number | null {
-  const t = texto.trim().replace(/\s/g, "").replace(",", ".");
-  if (!t) return null;
-  const v = Number(t);
-  return Number.isFinite(v) && v > 0 ? v : null;
-}
 
 /**
  * Tarjeta "Tasas del día" del hub. Muestra BCV ($), Euro (BCV) y USDT con
  * fecha y fuente. Fallback en cadena: refresca al abrir; si falla, muestra la
- * última guardada marcada como desactualizada; siempre ofrece el ingreso manual.
+ * última guardada marcada como desactualizada.
  */
 export default function TarjetaTasas() {
   const [tasas, setTasas] = useState<TasasDelDia | null>(null);
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [manualAbierto, setManualAbierto] = useState(false);
-  const [fBcv, setFBcv] = useState("");
-  const [fEuro, setFEuro] = useState("");
-  const [fUsdt, setFUsdt] = useState("");
-  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -72,34 +56,6 @@ export default function TarjetaTasas() {
       );
     } finally {
       setActualizando(false);
-    }
-  };
-
-  const guardarManual = async () => {
-    const bcv = parsearMonto(fBcv);
-    const euro = parsearMonto(fEuro);
-    const usdt = parsearMonto(fUsdt);
-    if (bcv === null && euro === null && usdt === null) {
-      setError("Escribe al menos una tasa válida para guardar");
-      return;
-    }
-    setGuardando(true);
-    setError(null);
-    try {
-      const t = await guardarTasasManual({
-        ...(bcv !== null ? { bcv } : {}),
-        ...(euro !== null ? { euro } : {}),
-        ...(usdt !== null ? { usdt } : {}),
-      });
-      setTasas(t);
-      setManualAbierto(false);
-      setFBcv("");
-      setFEuro("");
-      setFUsdt("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar");
-    } finally {
-      setGuardando(false);
     }
   };
 
@@ -179,67 +135,6 @@ export default function TarjetaTasas() {
           {error}
         </p>
       )}
-
-      <div className="mt-3">
-        {!manualAbierto ? (
-          <button
-            type="button"
-            onClick={() => setManualAbierto(true)}
-            className="text-xs font-bold text-accent hover:opacity-80"
-          >
-            Ingresar tasas manualmente
-          </button>
-        ) : (
-          <div className="rounded-2xl bg-surface-2 p-3">
-            <p className="text-xs font-bold text-foreground">
-              Tasas manuales
-            </p>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {[
-                { etiqueta: "BCV", valor: fBcv, set: setFBcv },
-                { etiqueta: "Euro BCV", valor: fEuro, set: setFEuro },
-                { etiqueta: "USDT", valor: fUsdt, set: setFUsdt },
-              ].map((c) => (
-                <label key={c.etiqueta} className="block">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-muted">
-                    {c.etiqueta}
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={c.valor}
-                    onChange={(e) => c.set(e.target.value)}
-                    placeholder="0,00"
-                    className="mt-1 w-full rounded-xl border border-transparent bg-surface px-2.5 py-2 text-sm text-foreground outline-none focus:border-accent"
-                  />
-                </label>
-              ))}
-            </div>
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={guardarManual}
-                disabled={guardando}
-                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                <IconCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                {guardando ? "Guardando…" : "Guardar"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setManualAbierto(false);
-                  setError(null);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-xs font-bold text-muted transition-opacity hover:opacity-80"
-              >
-                <IconX className="h-3.5 w-3.5" aria-hidden="true" />
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </section>
   );
 }

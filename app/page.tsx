@@ -9,6 +9,7 @@ import { completadosPara, esDescanso, todayKey } from "../lib/habitos/dates";
 import { flameGradient } from "../lib/core/ui/design-tokens";
 import { listarCuentasConSaldos, patrimonioUsd } from "../lib/finanzas/finanzas";
 import { merRpc } from "../lib/mercado/mercado";
+import { obtenerBriefing } from "../lib/coach/coach";
 import { AvatarNivel } from "../components/AvatarNivel";
 import Logo from "../components/Logo";
 import TarjetaTasas from "../components/TarjetaTasas";
@@ -61,6 +62,7 @@ export default function Hub() {
 
   const [patrimonio, setPatrimonio] = useState<number | null>(null);
   const [mercadoResumen, setMercadoResumen] = useState<string | null>(null);
+  const [coachLinea, setCoachLinea] = useState<string | null>(null);
   useEffect(() => {
     let vivo = true;
     listarCuentasConSaldos()
@@ -79,6 +81,15 @@ export default function Hub() {
         );
       })
       .catch(() => { if (vivo) setMercadoResumen("Inventario, lista de compras y precios"); });
+    // Línea del coach en el encabezado: primera correlación de la semana,
+    // o mensaje neutral si aún no hay señales (el coach no inventa).
+    obtenerBriefing()
+      .then((b) => {
+        if (!vivo) return;
+        const primera = b.correlaciones[0];
+        setCoachLinea(primera ? primera.titulo : "Sin señales esta semana: sigue registrando");
+      })
+      .catch(() => { /* sin sesión o sin red: el encabezado queda como antes */ });
     return () => { vivo = false; };
   }, []);
 
@@ -102,6 +113,16 @@ export default function Hub() {
           <h1 className="mt-0.5 text-2xl font-bold tracking-tight">
             {nombre ? `Hola, ${nombre}` : "Hola"}
           </h1>
+          {coachLinea !== null && (
+            <Link
+              href="/coach"
+              className="mt-2.5 inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+            >
+              <IconEstadisticas className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{coachLinea}</span>
+              <IconChevronDerecha className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            </Link>
+          )}
         </div>
       </header>
 
