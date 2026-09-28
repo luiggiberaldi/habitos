@@ -748,3 +748,15 @@
 - luigi (viendo captura del footer): dirección ("...VALENCIA") 4mm hacia abajo (fy+13.5 → fy+17.5).
 - Logo del footer: +4mm abajo (y 279→283). Los 15mm a la derecha que pidió (x 191→206) sacaban el logo 8mm fuera de la página (mide 12mm, la página termina en 210); se llevó hasta el borde x=198, sobre el triángulo naranja de la esquina.
 - Muestra v6 regenerada con el generador real.
+
+## 2026-09-28 — Recibos: vencimiento elegible + datos del cliente + fix "Total abonado $0,00"
+
+luigi auditó el PDF demo (SEN-202609-004) y encontró 3 fallas reales, todas corregidas:
+
+**1. Vencimiento no se podía elegir.** La BD (`fecha_vencimiento`), el RPC (`p_fecha_vencimiento`) y el PDF (franja "VENCIMIENTO", muestra "—" si vacío) lo soportaban, pero nadie lo llenaba: `crearRecibo` mandaba `null` fijo y WhatsApp también. Ahora: campo "Vencimiento" (`<input type="date">`) en el formulario de RecibosTab (visible también en el paso de confirmación) y parseo por WhatsApp (`vence: 15/10/2026` acepta DD/MM/AAAA, DD-MM-AAAA y AAAA-MM-DD).
+
+**2. Faltaban teléfono, ciudad y correo del cliente.** El modelo solo guardaba nombre + teléfono. Ahora el snapshot lleva `clienteEmail` y `clienteCiudad`; el tipo `Client` ganó el campo `city`; el formulario de la app tiene "Correo del cliente" y "Ciudad del cliente"; WhatsApp parsea `tel:`, `email:`/`correo:` y `ciudad:`; ambos temas del PDF los muestran (Synaptica: tarjeta FACTURADO A; default: bloque de cliente).
+
+**3. "Total abonado $0,00" en recibos pendientes.** El PDF demo lo imprimía dos veces. Causa: el tema Synaptica dibujaba "Total abonado" sin condición (sección de pagos y tarjeta RESUMEN); el tema default tenía el mismo hueco en el camino sin pagos (el resumen sí estaba bien condicionado). Ahora las tres líneas solo se dibujan si `totalPaid > 0`.
+
+**Verificación:** recibo SEN-202609-005 creado por WhatsApp con todos los campos (María González, tel, email, Caracas, vence 15/10/2026) — el PDF muestra "15 oct. 2026" en VENCIMIENTO, los datos del cliente, y cero ocurrencias de "abonado". tsc limpio. Sin migración (snapshot JSONB).

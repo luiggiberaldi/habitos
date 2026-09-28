@@ -34,6 +34,7 @@ export interface Client {
   email: string;
   address: string;
   company: string;
+  city: string;
 }
 
 export interface ReceiptItem {

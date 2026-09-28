@@ -18,6 +18,8 @@
 //
 // Intenciones:
 //   "para Ana: reparación laptop 150; cargador 25" → borrador crear
+//   Opcionales: "emisor: Mi Negocio; tel: 0412-1112233; email: ana@x.com;
+//                ciudad: Caracas; vence: 15/10/2026"
 //   "sí"                                            → confirma lo pendiente
 //   "listar" / "listar Ana"                         → últimos recibos
 //   "ver SEN-202609-001" / "ver Ana"                → detalle
@@ -174,14 +176,48 @@ function detectarMoneda(texto) {
   return null;
 }
 
+/** Fecha a ISO yyyy-mm-dd. Acepta DD/MM/AAAA, DD-MM-AAAA y AAAA-MM-DD. */
+function normalizarFecha(txt) {
+  const t = String(txt || "").trim();
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = t.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/);
+  if (m) {
+    const dd = m[1].padStart(2, "0"), mm = m[2].padStart(2, "0");
+    if (+dd >= 1 && +dd <= 31 && +mm >= 1 && +mm <= 12) return `${m[3]}-${mm}-${dd}`;
+  }
+  return null;
+}
+
 /** Parsea un borrador de creación desde texto libre. */
 function parseCrear(texto) {
-  const d = { emisor: null, cliente: null, moneda: null, items: [], descuento: 0, impuesto: 0, notas: "" };
+  const d = { emisor: null, cliente: null, clienteTelefono: "", clienteEmail: "", clienteCiudad: "", vencimiento: "", moneda: null, items: [], descuento: 0, impuesto: 0, notas: "" };
   let resto = ` ${texto} `;
 
   let m = resto.match(/\bemisor\s*:\s*([^;]+?)(?=\s*[;]|$)/i);
   if (m) {
     d.emisor = { nombre: m[1].trim() };
+    resto = resto.replace(m[0], " ");
+  }
+  m = resto.match(/\b(?:tel|telefono)\s*:\s*([^;]+?)(?=\s*[;]|$)/i);
+  if (m) {
+    d.clienteTelefono = m[1].trim();
+    resto = resto.replace(m[0], " ");
+  }
+  m = resto.match(/\b(?:email|correo)\s*:\s*([^\s;]+@[^\s;]+)/i);
+  if (m) {
+    d.clienteEmail = m[1].trim();
+    resto = resto.replace(m[0], " ");
+  }
+  m = resto.match(/\bciudad\s*:\s*([^;]+?)(?=\s*[;]|$)/i);
+  if (m) {
+    d.clienteCiudad = m[1].trim();
+    resto = resto.replace(m[0], " ");
+  }
+  m = resto.match(/\bvenc(?:e|imiento)?\s*:\s*([^\s;]+)/i);
+  if (m) {
+    const f = normalizarFecha(m[1].trim());
+    if (f) d.vencimiento = f;
     resto = resto.replace(m[0], " ");
   }
   m = resto.match(/\bcliente\s*:\s*([^;]+?)(?=\s*[;]|$)/i) || resto.match(/\bpara\s+([^:;]+?)(?=\s*[:;]|$)/i);
@@ -215,7 +251,7 @@ function parseCrear(texto) {
       .replace(/^[:\-–—,]+\s*/, "")
       .replace(/\s*[,;:]+$/, "")
       .trim();
-    if (!limpio || /^(para|cliente|emisor)\b/i.test(limpio)) continue;
+    if (!limpio || /^(para|cliente|emisor|tel|telefono|email|correo|ciudad|vence|vencimiento)\b/i.test(limpio)) continue;
     let it = null;
     let mm = limpio.match(/^(\d+(?:[.,]\d+)?)\s*[x×]\s*(.+?)\s+(?:a\s+)?(\d+(?:[.,]\d+)?)$/i);
     if (mm) {
@@ -285,6 +321,10 @@ function resumenCrear(d) {
     `Moneda: ${moneda}`,
     ...lineasItems(d.items, moneda),
   ];
+  if (d.clienteTelefono) l.push(`Teléfono: ${d.clienteTelefono}`);
+  if (d.clienteEmail) l.push(`Correo: ${d.clienteEmail}`);
+  if (d.clienteCiudad) l.push(`Ciudad: ${d.clienteCiudad}`);
+  if (d.vencimiento) l.push(`Vencimiento: ${fmtFecha(d.vencimiento)}`);
   if (d.descuento > 0) l.push(`Descuento: ${d.descuento}%`);
   if (d.impuesto > 0) l.push(`Impuesto: ${d.impuesto}%`);
   if (d.notas) l.push(`Notas: ${d.notas}`);
@@ -352,7 +392,7 @@ function filaARecibo(fila) {
     },
     client: {
       name: fila.cliente_nombre, taxId: "", phone: s.clienteTelefono || "",
-      email: "", address: "", company: "",
+      email: s.clienteEmail || "", address: "", company: "", city: s.clienteCiudad || "",
     },
     items: Array.isArray(s.items) ? s.items : [],
     payments: pagos.map((p) => ({
@@ -426,6 +466,7 @@ try {
       mensaje: [
         "Recibos por WhatsApp:",
         "• «recibo para Ana: reparación laptop 150; cargador 25» → arma el borrador",
+        "• Opcionales: «emisor: Mi Negocio; tel: 0412-1112233; email: ana@x.com; ciudad: Caracas; vence: 15/10/2026»",
         "• «recibo listar» → últimos recibos · «recibo ver Ana» → detalle",
         "• «recibo pdf Ana» → te mando el PDF",
         "• «recibo abonar 100 al SEN-202609-001» → registra un pago",
@@ -463,6 +504,8 @@ try {
             telefono: "", email: "", direccion: d.emisor.detalle || "",
           },
           clienteTelefono: d.clienteTelefono || "",
+          clienteEmail: d.clienteEmail || "",
+          clienteCiudad: d.clienteCiudad || "",
           items,
           pagos: [],
           descuentoGlobal: d.descuento || 0,
@@ -476,7 +519,7 @@ try {
           p_snapshot: snapshot,
           p_total: total,
           p_fecha_emision: hoyCaracas(),
-          p_fecha_vencimiento: null,
+          p_fecha_vencimiento: d.vencimiento || null,
           p_hogar_id: null,
         });
         recordarEmisor(d.emisor);

@@ -564,6 +564,7 @@ function drawParties(
     receipt.client.taxId ? `RIF/C.I: ${receipt.client.taxId}` : undefined,
     receipt.client.phone ? `Tlf: ${receipt.client.phone}` : undefined,
     receipt.client.email,
+    receipt.client.city,
     receipt.client.address,
   ]);
 
@@ -896,8 +897,10 @@ function drawPaymentsPanel(
     setTextColor(doc, C.faint as RGB);
     doc.text("No se han registrado abonos.", labelX, py);
     doc.text("Recibo emitido como PENDIENTE.", labelX, py + 4);
-    
-    drawTotalAbonado(doc, receipt, totals, x, y, w, boxH, y + boxH - 6, themeColors, false);
+
+    if (totals.totalPaid > 0) {
+      drawTotalAbonado(doc, receipt, totals, x, y, w, boxH, y + boxH - 6, themeColors, false);
+    }
     return;
   }
 

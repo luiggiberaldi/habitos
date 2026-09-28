@@ -52,6 +52,9 @@ export interface NuevoRecibo {
   emisor: EmisorRecibo;
   clienteNombre: string;
   clienteTelefono: string;
+  clienteEmail: string;
+  clienteCiudad: string;
+  vencimiento: string; // ISO yyyy-mm-dd | ""
   moneda: FinMoneda;
   items: ItemNuevo[];
   descuentoGlobal: number;
@@ -82,6 +85,8 @@ export function filaARecibo(fila: ReciboFila): Receipt {
   const s = (fila.snapshot ?? {}) as {
     emisor?: Partial<EmisorRecibo>;
     clienteTelefono?: string;
+    clienteEmail?: string;
+    clienteCiudad?: string;
     items?: ReceiptItem[];
     pagos?: PartialPayment[];
     descuentoGlobal?: number;
@@ -115,9 +120,10 @@ export function filaARecibo(fila: ReciboFila): Receipt {
       name: fila.cliente_nombre,
       taxId: "",
       phone: s.clienteTelefono ?? "",
-      email: "",
+      email: s.clienteEmail ?? "",
       address: "",
       company: "",
+      city: s.clienteCiudad ?? "",
     },
     items: Array.isArray(s.items) ? (s.items as ReceiptItem[]) : [],
     payments: pagos,
@@ -210,7 +216,7 @@ export async function crearRecibo(input: NuevoRecibo): Promise<{ id: string; num
     meta: {
       number: "",
       issueDate: formatDateHoy(),
-      dueDate: "",
+      dueDate: input.vencimiento.trim(),
       currency: input.moneda,
       primaryMethod: "transfer",
       paymentMode: "full",
@@ -232,9 +238,10 @@ export async function crearRecibo(input: NuevoRecibo): Promise<{ id: string; num
       name: clienteNombre,
       taxId: "",
       phone: input.clienteTelefono.trim(),
-      email: "",
+      email: input.clienteEmail.trim(),
       address: "",
       company: "",
+      city: input.clienteCiudad.trim(),
     },
     items: items.map((it, i) => ({
       id: `it-${i}`,
@@ -254,6 +261,8 @@ export async function crearRecibo(input: NuevoRecibo): Promise<{ id: string; num
   const snapshot = {
     emisor: receipt.issuer,
     clienteTelefono: receipt.client.phone,
+    clienteEmail: receipt.client.email,
+    clienteCiudad: receipt.client.city,
     items: receipt.items,
     pagos: [],
     descuentoGlobal: receipt.globalDiscount,
@@ -276,7 +285,7 @@ export async function crearRecibo(input: NuevoRecibo): Promise<{ id: string; num
     p_snapshot: snapshot,
     p_total: totales.total,
     p_fecha_emision: receipt.meta.issueDate,
-    p_fecha_vencimiento: null,
+    p_fecha_vencimiento: input.vencimiento.trim() || null,
     p_hogar_id: hogarId,
   });
   lanzarSiHayError(error, "No se pudo crear el recibo");

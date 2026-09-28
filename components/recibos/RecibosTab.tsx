@@ -84,6 +84,9 @@ function EditorRecibo({ onListo, onCancelar }: { onListo: () => void; onCancelar
   const [emisor, setEmisor] = useState<EmisorRecibo>(leerEmisor);
   const [clienteNombre, setClienteNombre] = useState("");
   const [clienteTelefono, setClienteTelefono] = useState("");
+  const [clienteEmail, setClienteEmail] = useState("");
+  const [clienteCiudad, setClienteCiudad] = useState("");
+  const [vencimiento, setVencimiento] = useState("");
   const [moneda, setMoneda] = useState<FinMoneda>("USD");
   const [items, setItems] = useState<ItemNuevo[]>([
     { descripcion: "", cantidad: 1, precio: 0, descuento: 0 },
@@ -124,7 +127,8 @@ function EditorRecibo({ onListo, onCancelar }: { onListo: () => void; onCancelar
     setGuardando(true);
     try {
       const input: NuevoRecibo = {
-        emisor, clienteNombre, clienteTelefono, moneda, items,
+        emisor, clienteNombre, clienteTelefono, clienteEmail, clienteCiudad,
+        vencimiento, moneda, items,
         descuentoGlobal: parseNum(descuentoGlobal),
         impuesto: parseNum(impuesto),
         notas,
@@ -202,6 +206,12 @@ function EditorRecibo({ onListo, onCancelar }: { onListo: () => void; onCancelar
             <dt className="text-muted">Moneda</dt>
             <dd className="font-bold text-foreground">{moneda}</dd>
           </div>
+          {vencimiento && (
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted">Vencimiento</dt>
+              <dd className="font-bold text-foreground">{formatDate(vencimiento)}</dd>
+            </div>
+          )}
           <div className="flex justify-between gap-2 border-t border-border pt-1.5">
             <dt className="text-muted">Total</dt>
             <dd className="text-base font-bold text-foreground">{formatCurrency(totales.total, moneda)}</dd>
@@ -256,6 +266,18 @@ function EditorRecibo({ onListo, onCancelar }: { onListo: () => void; onCancelar
         <label className={labelCls}>
           <span className={tituloCls}>Teléfono del cliente</span>
           <input value={clienteTelefono} onChange={(e) => setClienteTelefono(e.target.value)} placeholder="Opcional" className={inputCls} />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Correo del cliente</span>
+          <input type="email" value={clienteEmail} onChange={(e) => setClienteEmail(e.target.value)} placeholder="Opcional" className={inputCls} />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Ciudad del cliente</span>
+          <input value={clienteCiudad} onChange={(e) => setClienteCiudad(e.target.value)} placeholder="Opcional" className={inputCls} />
+        </label>
+        <label className={labelCls}>
+          <span className={tituloCls}>Vencimiento</span>
+          <input type="date" value={vencimiento} onChange={(e) => setVencimiento(e.target.value)} className={inputCls} />
         </label>
         <label className={labelCls}>
           <span className={tituloCls}>Moneda</span>

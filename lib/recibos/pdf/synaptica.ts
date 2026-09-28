@@ -267,6 +267,8 @@ function drawSynParties(doc: jsPDF, receipt: Receipt, cursor: Cursor): void {
     { t: (receipt.client.name?.trim() || "\u2014").toUpperCase(), bold: true, size: 10.5 },
     ...compactLines([
       receipt.client.phone ? `Tlf: ${receipt.client.phone}` : "",
+      receipt.client.email ? receipt.client.email.toUpperCase() : "",
+      receipt.client.city ? receipt.client.city.toUpperCase() : "",
       receipt.client.address ? receipt.client.address.toUpperCase() : "",
     ]).map((t) => ({ t, size: 8.5 })),
   ]);
@@ -484,19 +486,21 @@ function drawSynPagosResumen(
   setStroke(doc, C.borderDark);
   doc.setLineWidth(0.25);
   doc.line(17, fy + 1, 12 + leftW - 5, fy + 1);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.5);
-  setTextColor(doc, C.muted);
-  doc.text("Total abonado", 17, fy + 6.5);
-  doc.setFontSize(9.5);
-  setTextColor(doc, C.ink);
-  const totalBs =
-    options.bsRate && (cur === "USD" || cur === "USDT")
-      ? ` / ${formatearBs(convertirABs(totals.totalPaid, options.bsRate))}`
-      : "";
-  doc.text(`${formatCurrency(totals.totalPaid, cur)}${totalBs}`, 12 + leftW - 5, fy + 6.5, {
-    align: "right",
-  });
+  if (totals.totalPaid > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    setTextColor(doc, C.muted);
+    doc.text("Total abonado", 17, fy + 6.5);
+    doc.setFontSize(9.5);
+    setTextColor(doc, C.ink);
+    const totalBs =
+      options.bsRate && (cur === "USD" || cur === "USDT")
+        ? ` / ${formatearBs(convertirABs(totals.totalPaid, options.bsRate))}`
+        : "";
+    doc.text(`${formatCurrency(totals.totalPaid, cur)}${totalBs}`, 12 + leftW - 5, fy + 6.5, {
+      align: "right",
+    });
+  }
 
   // ── Tarjeta RESUMEN ──
   doc.setFont("helvetica", "bold");
@@ -525,7 +529,9 @@ function drawSynPagosResumen(
   doc.setLineWidth(0.15);
   doc.line(rightX + 6, sy - 2.5, rightX + rightW - 6, sy - 2.5);
   fila("Total", formatCurrency(totals.total, cur), true, C.ink, 11.5);
-  fila("Total abonado", formatCurrency(totals.totalPaid, cur), false, TEAL, 9.5);
+  if (totals.totalPaid > 0) {
+    fila("Total abonado", formatCurrency(totals.totalPaid, cur), false, TEAL, 9.5);
+  }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   setTextColor(doc, TEAL);
