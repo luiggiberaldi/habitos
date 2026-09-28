@@ -108,3 +108,8 @@ Los RPC que llama la web deben aceptar el JWT del navegador (`auth.uid() = p_use
 - Lección del bug del coach: `mer_movimientos.anulado_en` debe filtrarse en cada consulta que lea precios/compras. El inventario y el WhatsApp ya lo hacían; el coach (0026) no, y datos de prueba anulados llegaron a la UI como "Arroz subió 11.1%".
 - Regla: al crear cualquier RPC/vista sobre `mer_movimientos` con `tipo='compra'`, incluir siempre `and m.anulado_en is null`.
 - Los datos de prueba anulados NO se borran de la DB del usuario sin preguntar: se dejan como historial y se hacen invisibles con el filtro.
+
+## 2026-09-28 — Deploy vs pestaña abierta: pedir recarga antes de investigar
+- Incidente: tras desplegar el fix del historial de tasas, luigi seguía viendo cifras distintas arriba/abajo. La DB estaba correcta; su pestaña corría el bundle del deploy anterior (el fix llegó minutos después de que abriera la app).
+- Regla: ante un reporte de "datos inconsistentes" justo después de un deploy, primero pedirle que cierre/recargue la app y verifique de nuevo. Solo investigar si persiste en la versión nueva.
+- El SW (`public/sw.js`) usa network-first en navegaciones, así que recargar trae el bundle nuevo; `/_next/static/` es cache-first pero con hashes de contenido ( URLs nuevas = código nuevo).

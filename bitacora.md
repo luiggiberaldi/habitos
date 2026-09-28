@@ -865,3 +865,10 @@ luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en
 - Fix: al pulsar "Actualizar" en la tarjeta de tasas, el historial se remontaba con datos viejos (leía `fin_tasas` una sola vez). Ahora se remonta con `key` y relee los valores frescos.
 - Nota de implementación: en 0034 el primer intento usó `cross join` entre tasa_hoy y tasa_7d, lo que vaciaba el resultado cuando aún no hay 7 días de historia; se cambió a `left join` para que `hoy` siempre esté presente aunque `pct_7d` sea null.
 - Deploy 7b8f4590: `vercel --prod` → https://habitos-amber.vercel.app/ 200, /coach 200.
+
+## 2026-09-28 — Inicio: patrimonio en el encabezado
+
+luigi pidió ver el saldo actual en el inicio.
+- El banner naranja del hub ahora muestra "Patrimonio" con el total en USD grande y el desglose por cuenta (Bs · $ · USDT); toca y abre /finanzas.
+- Se reutiliza `listarCuentasConSaldos()` (ya se llamaba en el hub); el estado ahora guarda las cuentas y el patrimonio se deriva con `patrimonioUsd`. La tarjeta de Finanzas en "Tus espacios" sigue igual.
+- tsc limpio. Sin push/deploy (pendiente de autorización).

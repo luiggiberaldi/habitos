@@ -8,6 +8,7 @@ import { nivelEfectivo, NIVELES } from "../lib/habitos/gamificacion";
 import { completadosPara, esDescanso, todayKey } from "../lib/habitos/dates";
 import { flameGradient } from "../lib/core/ui/design-tokens";
 import { listarCuentasConSaldos, patrimonioUsd } from "../lib/finanzas/finanzas";
+import type { FinCuentaConSaldo } from "../lib/finanzas/types";
 import { merRpc } from "../lib/mercado/mercado";
 import { obtenerBriefing } from "../lib/coach/coach";
 import { AvatarNivel } from "../components/AvatarNivel";
@@ -60,14 +61,35 @@ export default function Hub() {
     return f.charAt(0).toUpperCase() + f.slice(1);
   }, []);
 
-  const [patrimonio, setPatrimonio] = useState<number | null>(null);
+  const [cuentas, setCuentas] = useState<FinCuentaConSaldo[]>([]);
+  const [cuentasOk, setCuentasOk] = useState(false);
+  const patrimonio = useMemo(
+    () => (cuentasOk ? patrimonioUsd(cuentas) : null),
+    [cuentas, cuentasOk],
+  );
+  const fmt2 = useMemo(
+    () => new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    [],
+  );
+  const desgloseCuentas = useMemo(() => {
+    if (!cuentasOk) return null;
+    const partes = cuentas
+      .filter((c) => c.saldoMoneda !== 0)
+      .map((c) => {
+        const n = fmt2.format(c.saldoMoneda);
+        if (c.moneda === "VES") return `Bs ${n}`;
+        if (c.moneda === "USD") return `$ ${n}`;
+        return `${n} ${c.moneda}`;
+      });
+    return partes.length > 0 ? partes.join(" · ") : null;
+  }, [cuentas, cuentasOk, fmt2]);
   const [mercadoResumen, setMercadoResumen] = useState<string | null>(null);
   const [coachLinea, setCoachLinea] = useState<string | null>(null);
   useEffect(() => {
     let vivo = true;
     listarCuentasConSaldos()
-      .then((c) => { if (vivo) setPatrimonio(patrimonioUsd(c)); })
-      .catch(() => { if (vivo) setPatrimonio(null); });
+      .then((c) => { if (vivo) { setCuentas(c); setCuentasOk(true); } })
+      .catch(() => { if (vivo) setCuentasOk(false); });
     merRpc.inventario()
       .then((inv) => {
         if (!vivo) return;
@@ -113,6 +135,15 @@ export default function Hub() {
           <h1 className="mt-0.5 text-2xl font-bold tracking-tight">
             {nombre ? `Hola, ${nombre}` : "Hola"}
           </h1>
+          {patrimonio !== null && (
+            <Link href="/finanzas" className="mt-3 block" aria-label="Ver finanzas">
+              <p className="text-xs font-medium uppercase tracking-wide text-white/85">Patrimonio</p>
+              <p className="text-3xl font-bold tracking-tight">$ {fmt2.format(patrimonio)}</p>
+              {desgloseCuentas !== null && (
+                <p className="mt-1 text-xs text-white/85">{desgloseCuentas}</p>
+              )}
+            </Link>
+          )}
           {coachLinea !== null && (
             <Link
               href="/coach"
@@ -212,7 +243,7 @@ export default function Hub() {
               <span className="block text-xs text-muted">
                 {patrimonio === null
                   ? "Cuentas, gastos e ingresos del hogar"
-                  : `Patrimonio: $ ${new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(patrimonio)}`}
+                  : `Patrimonio: $ ${fmt2.format(patrimonio)}`}
               </span>
             </span>
             <IconChevronDerecha className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
