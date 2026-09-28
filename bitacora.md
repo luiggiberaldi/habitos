@@ -872,3 +872,9 @@ luigi pidió ver el saldo actual en el inicio.
 - El banner naranja del hub ahora muestra "Patrimonio" con el total en USD grande y el desglose por cuenta (Bs · $ · USDT); toca y abre /finanzas.
 - Se reutiliza `listarCuentasConSaldos()` (ya se llamaba en el hub); el estado ahora guarda las cuentas y el patrimonio se deriva con `patrimonioUsd`. La tarjeta de Finanzas en "Tus espacios" sigue igual.
 - tsc limpio. Sin push/deploy (pendiente de autorización).
+
+## 2026-09-28 — Deploy: push + vercel --prod (autorizado por luigi)
+
+- Push: 15 commits (master 7b9e73ad → 67c2da9) vía git-push.py, ok.
+- Deploy `vercel --prod` a habitos-amber, build ok, prod responde 200.
+- Incluye: patrimonio en el encabezado del inicio, perfil del emisor en recibos WhatsApp, fix spawnSync + hora explícita en sueño, historial de XP, historial de tasas (BCV/Euro/USDT), coach sin paralelo, catálogo editar/borrar, recibos garantía/cuotas/observaciones, borrar recibo.
