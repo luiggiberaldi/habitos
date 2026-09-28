@@ -163,21 +163,34 @@ export default function CoachPage() {
 
             <section>
               <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-2">Tasas</h2>
-              <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 flex items-center gap-3">
-                <span className="shrink-0 w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-300">
-                  <IconReloj className="w-5 h-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">
-                    Paralelo {briefing.tasas.paralelo_hoy !== null ? `Bs ${Number(briefing.tasas.paralelo_hoy).toLocaleString("es-VE")}` : "—"}
-                  </p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {briefing.tasas.pct_7d !== null
-                      ? `${briefing.tasas.pct_7d >= 0 ? "+" : ""}${briefing.tasas.pct_7d}% en 7 días`
-                      : "Sin historial de 7 días aún"}
-                  </p>
-                </div>
-                <Link href="/" className="ml-auto text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+              <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 space-y-2.5">
+                {(
+                  [
+                    ["BCV", briefing.tasas.bcv],
+                    ["Euro", briefing.tasas.euro],
+                    ["USDT", briefing.tasas.usdt],
+                  ] as Array<[string, { hoy: number | null; pct_7d: number | null }]>
+                ).map(([nombre, t]) => (
+                  <div key={nombre} className="flex items-center gap-3">
+                    <span className="shrink-0 w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-300">
+                      <IconReloj className="w-5 h-5" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {nombre}{" "}
+                        {t.hoy !== null
+                          ? `Bs ${Number(t.hoy).toLocaleString("es-VE")}`
+                          : "—"}
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {t.pct_7d !== null
+                          ? `${t.pct_7d >= 0 ? "+" : ""}${t.pct_7d}% en 7 días`
+                          : "Sin historial de 7 días aún"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                <Link href="/" className="ml-auto text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1 pt-1">
                   <IconEstadisticas className="w-4 h-4" /> Tasas del día
                 </Link>
               </div>

@@ -15,6 +15,12 @@ export interface CoachCorrelacion {
   datos: Record<string, unknown>;
 }
 
+export interface TasaMovimiento {
+  hoy: number | null;
+  hace_7d: number | null;
+  pct_7d: number | null;
+}
+
 export interface CoachBriefing {
   ventana: { desde: string; hasta: string };
   habitos: { completados_7d: number; completados_7d_prev: number };
@@ -34,7 +40,7 @@ export interface CoachBriefing {
     deudas_pendientes_usd: number;
     deudas_vencen_7d: number;
   };
-  tasas: { paralelo_hoy: number | null; paralelo_7d: number | null; pct_7d: number | null };
+  tasas: { bcv: TasaMovimiento; euro: TasaMovimiento; usdt: TasaMovimiento };
   correlaciones: CoachCorrelacion[];
 }
 

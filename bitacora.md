@@ -858,3 +858,9 @@ luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en
 - Commits 407d3b41 (historial + fix coach) y 314cae95 (tasas visibles: BCV/Euro/USDT, sin paralelo) pusheados a master y desplegados con `vercel --prod`.
 - https://habitos-amber.vercel.app/ → 200.
 - Regla confirmada por luigi: el paralelo es interno (Finanzas lo usa para VES→USD) y no se muestra en UI; visibles: BCV, Euro, USDT.
+
+## 2026-09-28 — Coach sin paralelo + fix historial desactualizado
+- Regla de luigi: el paralelo no se muestra en ninguna UI. Migración `0034_coach_tasas_visibles.sql` (aplicada, HTTP 201): `rpc_coach_briefing` ahora expone `tasas` como `{bcv,euro,usdt}` con `{hoy,hace_7d,pct_7d}` cada una; la correlación "El paralelo se movió…" se reemplazó por la tasa visible con mayor movimiento ≥3% en 7 días (`tasa_movimiento`). Verificado en vivo: sin menciones a paralelo, sin arroz fantasma.
+- `app/coach/page.tsx`: la sección Tasas muestra las 3 tasas visibles con su % 7d. `lib/coach/coach.ts`: tipos actualizados.
+- Fix: al pulsar "Actualizar" en la tarjeta de tasas, el historial se remontaba con datos viejos (leía `fin_tasas` una sola vez). Ahora se remonta con `key` y relee los valores frescos.
+- Nota de implementación: en 0034 el primer intento usó `cross join` entre tasa_hoy y tasa_7d, lo que vaciaba el resultado cuando aún no hay 7 días de historia; se cambió a `left join` para que `hoy` siempre esté presente aunque `pct_7d` sea null.

@@ -25,6 +25,7 @@ export default function TarjetaTasas() {
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(false);
   const [verHistorial, setVerHistorial] = useState(false);
+  const [historialKey, setHistorialKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,6 +54,9 @@ export default function TarjetaTasas() {
     setError(null);
     try {
       setTasas(await obtenerTasas(true));
+      // El historial lee fin_tasas directo: remontarlo para que relea
+      // los valores recién actualizados en vez de quedarse con los viejos.
+      setHistorialKey((k) => k + 1);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "No se pudieron actualizar las tasas",
@@ -153,7 +157,7 @@ export default function TarjetaTasas() {
               aria-hidden="true"
             />
           </button>
-          {verHistorial && <HistorialTasas />}
+          {verHistorial && <HistorialTasas key={historialKey} />}
         </div>
       )}
     </section>
