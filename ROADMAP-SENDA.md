@@ -171,7 +171,7 @@ Objetivo: comprobantes de pago/cobro en PDF con el diseño de recibera
    (reenviar "sí" no duplica el recibo).
 9. Diseño del PDF: se mantiene el de recibera; solo cambian marca, colores y textos.
 
-### Fase 6 — Catálogo comercial y cartera de clientes ✅ COMPLETADA 2026-09-28
+### Fase 6 — Catálogo comercial y cartera de clientes 🚧 EN CURSO (iniciada 2026-09-28)
 Objetivo (pedido de luigi 2026-09-28): catálogo de sus productos + registro de clientes,
 cada uno con su cartera para saber cuánto le deben o cuánto debe él.
 
