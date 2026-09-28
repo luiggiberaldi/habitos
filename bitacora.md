@@ -358,3 +358,13 @@
 **Por qué:** pedido de luigi con screenshot del dropdown cuadrado de Repetición.
 
 **Verificación:** `grep "<select"` en app/components → vacío; tsc limpio; eslint limpio en el componente.
+
+## 2026-09-28 — E2E euro en producción + etiqueta "Euro BCV"
+
+**Qué cambió:**
+- Etiqueta visible de la tarjeta y el formulario manual: "Euro" → "Euro BCV" (es la tasa oficial BCV del euro).
+- Deploy a producción (vercel --prod) con el cambio del euro y las reglas UI.
+
+**Por qué:** pedido literal de luigi ("tasa bcv euro").
+
+**Verificación:** `GET https://habitos-amber.vercel.app/api/tasas?refresh=1` → `{"ok":true,"fecha":"2026-09-27","bcv":855.66,"paralelo":952.1,"euro":972.65,"usdt":966.75,"fuente":"DolarAPI + CriptoYa","desactualizada":false}` — euro fresco del día. Home responde 200.

@@ -106,7 +106,7 @@ export default function TarjetaTasas() {
   const filas = tasas
     ? [
         { nombre: "BCV", valor: tasas.bcv },
-        { nombre: "Euro", valor: tasas.euro },
+        { nombre: "Euro BCV", valor: tasas.euro },
         { nombre: "USDT", valor: tasas.usdt },
       ]
     : [];
@@ -197,7 +197,7 @@ export default function TarjetaTasas() {
             <div className="mt-2 grid grid-cols-3 gap-2">
               {[
                 { etiqueta: "BCV", valor: fBcv, set: setFBcv },
-                { etiqueta: "Euro", valor: fEuro, set: setFEuro },
+                { etiqueta: "Euro BCV", valor: fEuro, set: setFEuro },
                 { etiqueta: "USDT", valor: fUsdt, set: setFUsdt },
               ].map((c) => (
                 <label key={c.etiqueta} className="block">
