@@ -69,3 +69,37 @@ export function formatoFechaCorta(iso: string): string {
   ];
   return `${d} ${meses[m - 1]} ${y}`;
 }
+
+export type FilaTasa = {
+  fecha: string;
+  bcv: number | null;
+  paralelo: number | null;
+  usdt: number | null;
+};
+
+/**
+ * Historial de tasas (Fase 0.4+). Lee `fin_tasas` directo: la lectura es
+ * pública por RLS. Devuelve las últimas `dias` filas ordenadas por fecha
+ * ascendente. Con pocos días devuelve lo que haya; el componente decide qué
+ * estadísticas son calculables.
+ */
+export async function obtenerHistorialTasas(
+  dias = 90,
+): Promise<FilaTasa[]> {
+  const { getSupabase } = await import("./supabase");
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Sin conexión con la nube");
+  const { data, error } = await supabase
+    .from("fin_tasas")
+    .select("fecha,bcv,paralelo,usdt")
+    .order("fecha", { ascending: false })
+    .limit(Math.max(2, Math.min(365, dias)));
+  if (error) throw new Error(error.message.slice(0, 120));
+  const filas = ((data ?? []) as FilaTasa[]).reverse();
+  return filas.map((f) => ({
+    fecha: f.fecha,
+    bcv: f.bcv === null ? null : Number(f.bcv),
+    paralelo: f.paralelo === null ? null : Number(f.paralelo),
+    usdt: f.usdt === null ? null : Number(f.usdt),
+  }));
+}

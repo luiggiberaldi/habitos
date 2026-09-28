@@ -426,3 +426,21 @@ export function IconMas({ className = cls }: IconProps) {
     </svg>
   );
 }
+
+export function IconTendenciaSube({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M23 6l-9.5 9.5-5-5L1 18" />
+      <path d="M17 6h6v6" />
+    </svg>
+  );
+}
+
+export function IconTendenciaBaja({ className = cls }: IconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M23 18l-9.5-9.5-5 5L1 6" />
+      <path d="M17 18h6v-6" />
+    </svg>
+  );
+}

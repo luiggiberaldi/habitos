@@ -841,3 +841,15 @@ luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en
 - `lib/recibos/pdf/synaptica.ts`: nueva sección OBSERVACIONES (antes solo existía en el builder genérico).
 - Bug real encontrado y corregido: `out()` hacía console.log + process.exit, lo que trunca el pipe con salidas grandes — «recibo pdf» por el router fallaba siempre (el base64 del PDF se cortaba). Ahora usa writeSync(1) en whatsapp-recibos.mjs y whatsapp-router.mjs.
 - Verificado de punta a punta con el flujo real del router (mock): el PDF muestra "Pago en cuotas", calendario de cuotas, "GARANTÍA VIGENTE 30 días" y OBSERVACIONES.
+
+## 2026-09-28 — Fix coach: compras anuladas contaminaban "productos que subieron"
+- Bug: `mer_sub` en `rpc_coach_briefing` (migración 0026) tomaba las dos últimas compras de cada producto SIN filtrar `anulado_en`. Las compras de prueba anuladas del fixeo de Mercado aparecían como "Arroz subió 11.1%" ($1,8000 → $2,0000) aunque luigi nunca puso precio al arroz.
+- Migración `0033_coach_fix_anulados.sql`: reemplaza la función completa añadiendo `and mm.anulado_en is null` en las dos subconsultas laterales. Aplicada en Supabase (HTTP 201); verificado en vivo con el secreto: `productos_subieron: []`, correlaciones vacías.
+- Las filas de prueba anuladas se dejan en la DB (historial); ya no afectan a ninguna lectura de precios.
+
+## 2026-09-28 — Historial de tasas en la tarjeta del hub (local, sin deploy)
+- `lib/core/tasas.ts`: `obtenerHistorialTasas(dias)` — lee `fin_tasas` directo (RLS lectura pública), últimas N filas ordenadas asc.
+- `components/HistorialTasas.tsx` (nuevo): por tasa (BCV/Paralelo/USDT) muestra valor actual, variación 7d/30d con iconos de tendencia propios y sparkline SVG de 30 días; sección "Tendencia por día de semana" (día con mayor subida/bajada promedio, mín. 4 muestras por día; con pocos datos muestra mensaje de espera).
+- `lib/core/ui/icons.tsx`: `IconTendenciaSube`, `IconTendenciaBaja` (estilo feather, stroke 1.8).
+- `components/TarjetaTasas.tsx`: botón "Ver historial de tasas" que despliega la sección.
+- tsc/eslint limpios, `npm run build` OK. Pendiente: autorización de luigi para commit+push+deploy.

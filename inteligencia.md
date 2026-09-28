@@ -103,3 +103,8 @@ Los RPC que llama la web deben aceptar el JWT del navegador (`auth.uid() = p_use
 - `matchHabito` estaba duplicado entre `whatsapp-comun.mjs` y `whatsapp-registrar.mjs`: el fix fue a la copia equivocada y el bug siguió vivo. Regla: una sola implementación del matcher difuso, en el módulo común; los scripts la importan.
 - El matcher ahora tolera conjugaciones del mismo verbo (raíz común ≥ 5 caracteres: "cepille" ↔ "cepillarse", "acoste" ↔ "acostarse"). Umbral conservador para no generar falsos positivos; los empates siguen resolviéndose como "ambiguo".
 - El diseño de sueño guarda la hora real en `completions.created_at` (no hay columna de hora): un backfill con hora explícita debe re-escribir `created_at` al momento real, o la duración de la noche y los momentos anclados calculan mal. El XP por puntualidad ya sale correcto porque se computa en memoria con la hora explícita.
+
+## 2026-09-28 — Anulación lógica: filtrarla en TODA lectura de precios
+- Lección del bug del coach: `mer_movimientos.anulado_en` debe filtrarse en cada consulta que lea precios/compras. El inventario y el WhatsApp ya lo hacían; el coach (0026) no, y datos de prueba anulados llegaron a la UI como "Arroz subió 11.1%".
+- Regla: al crear cualquier RPC/vista sobre `mer_movimientos` con `tipo='compra'`, incluir siempre `and m.anulado_en is null`.
+- Los datos de prueba anulados NO se borran de la DB del usuario sin preguntar: se dejan como historial y se hacen invisibles con el filtro.

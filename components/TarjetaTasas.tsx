@@ -10,8 +10,10 @@ import {
 import {
   IconActualizar,
   IconAlerta,
+  IconChevronAbajo,
   IconEstadisticas,
 } from "../lib/core/ui/icons";
+import HistorialTasas from "./HistorialTasas";
 
 /**
  * Tarjeta "Tasas del día" del hub. Muestra BCV ($), Euro (BCV) y USDT con
@@ -22,6 +24,7 @@ export default function TarjetaTasas() {
   const [tasas, setTasas] = useState<TasasDelDia | null>(null);
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(false);
+  const [verHistorial, setVerHistorial] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -134,6 +137,24 @@ export default function TarjetaTasas() {
           <IconAlerta className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {error}
         </p>
+      )}
+
+      {!cargando && tasas && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setVerHistorial((v) => !v)}
+            aria-expanded={verHistorial}
+            className="inline-flex w-full items-center justify-between rounded-2xl bg-surface-2 px-3 py-2 text-xs font-bold text-foreground transition-opacity hover:opacity-80"
+          >
+            {verHistorial ? "Ocultar historial" : "Ver historial de tasas"}
+            <IconChevronAbajo
+              className={`h-4 w-4 text-muted transition-transform ${verHistorial ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+          </button>
+          {verHistorial && <HistorialTasas />}
+        </div>
       )}
     </section>
   );
