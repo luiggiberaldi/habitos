@@ -2,7 +2,7 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
-## 2026-09-27 (resumen del día contaba 0 momentos con Tomar agua activo — fix)
+## 2026-09-27 (resumen del día contaba 0 momentos con Tomar agua activo — DESPLEGADO a producción)
 
 - luigi reportó con screenshot: "Tomar agua está activo y sigue diciendo 0".
 - Causa: el resumen del día (`app/habitos/page.tsx`) calculaba
