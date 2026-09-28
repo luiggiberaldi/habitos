@@ -62,7 +62,13 @@ Objetivo: el núcleo compartido sobre el que se montan los módulos. Hábitos no
    tokens `#0C3544`/`#4CBF9A`, hub "Hoy en Senda" + barra inferior. Rename del repo en GitHub.
 2. **Extracción de `lib/core/`** (mecánica): sync, AuthGate, UI kit, logger, juego → núcleo
    compartido. Sin cambios de comportamiento; se verifica con smokes y en el teléfono de luigi.
+   ✅ Completada 2026-09-28 (commit `c9a4b86`, desplegado a producción).
 3. **Hogar**: `hogares` + `hogar_miembros` + invitación por correo (el admin invita; si la cuenta existe, entra directo).
+   ✅ Completada 2026-09-28: migración `0016_hogar.sql` (tablas + 6 RPC SECURITY DEFINER +
+   RLS anti-recursión patrón 0011), `lib/core/hogar.ts`, sección "Hogar" en Ajustes
+   (`components/GestionHogar.tsx`): crear hogar, renombrar, invitar por correo (si no hay
+   cuenta la crea vía crear-usuario y reintenta), expulsar/salir con confirmación en dos
+   toques. Smoke E2E: 15 checks OK contra la nube.
 4. **Servicio de tasas**: `fin_tasas` (fecha, bcv, paralelo, usdt, fuente), proxy servidor, job horario, fallback en cadena. Tasa del día visible con fecha y fuente.
 5. **Motor de recordatorios genérico**: la Edge Function pasa a leer una tabla `recordatorios`
    (hoy hardcodea hábitos). La lógica actual de hábitos se conserva vía adaptador, intacta.

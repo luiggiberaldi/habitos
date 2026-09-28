@@ -2,6 +2,41 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-28 (Hogar — Fase 0.3 — DESPLEGADO a producción)
+
+- luigi: "SIGAMOS CON EL ROAD MAP". Siguiente ítem: Hogar (base de Finanzas/Mercado compartidos).
+- `supabase/migrations/0016_hogar.sql` (aplicada vía Management API, HTTP 201):
+  - `hogares(id, nombre, creado_por, created_at)` y
+    `hogar_miembros(hogar_id, user_id, rol[admin|miembro], created_at)`.
+  - Un usuario → un hogar (múltiples hogares fuera de alcance del roadmap).
+  - RLS activado; membresía en funciones SECURITY DEFINER
+    (`es_miembro_de_hogar`, `es_admin_de_hogar`) para evitar la recursión
+    infinita del 0011. Sin policies de escritura: todo pasa por RPCs.
+  - RPCs: `crear_hogar`, `obtener_mi_hogar` (devuelve miembros con email
+    desde auth.users, sin exponer la tabla), `renombrar_hogar`,
+    `invitar_al_hogar` (por correo: si la cuenta existe entra directo; si
+    no, error `cuenta_no_existe`), `expulsar_del_hogar` (solo a no-admin),
+    `salir_del_hogar` (si era el último miembro elimina el hogar; si era el
+    único admin, asciende al miembro más antiguo).
+- `lib/core/hogar.ts`: helpers del cliente + traducción de códigos de error
+  a mensajes en español; `crearCuentaNube` vía Edge Function crear-usuario.
+- `components/GestionHogar.tsx`: sección "Hogar" en Ajustes (después de
+  Cuenta). Crear hogar, renombrar (admin), lista de miembros, invitar por
+  correo (si no hay cuenta ofrece crearla con clave temporal y reintenta
+  solo), expulsar y salir con confirmación en dos toques. Sin
+  alert()/confirm() nativos; iconos del set propio; respeta las 3 reglas UI.
+- Validación: tsc limpio; eslint 0 errores; build exit 0. Smoke E2E contra
+  la nube simulando la sesión de luigi (15 checks OK): crear, obtener (con
+  soy_admin), invitar con correo inexistente → `cuenta_no_existe`, segundo
+  hogar → `ya_tiene_hogar`, renombrar, invitar cuenta existente → entra
+  directo (2 miembros), expulsar (vuelve a 1), salir como último → hogar
+  eliminado y `obtener_mi_hogar` → null. Datos de prueba limpiados.
+- Commit pusheado a master y desplegado a producción
+  (https://habitos-amber.vercel.app, 200 ok).
+- Nota: la Edge Function `crear-usuario` sigue desplegada; su UI
+  (GestionUsuarios.tsx) había sido eliminada en 51f4a5d — el flujo de
+  "crear cuenta" ahora vive dentro de GestionHogar.
+
 ## 2026-09-27 (resumen del día contaba 0 momentos con Tomar agua activo — DESPLEGADO a producción)
 
 - luigi reportó con screenshot: "Tomar agua está activo y sigue diciendo 0".

@@ -7,6 +7,7 @@ import { useAuth } from "../../components/AuthGate";
 import { desuscribirPush, notificarAhora, prepararNotificaciones, reproducirSonido, suscribirPush } from "../../lib/habitos/notifications";
 import { IconAlerta, IconCampana, IconCerrarSesion, IconDescanso, IconLuna, IconMovimiento, IconPersona, IconSistema, IconSol } from "../../lib/core/ui/icons";
 import AvatarPerfil from "../../components/AvatarPerfil";
+import GestionHogar from "../../components/GestionHogar";
 import { TimeField } from "../../components/core/ui/TimeField";
 
 export default function Ajustes() {
@@ -270,6 +271,9 @@ export default function Ajustes() {
           </span>
         </button>
       </section>
+
+      {/* Hogar: datos compartidos de Senda (Fase 0). */}
+      <GestionHogar />
 
       {/* Zona de peligro */}
       <section className="card border-red-500/30 p-4 sm:p-5">
