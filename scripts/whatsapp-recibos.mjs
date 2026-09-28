@@ -108,6 +108,24 @@ const rpc = crearRpcRecibos(cfg);
 
 // ── Estado: un borrador activo por usuario ───────────────────────────────────
 const ESTADO_PATH = join(HOME, ".config", "habitos", "recibo-borrador.json");
+const EMISOR_PATH = join(HOME, ".config", "habitos", "recibo-emisor.json");
+
+/** Perfil del emisor: RIF/doc, teléfono, email y dirección que van en el PDF. */
+function cargarPerfilEmisor() {
+  try {
+    if (!existsSync(EMISOR_PATH)) return { nombre: "", doc: "", telefono: "", email: "", direccion: "" };
+    const p = JSON.parse(readFileSync(EMISOR_PATH, "utf8"));
+    return {
+      nombre: String(p.nombre || ""),
+      doc: String(p.doc || ""),
+      telefono: String(p.telefono || ""),
+      email: String(p.email || ""),
+      direccion: String(p.direccion || ""),
+    };
+  } catch {
+    return { nombre: "", doc: "", telefono: "", email: "", direccion: "" };
+  }
+}
 function cargarEstado() {
   try {
     if (!existsSync(ESTADO_PATH)) return {};
@@ -120,6 +138,7 @@ function guardarEstadoTodo(estado) {
   mkdirSync(join(HOME, ".config", "habitos"), { recursive: true });
   writeFileSync(ESTADO_PATH, JSON.stringify(estado, null, 2));
 }
+const perfilEmisor = cargarPerfilEmisor();
 const estadoTodo = cargarEstado();
 let miDraft = estadoTodo[cfg.USER_ID] || null;
 function guardarDraft(d) {
@@ -473,8 +492,25 @@ try {
         "• «recibo abonar 100 al SEN-202609-001» → registra un pago",
         "• «recibo borrar SEN-202609-001» → borra un recibo definitivamente",
         "• «recibo duplicar SEN-202609-001» → lo copia como nuevo",
+        "• «recibo emisor» → ver los datos del emisor que salen en el PDF",
         "• «recibo cancelar» → descarta el borrador",
         "Nada se crea sin tu «sí» después del resumen.",
+      ].join("\n"),
+    });
+  }
+
+  // ── emisor: ver perfil ──
+  if (/^emisor$/.test(nq)) {
+    out({
+      ok: true, codigo: "emisor",
+      mensaje: [
+        "Perfil del emisor (sale en el PDF):",
+        `• Nombre: ${perfilEmisor.nombre || "—"}`,
+        `• RIF/doc: ${perfilEmisor.doc || "—"}`,
+        `• Teléfono: ${perfilEmisor.telefono || "—"}`,
+        `• Email: ${perfilEmisor.email || "—"}`,
+        `• Dirección: ${perfilEmisor.direccion || "—"}`,
+        "Si quieres cambiar algo, dímelo y lo actualizo.",
       ].join("\n"),
     });
   }
@@ -501,8 +537,11 @@ try {
         const total = calcularTotal(d.items, d.descuento, d.impuesto);
         const snapshot = {
           emisor: {
-            nombre: d.emisor.nombre, doc: "",
-            telefono: "", email: "", direccion: d.emisor.detalle || "",
+            nombre: d.emisor.nombre,
+            doc: perfilEmisor.doc || "",
+            telefono: perfilEmisor.telefono || "",
+            email: perfilEmisor.email || "",
+            direccion: perfilEmisor.direccion || "",
           },
           clienteTelefono: d.clienteTelefono || "",
           clienteEmail: d.clienteEmail || "",

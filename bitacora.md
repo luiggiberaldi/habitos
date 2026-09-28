@@ -784,3 +784,12 @@ luigi pidió: botón de borrar recibo y quitar el anular.
 ## 2026-09-28 — Recibo real SEN-202609-007 (Yoshanny Pérez)
 
 luigi por nota de voz: recibo para Yoshanny Pérez, 30 gramos de escroto, $15, tel 0412-4051793, dirección Ricardo Urrera, emisor Luigi Beraldi, pagado al contado. Flujo resumen → "sí" → creado → abono $15 en efectivo → PAGADO. PDF regenerado sin datos personales hardcodeados.
+
+## 2026-09-28 — Recibos: perfil del emisor en la lógica (WhatsApp)
+
+luigi: los datos del emisor (RIF, teléfono, email, dirección) tienen que ir en el recibo.
+- Nuevo `~/.config/habitos/recibo-emisor.json` (600, fuera de git) con sus datos; `whatsapp-recibos.mjs` lo carga (`cargarPerfilEmisor`) y lo fusiona en el snapshot al crear: el `emisor:` del mensaje define el nombre, el perfil aporta doc/teléfono/email/dirección.
+- Nuevo comando `recibo emisor` → muestra el perfil actual (vía router).
+- Fix: `perfilEmisor` se evaluaba antes de `EMISOR_PATH` (TDZ) y el catch lo dejaba vacío en silencio.
+- Backfill: snapshot de SEN-202609-007 con los datos del emisor; PDF regenerado.
+- La app ya persistía el perfil del emisor en localStorage (`senda-recibo-emisor`); sin cambios ahí.
