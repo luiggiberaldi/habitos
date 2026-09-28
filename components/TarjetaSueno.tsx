@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatHoraA12, hhmmDeFecha, hhmmDeTimestamp, todayKey } from "../lib/habitos/dates";
+import { formatHoraA12, hhmmDeFecha, hhmmDeTimestamp, moverFecha, todayKey } from "../lib/habitos/dates";
 import { nochesSueno, nocheParaAcostar } from "../lib/habitos/gamificacion";
 import { IconAjustes, IconCheck, IconLuna, IconSol, IconX } from "../lib/core/ui/icons";
 import { TimeField } from "./core/ui/TimeField";
@@ -9,6 +9,23 @@ import { useStoreActions, useStoreState } from "../lib/habitos/store-context";
 import type { Habit, MarcaSueno } from "../lib/habitos/types";
 
 /* --------------------------- Modal de confirmación --------------------------- */
+
+const MESES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+/**
+ * "27 → 28 de sep": periodo de la noche activa (la noche → la mañana
+ * siguiente). Si cruza de mes: "30 de sep → 1 de oct".
+ */
+function rangoNoche(noche: string): string {
+  const fin = moverFecha(noche, 1);
+  const parte = (f: string) => {
+    const [, m, d] = f.split("-").map(Number);
+    return { dia: d, mes: MESES_CORTO[m - 1] };
+  };
+  const a = parte(noche);
+  const b = parte(fin);
+  return a.mes === b.mes ? `${a.dia} → ${b.dia} de ${b.mes}` : `${a.dia} de ${a.mes} → ${b.dia} de ${b.mes}`;
+}
 
 interface ModalHoraState {
   cual: MarcaSueno;
@@ -266,6 +283,8 @@ export function TarjetaSueno({ habit }: { habit: Habit }) {
   const evento = (cual: MarcaSueno, fecha: string) =>
     completions.find((c) => c.habitId === habit.id && c.momentId === cual && c.fecha === fecha) ?? null;
   const nocheAcostar = nocheParaAcostar(new Date(), (cual, fecha) => evento(cual, fecha) !== null);
+  // Periodo de fechas de la noche activa (p. ej. "27 → 28 de sep").
+  const rangoActivo = rangoNoche(nocheAcostar);
 
   const levantarHoy = evento("levantar", hoy);
   const acostarNoche = evento("acostar", nocheAcostar);
@@ -311,8 +330,9 @@ export function TarjetaSueno({ habit }: { habit: Habit }) {
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-bold text-fg">Sueño</h2>
-            <p className="truncate text-xs text-muted">
+            <p className="text-xs text-muted">
               {formatHoraA12(habit.horaAcostar ?? "22:00")} → {formatHoraA12(habit.horaLevantar ?? "06:00")}
+              <span className="font-semibold text-fg"> · {rangoActivo}</span>
               {horasTexto ? ` · Anoche: ${horasTexto}` : ""}
             </p>
           </div>

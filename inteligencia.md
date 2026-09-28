@@ -97,3 +97,9 @@ Los RPC que llama la web deben aceptar el JWT del navegador (`auth.uid() = p_use
 ## 2026-09-28 — console.log + process.exit trunca el pipe en salidas grandes
 - Los scripts que imprimen JSON a stdout y terminan con `process.exit()` pierden la cola del pipe cuando la salida es grande (el base64 de un PDF se cortaba a los ~64-146KB). `console.log` a un pipe es asíncrono; el exit mata el proceso antes de drenar.
 - Fix: `writeSync(1, JSON.stringify(obj) + "\n")` antes del exit. Aplicado en `scripts/whatsapp-recibos.mjs` y `scripts/whatsapp-router.mjs`. Regla: todo script CLI que emita JSON para otro proceso debe usar writeSync.
+
+## Puente WhatsApp: horas explícitas y match (2026-09-28)
+- `norm()` (minúsculas, sin tildes, `[^a-z0-9 ]` → espacio) destruye los ":" — cualquier feature que busque `HH:MM` en el texto normalizado falla en silencio ("1:40" → "1 40"). Las horas explícitas se extraen del texto CRUDO, antes de normalizar.
+- `matchHabito` estaba duplicado entre `whatsapp-comun.mjs` y `whatsapp-registrar.mjs`: el fix fue a la copia equivocada y el bug siguió vivo. Regla: una sola implementación del matcher difuso, en el módulo común; los scripts la importan.
+- El matcher ahora tolera conjugaciones del mismo verbo (raíz común ≥ 5 caracteres: "cepille" ↔ "cepillarse", "acoste" ↔ "acostarse"). Umbral conservador para no generar falsos positivos; los empates siguen resolviéndose como "ambiguo".
+- El diseño de sueño guarda la hora real en `completions.created_at` (no hay columna de hora): un backfill con hora explícita debe re-escribir `created_at` al momento real, o la duración de la noche y los momentos anclados calculan mal. El XP por puntualidad ya sale correcto porque se computa en memoria con la hora explícita.

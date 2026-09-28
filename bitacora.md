@@ -2,6 +2,17 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-28 (Rango de fechas en tarjeta Sueño + fixes del puente WhatsApp — DESPLEGADO a producción)
+
+- luigi (viendo captura de la tarjeta): "añade aca el periodo de fecha que esta activo en el sueño".
+- components/TarjetaSueno.tsx: el subtítulo ahora muestra el rango de la noche activa — `rangoNoche(nocheAcostar)` → "27 → 28 de sep" (cruce de mes: "30 de sep → 1 de oct"). Usa `nocheParaAcostar`, la misma noche a la que apunta el botón "Me acosté", así lo mostrado y lo que se marca coinciden. Quedó: "10:00 p. m. → 8:00 a. m. · 27 → 28 de sep · Anoche: 6.5 h / 8 h".
+- Puente WhatsApp (scripts), dos bugs encontrados al anotar el sueño de luigi ("me acoste a la 1:40"):
+  - `whatsapp-registrar.mjs`: la hora explícita nunca se detectaba — `norm()` elimina los ":" ("1:40" → "1 40") antes del regex. Ahora se extrae del texto crudo. Sin el fix, la marca quedó con la hora de registro (08:36) en vez de la real (01:40).
+  - `matchHabito` estaba duplicado: el registrar tenía su propia copia local y no usaba la de `whatsapp-comun.mjs`. Se eliminó la copia; el registrar importa el compartido. Además el compartido ganó regla de raíz común (prefijo ≥ 5): "me cepille" ahora matchea "cepillarse los dientes" (conjugaciones del mismo verbo).
+- Corrección de datos (SQL directo, perfil 7d6374eb): `completions.created_at` de `acostar|2026-09-27` → 01:40 y de `levantar|2026-09-28` → 08:10 (el diseño guarda la hora real en created_at; no hay columna de hora); `game_state.historialXp` ts de la entrada −10 de acostar → 01:40. El XP no cambió (−10 en ambos casos: 220 min tarde vs objetivo 22:00).
+- Registros de luigi 2026-09-28: acostado 1:40 (−10 XP), levantado 8:10 (−10 XP), cepillarse los dientes al levantarme (+15 XP, momento ancla "Al levantarme"). xpTotal 95.
+- Validación: tsc limpio; push a GitHub ok; deploy a habitos-amber.
+
 ## 2026-09-28 (Plan de fixeo Mercado/Alacena — IMPLEMENTADO, pendiente subir)
 
 - luigi: "crea un plan de fixeo completo e implementa" (tras la auditoría E2E: renombrar a Alacena + los tres P0 juntos aprobados).

@@ -20,7 +20,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { cargarLib, resolverPerfilId } from "./whatsapp-comun.mjs";
+import { cargarLib, matchHabito, resolverPerfilId } from "./whatsapp-comun.mjs";
 
 // ── 0. Forzar zona horaria de luigi (madrugadas y todayKey dependen de hora local) ──
 if (process.env.TZ !== "America/Caracas") {
@@ -117,7 +117,7 @@ function mockRpc(fn) {
 // lib/core + lib/habitos) ────────────────────────────────────────────────────
 const { d, e, g, j, s } = cargarLib();
 
-// ── 4. Match difuso del hábito ───────────────────────────────────────────────
+// ── 4. Match difuso del hábito: se usa el compartido de whatsapp-comun.mjs ──
 const norm = (str) =>
   String(str || "")
     .toLowerCase()
@@ -126,30 +126,6 @@ const norm = (str) =>
     .replace(/[^a-z0-9 ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-const SINONIMOS = { beber: "tomar", ejercicio: "entrenar", correr: "trotar" };
-const expandir = (str) => norm(str).split(" ").map((t) => SINONIMOS[t] || t).join(" ");
-
-function matchHabito(habits, q) {
-  const nq = expandir(q);
-  const activos = habits.filter((h) => h.estado === "activo");
-  const rank = activos
-    .map((h) => {
-      const nh = expandir(h.nombre);
-      let score = 0;
-      if (nh === nq) score = 100;
-      else if (nh.includes(nq) || nq.includes(nh)) score = 80;
-      else {
-        const tq = new Set(nq.split(" ").filter((t) => t.length > 2));
-        const th = new Set(nh.split(" "));
-        const inter = [...tq].filter((t) => th.has(t));
-        if (inter.length > 0) score = 40 + 10 * inter.length;
-      }
-      return { h, score };
-    })
-    .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score);
-  return rank;
-}
 
 // ── 5. Flujo principal ───────────────────────────────────────────────────────
 const main = async () => {
@@ -181,7 +157,9 @@ const main = async () => {
     habit = sueno;
     args.moment = suenoForzado;
     // Hora explícita ("me acosté a las 1:40"): se respeta en vez de la hora actual.
-    const mh = norm(args.q || "").match(/\b(\d{1,2}):(\d{2})\b/);
+    // OJO: norm() elimina los ":" ("1:40" -> "1 40"), por eso se extrae del
+    // texto crudo y no del normalizado.
+    const mh = String(args.q || "").match(/(\d{1,2}):(\d{2})/);
     if (mh) args.horaSueno = `${mh[1].padStart(2, "0")}:${mh[2]}`;
   } else if (args.habit) {
     habit = habits.find((h) => h.id === args.habit) || habits.find((h) => norm(h.nombre) === norm(args.habit));

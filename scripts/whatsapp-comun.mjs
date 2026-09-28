@@ -135,6 +135,13 @@ export const norm = (str) =>
 const SINONIMOS = { beber: "tomar", ejercicio: "entrenar", correr: "trotar" };
 export const expandir = (str) => norm(str).split(" ").map((t) => SINONIMOS[t] || t).join(" ");
 
+/** Longitud del prefijo común entre dos tokens ("cepille"/"cepillarse" → 6). */
+function prefijoComun(a, b) {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n++;
+  return n;
+}
+
 export function matchHabito(habits, q) {
   const nq = expandir(q);
   return habits
@@ -145,10 +152,15 @@ export function matchHabito(habits, q) {
       if (nh === nq) score = 100;
       else if (nh.includes(nq) || nq.includes(nh)) score = 80;
       else {
-        const tq = new Set(nq.split(" ").filter((t) => t.length > 2));
-        const th = new Set(nh.split(" "));
-        const inter = [...tq].filter((t) => th.has(t));
-        if (inter.length > 0) score = 40 + 10 * inter.length;
+        const tq = nq.split(" ").filter((t) => t.length > 2);
+        const th = nh.split(" ");
+        let hits = 0;
+        for (const t of new Set(tq)) {
+          if (th.includes(t)) { hits += 2; continue; }
+          // Misma raíz con otra conjugación ("cepille" vs "cepillarse").
+          if (th.some((x) => prefijoComun(t, x) >= 5)) hits += 1;
+        }
+        if (hits > 0) score = 40 + 10 * hits;
       }
       return { h, score };
     })
