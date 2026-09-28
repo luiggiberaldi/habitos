@@ -27,6 +27,7 @@ import {
   type FinTipoMov,
 } from "../../lib/finanzas/types";
 import { Select } from "../../components/core/ui/Select";
+import { DatosFinanzas } from "../../components/finanzas/DatosFinanzas";
 import { flameGradient } from "../../lib/core/ui/design-tokens";
 import {
   IconAlerta,
@@ -568,6 +569,7 @@ export default function Finanzas() {
   const [semana, setSemana] = useState<FinResumenDia[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"resumen" | "datos">("resumen");
 
   const recargar = useCallback(async () => {
     setError(null);
@@ -634,6 +636,28 @@ export default function Finanzas() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       <Encabezado patrimonio={patrimonio} cargando={cargando} />
 
+      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-surface p-1.5" role="tablist" aria-label="Secciones de Finanzas">
+        {(
+          [
+            { id: "resumen", etiqueta: "Resumen" },
+            { id: "datos", etiqueta: "Datos" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={`min-w-0 rounded-xl px-2 py-2 text-center text-sm font-bold transition-colors ${
+              tab === t.id ? "bg-accent text-white" : "text-muted hover:text-foreground"
+            }`}
+          >
+            {t.etiqueta}
+          </button>
+        ))}
+      </div>
+
       {error && (
         <p className="inline-flex items-center gap-1.5 rounded-2xl border border-border bg-surface px-4 py-3 text-xs font-bold text-accent" role="alert">
           <IconAlerta className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -641,7 +665,9 @@ export default function Finanzas() {
         </p>
       )}
 
-      <section aria-labelledby="fin-cuentas">
+      {tab === "resumen" ? (
+        <>
+          <section aria-labelledby="fin-cuentas">
         <div className="mb-3 flex items-center justify-between">
           <h2 id="fin-cuentas" className="text-base font-bold text-foreground">Cuentas</h2>
         </div>
@@ -662,19 +688,19 @@ export default function Finanzas() {
             <FormNuevaCuenta onLista={recargar} />
           </div>
         )}
-      </section>
+        </section>
 
-      <section aria-labelledby="fin-registrar">
+        <section aria-labelledby="fin-registrar">
         <h2 id="fin-registrar" className="mb-3 text-base font-bold text-foreground">Registrar movimiento</h2>
         <FormMovimiento cuentas={cuentas} onListo={recargar} />
-      </section>
+        </section>
 
-      <section aria-labelledby="fin-semana">
+        <section aria-labelledby="fin-semana">
         <h2 id="fin-semana" className="mb-3 text-base font-bold text-foreground">Esta semana</h2>
         <ResumenSemanal dias={semana} />
-      </section>
+        </section>
 
-      <section aria-labelledby="fin-historial">
+        <section aria-labelledby="fin-historial">
         <h2 id="fin-historial" className="mb-3 text-base font-bold text-foreground">Movimientos</h2>
         {movimientos.length === 0 ? (
           <p className="text-sm text-muted">Sin movimientos todavía.</p>
@@ -684,8 +710,12 @@ export default function Finanzas() {
               <FilaMovimiento key={m.id} mov={m} onAnular={anular} />
             ))}
           </ul>
-        )}
-      </section>
+            )}
+          </section>
+        </>
+        ) : (
+        <DatosFinanzas patrimonio={patrimonio} />
+      )}
     </div>
   );
 }

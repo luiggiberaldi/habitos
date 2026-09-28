@@ -1,7 +1,8 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "./AuthGate";
 import AvatarPerfil from "./AvatarPerfil";
 import Logo from "./Logo";
@@ -18,16 +19,16 @@ const tabs: NavItem[] = [
   { href: "/habitos", label: "Hábitos", icon: IconLista },
   { href: "/finanzas", label: "Finanzas", icon: IconMaletin },
   { href: "/mercado", label: "Mercado", icon: IconCaja },
-  // "Más" agrupa en móvil lo que no cabe: logros, niveles, estadísticas, ajustes.
-  { href: "/mas", label: "Más", icon: IconMas, match: ["/mas", "/logros", "/niveles", "/estadisticas", "/ajustes"] },
+  // "Más" agrupa en móvil lo que no cabe en la barra: ajustes, control y coach.
+  { href: "/mas", label: "Más", icon: IconMas, match: ["/mas", "/ajustes", "/control", "/coach"] },
 ];
 
-/** Sección Hábitos (solo sidebar desktop). */
-const seccionHabitos: NavItem[] = [
-  { href: "/logros", label: "Logros", icon: IconTrofeo },
-  { href: "/niveles", label: "Niveles", icon: IconMedalla },
+/** Sección Hábitos (solo sidebar desktop): pestañas internas de /habitos. */
+const seccionHabitos: (NavItem & { tab: string })[] = [
+  { href: "/habitos?tab=logros", label: "Logros", icon: IconTrofeo, tab: "logros" },
+  { href: "/habitos?tab=niveles", label: "Niveles", icon: IconMedalla, tab: "niveles" },
   // { href: "/liga", label: "Liga", icon: IconUsuarios }, // ← pestaña oculta por ahora
-  { href: "/estadisticas", label: "Estadísticas", icon: IconEstadisticas },
+  { href: "/habitos?tab=datos", label: "Datos", icon: IconEstadisticas, tab: "datos" },
 ];
 
 function estaActivo(item: NavItem, pathname: string): boolean {
@@ -36,7 +37,17 @@ function estaActivo(item: NavItem, pathname: string): boolean {
 }
 
 export default function Nav() {
+  return (
+    <Suspense>
+      <Navegacion />
+    </Suspense>
+  );
+}
+
+function Navegacion() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tabHabitos = pathname === "/habitos" ? (searchParams.get("tab") ?? "hoy") : null;
   const { perfil, salirAPerfil } = useAuth();
   const { sincronizarAhora } = useStoreActions();
   const { state } = useStoreState();
@@ -92,9 +103,9 @@ export default function Nav() {
           })}
           <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wide text-muted">Hábitos</p>
           {seccionHabitos.map((item) => {
-            const activo = estaActivo(item, pathname);
+            const activo = tabHabitos === item.tab;
             const Icon = item.icon;
-            const conPremios = item.href === "/logros" && pendientes > 0;
+            const conPremios = item.tab === "logros" && pendientes > 0;
             return (
               <Link
                 key={item.href}

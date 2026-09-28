@@ -159,7 +159,7 @@ export default function Hub() {
           </div>
         </div>
         <Link
-          href="/niveles"
+          href="/habitos?tab=niveles"
           className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-3 py-1.5 text-xs font-bold text-accent transition-colors hover:opacity-80"
         >
           Ver niveles

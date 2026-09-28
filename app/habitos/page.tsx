@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useStoreActions, useStoreState } from "../../lib/habitos/store-context";
 import { useAuth } from "../../components/AuthGate";
+import { VistaLogros } from "../../components/habitos/VistaLogros";
+import { VistaNiveles } from "../../components/habitos/VistaNiveles";
+import { VistaDatos } from "../../components/habitos/VistaDatos";
 import {
   PUNTOS_OBJETIVO_DIARIO,
   PUNTOS_POR_REGISTRO,
@@ -82,7 +86,7 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
         titulo: e.titulo,
         detalle: e.detalle,
         efecto: "trofeo",
-        accion: { etiqueta: "Ir a reclamar", href: "/logros" },
+        accion: { etiqueta: "Ir a reclamar", href: "/habitos?tab=logros" },
       };
     }
     case "cofre":
@@ -109,7 +113,7 @@ function celebracionParaEvento(e: EventoJuego): CelebracionData | null {
   }
 }
 
-export default function Inicio() {
+function VistaHoy() {
   const { state } = useStoreState();
   const { registrar, registrarSueno, deshacer, posponerHabit } = useStoreActions();
   const { user, perfilId } = useAuth();
@@ -383,7 +387,7 @@ export default function Inicio() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="flex w-full flex-col gap-6">
       {/* Header sticky: banner con el degradado del nivel actual */}
       <header className="sticky top-0 z-20 -mx-4 bg-background/85 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div
@@ -454,7 +458,7 @@ export default function Inicio() {
               </button>
             )}
             <Link
-              href="/niveles"
+              href="/habitos?tab=niveles"
               className="ml-auto inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-bold transition-colors hover:bg-white/30"
             >
               Ver niveles
@@ -1122,3 +1126,75 @@ function CantidadCard({
   );
 }
 
+
+/* --- Pestañas del módulo Hábitos: Hoy | Logros | Niveles | Datos --- */
+
+const TABS_HABITOS = [
+  { id: "hoy", etiqueta: "Hoy" },
+  { id: "logros", etiqueta: "Logros" },
+  { id: "niveles", etiqueta: "Niveles" },
+  { id: "datos", etiqueta: "Datos" },
+] as const;
+
+type TabHabitos = (typeof TABS_HABITOS)[number]["id"];
+
+function HabitosConTabs() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const param = searchParams.get("tab");
+  const tab: TabHabitos = TABS_HABITOS.some((t) => t.id === param)
+    ? (param as TabHabitos)
+    : "hoy";
+
+  const cambiarTab = (id: TabHabitos) => {
+    router.replace(id === "hoy" ? "/habitos" : `/habitos?tab=${id}`, { scroll: false });
+  };
+
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <div
+        className="grid grid-cols-4 gap-2 rounded-2xl bg-surface p-1.5"
+        role="tablist"
+        aria-label="Secciones de Hábitos"
+      >
+        {TABS_HABITOS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => cambiarTab(t.id)}
+            className={`min-w-0 rounded-xl px-2 py-2 text-center text-sm font-bold transition-colors ${
+              tab === t.id ? "bg-accent text-white" : "text-muted hover:text-foreground"
+            }`}
+          >
+            {t.etiqueta}
+          </button>
+        ))}
+      </div>
+      {tab === "hoy" ? (
+        <VistaHoy />
+      ) : tab === "logros" ? (
+        <VistaLogros />
+      ) : tab === "niveles" ? (
+        <VistaNiveles />
+      ) : (
+        <VistaDatos />
+      )}
+    </div>
+  );
+}
+
+export default function HabitosPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto w-full max-w-3xl px-4 py-8">
+          <p className="text-sm text-muted">Cargando…</p>
+        </div>
+      }
+    >
+      <HabitosConTabs />
+    </Suspense>
+  );
+}

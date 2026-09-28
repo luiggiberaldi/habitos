@@ -322,3 +322,87 @@ export function formatearMonto(monto: number, moneda: FinMoneda): string {
   }).format(monto);
   return moneda === "USDT" ? `${texto} USDT` : `${simbolo} ${texto}`;
 }
+
+/* --- Datos (estadísticas del módulo Finanzas) --- */
+
+export interface FinDatoMes {
+  clave: string; // YYYY-MM
+  etiqueta: string; // "sep 26"
+  ingresosUsd: number;
+  egresosUsd: number;
+  flujoNetoUsd: number;
+}
+
+export interface FinTopCategoria {
+  categoria: string;
+  usd: number;
+}
+
+export interface FinDatos {
+  meses: FinDatoMes[];
+  topCategorias: FinTopCategoria[];
+  totalEgresosMesUsd: number;
+}
+
+const MESES_CORTO_FIN = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+function claveMesCaracas(d: Date): string {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Caracas",
+    year: "numeric",
+    month: "2-digit",
+  }).format(d);
+  return partes; // YYYY-MM
+}
+
+/**
+ * Datos para la vista "Datos" de Finanzas: balance de los últimos 6 meses
+ * (ingresos/egresos en USD con la tasa histórica de cada movimiento) y las
+ * categorías donde más se gastó en el mes actual.
+ */
+export async function obtenerDatosFinanzas(): Promise<FinDatos> {
+  const movs = await listarMovimientos(2000);
+  const ahora = new Date();
+  const meses: FinDatoMes[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
+    const clave = claveMesCaracas(d);
+    const anio = Number(clave.slice(0, 4));
+    const mes = Number(clave.slice(5, 7));
+    meses.push({
+      clave,
+      etiqueta: `${MESES_CORTO_FIN[mes - 1]} ${String(anio).slice(2)}`,
+      ingresosUsd: 0,
+      egresosUsd: 0,
+      flujoNetoUsd: 0,
+    });
+  }
+  const porClave = new Map(meses.map((m) => [m.clave, m]));
+  const porCategoria = new Map<string, number>();
+  const claveMesActual = claveMesCaracas(ahora);
+  for (const m of movs) {
+    const usd = Math.round(m.monto * m.tasaUsd * 100) / 100;
+    const mes = porClave.get(m.fecha.slice(0, 7));
+    if (mes) {
+      if (m.tipo === "ingreso") mes.ingresosUsd += usd;
+      else if (m.tipo === "egreso") mes.egresosUsd += usd;
+    }
+    if (m.tipo === "egreso" && m.fecha.slice(0, 7) === claveMesActual) {
+      const cat = m.categoria?.trim() || "Sin categoría";
+      porCategoria.set(cat, (porCategoria.get(cat) ?? 0) + usd);
+    }
+  }
+  for (const m of meses) {
+    m.ingresosUsd = Math.round(m.ingresosUsd * 100) / 100;
+    m.egresosUsd = Math.round(m.egresosUsd * 100) / 100;
+    m.flujoNetoUsd = Math.round((m.ingresosUsd - m.egresosUsd) * 100) / 100;
+  }
+  const topCategorias = [...porCategoria.entries()]
+    .map(([categoria, usd]) => ({ categoria, usd: Math.round(usd * 100) / 100 }))
+    .sort((a, b) => b.usd - a.usd)
+    .slice(0, 5);
+  const totalEgresosMesUsd = Math.round(
+    [...porCategoria.values()].reduce((a, b) => a + b, 0) * 100,
+  ) / 100;
+  return { meses, topCategorias, totalEgresosMesUsd };
+}

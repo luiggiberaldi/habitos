@@ -96,3 +96,59 @@ export const fmtCantidad = (n: number | null | undefined) =>
   n === null || n === undefined
     ? "—"
     : new Intl.NumberFormat("es-VE", { maximumFractionDigits: 2 }).format(n);
+
+/* --- Datos (estadísticas del módulo Mercado) --- */
+
+export interface MerGastoProducto {
+  nombre: string;
+  usd: number;
+}
+
+export interface MerGastoMensual {
+  totalUsd: number;
+  nCompras: number;
+  porProducto: MerGastoProducto[];
+}
+
+function inicioMesCaracas(): string {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Caracas",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
+  return `${partes}-01`; // YYYY-MM-01
+}
+
+/**
+ * Gasto real en mercado del mes actual (compras no anuladas), en USD usando
+ * la tasa histórica guardada en cada movimiento. Lectura directa con RLS
+ * (dueño o miembro del hogar).
+ */
+export async function gastoMensualMercado(): Promise<MerGastoMensual> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Sin conexión con la base de datos");
+  const { data, error } = await supabase
+    .from("mer_movimientos")
+    .select("precio_total, tasa_usd, mer_productos!inner(nombre)")
+    .eq("tipo", "compra")
+    .gte("fecha", inicioMesCaracas())
+    .is("anulado_en", null);
+  if (error) throw new Error(`No se pudo cargar el gasto del mes: ${error.message.slice(0, 120)}`);
+  const porProducto = new Map<string, number>();
+  let total = 0;
+  let n = 0;
+  for (const f of (data ?? []) as Record<string, unknown>[]) {
+    const usd = Number(f.precio_total) * Number(f.tasa_usd);
+    if (!Number.isFinite(usd) || usd <= 0) continue;
+    total += usd;
+    n++;
+    const prod = (f.mer_productos ?? {}) as Record<string, unknown>;
+    const nombre = String(prod.nombre ?? "Sin nombre");
+    porProducto.set(nombre, (porProducto.get(nombre) ?? 0) + usd);
+  }
+  const lista = [...porProducto.entries()]
+    .map(([nombre, usd]) => ({ nombre, usd: Math.round(usd * 100) / 100 }))
+    .sort((a, b) => b.usd - a.usd)
+    .slice(0, 5);
+  return { totalUsd: Math.round(total * 100) / 100, nCompras: n, porProducto: lista };
+}

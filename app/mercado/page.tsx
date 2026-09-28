@@ -18,6 +18,7 @@ import {
 import { listarCuentasConSaldos } from "../../lib/finanzas/finanzas";
 import { MONEDAS, type FinCuentaConSaldo } from "../../lib/finanzas/types";
 import { Select } from "../../components/core/ui/Select";
+import { DatosMercado } from "../../components/mercado/DatosMercado";
 import { flameGradient } from "../../lib/core/ui/design-tokens";
 import {
   IconAlerta,
@@ -96,16 +97,17 @@ function Tabs({
   pendientes,
 }: {
   tab: string;
-  setTab: (t: "inventario" | "lista" | "registrar") => void;
+  setTab: (t: "inventario" | "lista" | "registrar" | "datos") => void;
   pendientes: number;
 }) {
   const items = [
     { id: "inventario", etiqueta: "Inventario" },
     { id: "lista", etiqueta: `Lista${pendientes ? ` (${pendientes})` : ""}` },
     { id: "registrar", etiqueta: "Registrar" },
+    { id: "datos", etiqueta: "Datos" },
   ] as const;
   return (
-    <div className="grid grid-cols-3 gap-2 rounded-2xl bg-surface p-1.5">
+    <div className="grid grid-cols-4 gap-2 rounded-2xl bg-surface p-1.5">
       {items.map((t) => (
         <button
           key={t.id}
@@ -247,7 +249,7 @@ function TarjetaProducto({
 }
 
 export default function MercadoPage() {
-  const [tab, setTab] = useState<"inventario" | "lista" | "registrar">("inventario");
+  const [tab, setTab] = useState<"inventario" | "lista" | "registrar" | "datos">("inventario");
   const [inventario, setInventario] = useState<MerInventarioItem[]>([]);
   const [lista, setLista] = useState<MerListaItem[]>([]);
   const [presupuesto, setPresupuesto] = useState<MerPresupuesto | null>(null);
@@ -758,6 +760,8 @@ export default function MercadoPage() {
               </div>
             </section>
           )}
+
+          {tab === "datos" && <DatosMercado />}
         </>
       )}
 

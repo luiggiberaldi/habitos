@@ -3,20 +3,20 @@
 import Link from "next/link";
 import {
   IconAjustes,
+  IconCampana,
   IconChevronDerecha,
-  IconEstadisticas,
-  IconMedalla,
-  IconTrofeo,
+  IconEstrella,
 } from "../../lib/core/ui/icons";
 
 /**
- * "Más" — accesos del módulo Hábitos que no caben en la barra inferior
- * de la suite (Logros, Niveles, Estadísticas, Ajustes).
+ * "Más" — lo que no cabe en la barra inferior y no pertenece a un módulo:
+ * Ajustes, más accesos directos a Control y Coach (que no tienen pestaña
+ * propia en la barra). Logros, Niveles y Estadísticas viven ahora dentro
+ * de la pestaña Hábitos.
  */
 const ENLACES = [
-  { href: "/logros", etiqueta: "Logros", detalle: "Tu sala de trofeos", Icono: IconTrofeo },
-  { href: "/niveles", etiqueta: "Niveles", detalle: "Los 9 niveles y tu progreso", Icono: IconMedalla },
-  { href: "/estadisticas", etiqueta: "Estadísticas", detalle: "Tus números en el tiempo", Icono: IconEstadisticas },
+  { href: "/control", etiqueta: "Control", detalle: "Recordatorios, presupuestos, deudas y metas", Icono: IconCampana },
+  { href: "/coach", etiqueta: "Coach", detalle: "Señales cruzadas de tu semana", Icono: IconEstrella },
   { href: "/ajustes", etiqueta: "Ajustes", detalle: "Cuenta, usuarios y la app", Icono: IconAjustes },
 ];
 
@@ -36,7 +36,7 @@ export default function Mas() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-base font-bold text-foreground">{etiqueta}</span>
-              <span className="block truncate text-xs text-muted">{detalle}</span>
+              <span className="block text-xs text-muted">{detalle}</span>
             </span>
             <IconChevronDerecha className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
           </Link>

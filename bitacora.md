@@ -2,6 +2,23 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-09-28 (Reorganización: cada módulo dueño de sus datos — PENDIENTE despliegue)
+
+- luigi: "¿Es buena idea llevar lo de hábitos a la pestaña de hábito? …quiero estadísticas de Finanzas y de mercado, ¿qué propones?" → propuesta aprobada: Logros/Niveles/Estadísticas se mudan a pestañas internas de Hábitos; Finanzas y Mercado ganan su propia vista "Datos"; "Más" queda solo con Ajustes + accesos a Control y Coach.
+- `/habitos` ahora tiene pestañas Hoy | Logros | Niveles | Datos (`?tab=`, con `router.replace` sin scroll):
+  - `components/habitos/VistaLogros.tsx`, `VistaNiveles.tsx`, `VistaDatos.tsx` extraídos de las páginas (mismo contenido, sin el contenedor de página; Niveles perdió su botón "atrás" redundante).
+  - La vista Hoy quedó visualmente igual (mismo banner, tarjetas y secciones; solo ganó la barra de pestañas arriba).
+  - `/logros`, `/niveles`, `/estadisticas` ahora redirigen a `/habitos?tab=…` (server components con `redirect()`); el hub ("Ver niveles") y los avisos internos apuntan a las pestañas.
+  - `components/Nav.tsx`: la sección Hábitos del sidebar desktop apunta a las pestañas y resalta la activa (vía `useSearchParams` + `Suspense`); el badge de premios por reclamar sigue en Logros; "Más" ahora agrupa `/mas`, `/ajustes`, `/control`, `/coach`.
+- `/finanzas`: pestañas Resumen | Datos.
+  - `lib/finanzas/finanzas.ts`: `obtenerDatosFinanzas()` — balance USD de los últimos 6 meses (tasa histórica de cada movimiento) y top 5 categorías de egreso del mes actual.
+  - `components/finanzas/DatosFinanzas.tsx`: balance mensual (barras ingresos/egresos + neto), patrimonio en el tiempo (reconstruido: patrimonio actual − flujos posteriores) y "dónde se fue el dinero este mes". Tono serio, sin XP.
+- `/mercado`: pestaña nueva "Datos" (barra pasa a 4 columnas).
+  - `lib/mercado/mercado.ts`: `gastoMensualMercado()` — compras del mes no anuladas en USD (tasa histórica del movimiento), lectura directa con RLS.
+  - `components/mercado/DatosMercado.tsx`: presupuesto estimado vs gastado real (barra de ejecución con % y alerta si excede), top 5 productos por gasto del mes y "precios al alza" (variación % positiva del inventario).
+- `/mas`: solo Control (recordatorios, presupuestos, deudas y metas), Coach (señales cruzadas) y Ajustes. Sin `truncate` en los detalles.
+- Validación: tsc limpio; eslint 0 errores en los 17 archivos tocados; `npm run build` exit 0 (17/17 rutas).
+
 ## 2026-09-28 (Hogar — Fase 0.3 — DESPLEGADO a producción)
 
 - luigi: "SIGAMOS CON EL ROAD MAP". Siguiente ítem: Hogar (base de Finanzas/Mercado compartidos).
