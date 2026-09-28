@@ -742,3 +742,9 @@
 
 - luigi: "el logo de synaptica muevelo 3mm a la derecha y 3mm hacia abajo". Posición 20,5 → 23,8 (ancho 24mm sin cambios). Sigue fuera del triángulo y sin chocar con "RECIBO".
 - Muestra v5 regenerada con el generador real.
+
+## 2026-09-28 — Footer PDF Synaptica: dirección +4mm abajo, logo a la esquina
+
+- luigi (viendo captura del footer): dirección ("...VALENCIA") 4mm hacia abajo (fy+13.5 → fy+17.5).
+- Logo del footer: +4mm abajo (y 279→283). Los 15mm a la derecha que pidió (x 191→206) sacaban el logo 8mm fuera de la página (mide 12mm, la página termina en 210); se llevó hasta el borde x=198, sobre el triángulo naranja de la esquina.
+- Muestra v6 regenerada con el generador real.

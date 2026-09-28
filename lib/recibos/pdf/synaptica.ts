@@ -725,7 +725,8 @@ function drawSynFooter(
   doc.line(PAGE.w, fy, 184, PAGE.h);
   if (options.logoDataUrl) {
     try {
-      doc.addImage(options.logoDataUrl, "PNG", 191, 279, 12, (12 * 1614) / 1904);
+      // +4mm abajo y a la derecha hasta el borde (x=198: con 15mm se salía de la página).
+      doc.addImage(options.logoDataUrl, "PNG", 198, 283, 12, (12 * 1614) / 1904);
     } catch {
       /* sin logo */
     }
@@ -753,7 +754,7 @@ function drawSynFooter(
   doc.setFontSize(7.5);
   setTextColor(doc, FOOT_TXT);
   doc.text(em.email, 181, fy + 8.5, { align: "right" });
-  doc.text(`${em.direccion}, ${SYN.ciudad}`, 181, fy + 13.5, { align: "right" });
+  doc.text(`${em.direccion}, ${SYN.ciudad}`, 181, fy + 17.5, { align: "right" });
 
   doc.setFontSize(6);
   setTextColor(doc, HEAD_SUB);
