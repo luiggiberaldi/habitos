@@ -113,3 +113,11 @@ Los RPC que llama la web deben aceptar el JWT del navegador (`auth.uid() = p_use
 - Incidente: tras desplegar el fix del historial de tasas, luigi seguía viendo cifras distintas arriba/abajo. La DB estaba correcta; su pestaña corría el bundle del deploy anterior (el fix llegó minutos después de que abriera la app).
 - Regla: ante un reporte de "datos inconsistentes" justo después de un deploy, primero pedirle que cierre/recargue la app y verifique de nuevo. Solo investigar si persiste en la versión nueva.
 - El SW (`public/sw.js`) usa network-first en navegaciones, así que recargar trae el bundle nuevo; `/_next/static/` es cache-first pero con hashes de contenido ( URLs nuevas = código nuevo).
+
+## 2026-09-28 — Embeddings locales con transformers.js: quirks de instalación
+- El proxy de egress tumba la descarga de tarballs grandes en npm (ECONNRESET en TLS): `sharp` (dep dura de @huggingface/transformers, solo se usa para imágenes) falló 2 veces. Solución: bajar el tgz con `curl --retry` y `npm cache add <tgz>`, luego `npm install --prefer-offline --ignore-scripts`.
+- `--omit=optional` NO sirve si el paquete problemático es dependencia regular (sharp lo es en v4).
+- El postinstall de `onnxruntime-node` descarga el binario nativo a TMPDIR: /tmp es un tmpfs de 512MB y se llena (ENOSPC). Usar `TMPDIR=~/workspace/.tmp node ./script/install.js` manual tras `--ignore-scripts`.
+- `@huggingface/transformers` v4 no acepta `import` de directorio en ESM (ERR_UNSUPPORTED_DIR_IMPORT): importar el archivo exacto `dist/transformers.node.mjs` por `file://` URL, o `require()` el `.cjs` (tiene ambos).
+- `env.cacheDir` por defecto cae dentro de `node_modules/@huggingface/transformers/.cache` (se pierde al reinstalar): fijarlo a una ruta estable fuera de node_modules.
+- e5 exige prefijos distintos para docs (`passage: `) y queries (`query: `): el mismo texto crudo en guardar vs buscar da distancia ~0.05, no 0. Los tests de "distancia exacta 0" hay que relajarlos a un umbral medido.

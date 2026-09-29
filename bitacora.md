@@ -878,3 +878,24 @@ luigi pidió ver el saldo actual en el inicio.
 - Push: 15 commits (master 7b9e73ad → 67c2da9) vía git-push.py, ok.
 - Deploy `vercel --prod` a habitos-amber, build ok, prod responde 200.
 - Incluye: patrimonio en el encabezado del inicio, perfil del emisor en recibos WhatsApp, fix spawnSync + hora explícita en sueño, historial de XP, historial de tasas (BCV/Euro/USDT), coach sin paralelo, catálogo editar/borrar, recibos garantía/cuotas/observaciones, borrar recibo.
+
+## 2026-09-28 — Memoria conversacional de Senda (prototipo pgvector)
+
+luigi pidió "algo chiquito" para memoria del asistente + tests deterministas.
+- Migración `0035_memoria.sql` (aplicada, HTTP 201): extensión `vector`, tabla `senda_memorias` (user_id, texto, embedding vector(64), modulo, created_at), índice HNSW coseno, RLS sin policies (denegar directo) + 3 RPC SECURITY DEFINER con el secreto conversacional (`rpc_senda_memoria_guardar/buscar/borrar`). Validan dimensión=64 y texto no vacío.
+- `scripts/senda-memoria.mjs`: CLI JSON (`guardar|buscar|borrar|listar --q`, `--modulo`, `--limite`) sobre `whatsapp-comun.mjs` (cargarConfig/crearRpc, HABITOS_MOCK=1 = tienda en memoria). Embedder DETERMINISTA local: minúsculas, sin acentos, unigramas+bigramas, FNV-1a → 64 dims, L2. Sin API key ni red.
+- `scripts/test-senda-memoria.mjs`: 12 tests deterministas (`node --test`), 12/12 pass, idénticos entre corridas. Incluye oráculo independiente que reimplementa la spec del embedder y valida el ranking (el oráculo detectó una desviación real en su propia normalización durante el desarrollo).
+- Prueba en vivo: guardar→buscar→borrar ok contra Supabase real; secreto incorrecto ⇒ `forbidden` (fail-closed verificado).
+- Limitación honesta: el embedder local mide palabras compartidas, no semántica profunda. Para semántica real se enchufa otro `embed()` y se migra la columna a la nueva dimensión.
+- Sin commit (pendiente de revisión de luigi).
+
+## 2026-09-28 — Memoria de Senda: embedder local e5 (OpenAI bloqueado en VE)
+
+luigi reportó que OpenAI está bloqueado en Venezuela → se descartó `text-embedding-3-small`.
+- Migración `0036_memoria_e5.sql` (aplicada, HTTP 201): purga filas con dims viejas, columna `embedding` → `vector(384)`, índice HNSW recreado, RPC guardar/buscar validan 384 dims. (Primer intento falló: `create index if not exists public.nombre` — el schema va en la tabla, no en el nombre del índice.)
+- `scripts/senda-embed.mjs` (nuevo): `multilingual-e5-small` (Xenova) vía `@huggingface/transformers`, 384 dims, CPU, determinista bit a bit, L2-normalizado. Documentos con `passage: `, consultas con `query: ` (convención e5). Modelo (465MB) en `~/workspace/senda-memoria/.model-cache`, carga perezosa (~5s la primera vez por proceso). El paquete vive en `senda-memoria/node_modules` y se importa por ruta absoluta (evita reinstalar ~500MB en este repo); `SENDA_MODEL_CACHE` permite mover el caché.
+- `scripts/senda-memoria.mjs`: ahora usa `embedDoc` (guardar) / `embedQuery` (buscar) de senda-embed.mjs; se eliminó el embedder hash FNV (quedó en git history).
+- `scripts/test-senda-memoria.mjs`: 13 tests, 13/13 pass. El oráculo FNV se eliminó (no se puede reimplementar una red neuronal); T4 ahora valida ranking semántico + estabilidad entre corridas, T4b valida cercanía doc/query del mismo texto (<0.15), T5 ajustado: mismo texto crudo da distancia ~0.05 (no 0) por los prefijos distintos.
+- Prueba en vivo: guardar → buscar ("dónde compro el arroz" recuperó "el arroz lo compro en Makro", distancia 0.12) → borrar → buscar vacío. Todo ok contra Supabase real.
+- Quirks de instalación (documentados también en inteligencia.md): el proxy de egress tumba tarballs grandes (sharp falló 2×; resuelto con `npm cache add` del tgz bajado por curl + `--prefer-offline --ignore-scripts`); el binario nativo de onnxruntime necesitó `TMPDIR=~/workspace/.tmp` porque /tmp (tmpfs 512MB) se llenó (ENOSPC).
+- Sin commit (pendiente de revisión de luigi).
