@@ -121,3 +121,9 @@ Los RPC que llama la web deben aceptar el JWT del navegador (`auth.uid() = p_use
 - `@huggingface/transformers` v4 no acepta `import` de directorio en ESM (ERR_UNSUPPORTED_DIR_IMPORT): importar el archivo exacto `dist/transformers.node.mjs` por `file://` URL, o `require()` el `.cjs` (tiene ambos).
 - `env.cacheDir` por defecto cae dentro de `node_modules/@huggingface/transformers/.cache` (se pierde al reinstalar): fijarlo a una ruta estable fuera de node_modules.
 - e5 exige prefijos distintos para docs (`passage: `) y queries (`query: `): el mismo texto crudo en guardar vs buscar da distancia ~0.05, no 0. Los tests de "distancia exacta 0" hay que relajarlos a un umbral medido.
+
+## 2026-10-01 — Parser es-VE en scripts WhatsApp: decimales, tildes y \b
+- `norm()` también destruye los puntos decimales ("120.50" → "120 50" → el regex de montos lo lee mal; "conciliar efectivo 120.50" se interpretó como 50). Regla extendida: cualquier extracción de MONTO sale del texto crudo, nunca de `nq`/`bajo`.
+- Sin flag `u`, `\b` no ve las vocales acentuadas como word-char ("é" no es `[a-z0-9_]` ASCII): `/^le prest[ée]\b/` nunca matchea "le presté ". Usar lookahead `(?=\s|$)` en los prefijos con tilde. Detectado porque "le presté 4300 a Ezequiel" dejaba la contraparte como "preste ezequiel".
+- Patrón de parseo de monto es-VE reutilizable: `/(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/` sobre el crudo + normalización (miles→nada, coma→punto). `parseMontoEsVe` en whatsapp-finanzas.mjs; `extraerMontoYResto` en whatsapp-control.mjs devuelve también el resto para extraer nombre/contraparte.
+- writeSync (regla del 2026-09-28) aplicado también en `whatsapp-control.mjs` y `whatsapp-finanzas.mjs`.

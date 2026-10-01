@@ -22,6 +22,7 @@
 // `x-fin-rpc-secret` (el mismo valor que el de hábitos).
 
 import { randomBytes } from "node:crypto";
+import { writeSync } from "node:fs";
 import { cargarConfig, norm } from "./whatsapp-comun.mjs";
 
 const args = {};
@@ -33,12 +34,40 @@ for (let i = 2; i < process.argv.length; i++) {
     args[k] = v;
   }
 }
-const out = (obj) => { console.log(JSON.stringify(obj)); process.exit(obj.ok ? 0 : 1); };
+// writeSync en vez de console.log+exit: evita truncar salidas grandes por pipe.
+const out = (obj) => { writeSync(1, JSON.stringify(obj) + "\n"); process.exit(obj.ok ? 0 : 1); };
 const q = String(args.q ?? "").trim();
 if (!q) out({ ok: false, codigo: "args", detalle: "se requiere --q \"<texto>\"" });
 
 const CATEGORIAS_EGRESO = ["comida", "mercado", "transporte", "servicios", "vivienda", "salud", "ocio", "ropa", "otros"];
 const CATEGORIAS_INGRESO = ["salario", "ventas", "otros"];
+
+// Mejora 1 (plan 2026-10-01): sugerencia de categoría por palabra clave cuando el
+// usuario no la dice explícita. La mención literal mantiene prioridad (ver detectarCategoria).
+// OJO: norm() quita acentos, las claves van sin tilde.
+const CATEGORIA_KEYWORDS = [
+  ["mercado", ["mercado", "queso", "huevo", "verdura", "mayonesa", "atun", "pasta", "aceite", "arroz", "harina", "pan", "leche", "cafe", "azucar", "carne", "pollo", "pescado", "mantequilla", "toddy", "botellon", "agua", "bodega", "tomate", "cebolla", "papa", "platano", "arepa", "empanada", "refresco", "jugo", "galleta", "chocolate", "sal", "salsa", "compra", "mercado"]],
+  ["servicios", ["comision", "mantenimiento", "banca movil", "internet", "luz", "electricidad", "telefono", "condominio", "aseo", "cantv", "movistar", "digitel"]],
+  ["transporte", ["ridery", "taxi", "pasaje", "gasolina", "transporte", "bus", "moto", "yummy"]],
+  ["salud", ["farmacia", "medico", "medicina", "clinica", "doctor", "salud"]],
+  ["vivienda", ["alquiler", "arriendo", "vivienda"]],
+  ["ocio", ["cine", "fiesta", "ocio"]],
+  ["ropa", ["ropa", "zapato", "camisa", "pantalon", "franela"]],
+];
+const CATEGORIA_INGRESO_KEYWORDS = [
+  ["salario", ["salario", "sueldo", "quincena"]],
+  ["ventas", ["venta", "mercadolibre", "p2p"]],
+];
+
+/** Parsea un monto suelto en formato es-VE (1.234,56) o simple. Devuelve number o null. */
+function parseMontoEsVe(s) {
+  if (!s) return null;
+  let t = String(s).trim();
+  if (t.includes(",") && t.includes(".")) t = t.replace(/\./g, "").replace(",", ".");
+  else if (t.includes(",")) t = t.replace(",", ".");
+  const n = Number(t);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+}
 
 // ── RPC con el header de finanzas (+ mock) ───────────────────────────────────
 function crearRpcFin(cfg) {
@@ -63,6 +92,9 @@ function crearRpcFin(cfg) {
         };
       }
       if (fn === "rpc_fin_anular") return { ok: true, id: params.p_movimiento_id };
+      if (fn === "rpc_fin_cuenta_umbral") return { ok: true, cuenta: "BDV", umbral_bajo: params.p_umbral };
+      if (fn === "rpc_fin_alertas_saldo") return [];
+      if (fn === "rpc_fin_presupuestos") return [];
       throw new Error(`mock sin datos para ${fn}`);
     }
     const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -119,6 +151,13 @@ function detectarCategoria(texto, tipo) {
   const lista = tipo === "ingreso" ? CATEGORIAS_INGRESO : CATEGORIAS_EGRESO;
   for (const c of lista) {
     if (n.includes(` ${c} `)) return c;
+  }
+  // Mejora 1: fallback por palabra clave (sin tilde, plural opcional s/es).
+  const mapa = tipo === "ingreso" ? CATEGORIA_INGRESO_KEYWORDS : CATEGORIA_KEYWORDS;
+  for (const [cat, kws] of mapa) {
+    for (const kw of kws) {
+      if (new RegExp(`\\b${kw}(s|es)?\\b`).test(n)) return cat;
+    }
   }
   return null;
 }
@@ -178,7 +217,7 @@ try {
   if (/^ayuda$/.test(nq)) {
     out({
       ok: true, codigo: "ayuda", modulo: "finanzas",
-      mensaje: "Finanzas por WhatsApp:\n• gasté 5 en pan → registra un gasto\n• ingreso 500 salario → registra un ingreso\n• transferí 100 de efectivo a bolívares\n• saldo → saldos por cuenta\n• movimientos → últimos movimientos\n• anula el último → anula el último movimiento",
+      mensaje: "Finanzas por WhatsApp:\n• gasté 5 en pan → registra un gasto\n• ingreso 500 salario → registra un ingreso\n• transferí 100 de efectivo a bolívares\n• saldo → saldos por cuenta\n• movimientos → últimos movimientos\n• anula el último → anula el último movimiento\n• conciliar bdv → compara libros contra el banco\n• alerta bdv 2000 → avisa si BDV baja de Bs 2.000",
     });
   }
 
@@ -190,9 +229,17 @@ try {
     }
     const lineas = saldos.map((c) => `• ${c.nombre} (${c.moneda}): ${fmtMoneda(c.saldo_moneda, c.moneda)} ≈ $${fmtUsd(c.saldo_usd)}`);
     const total = saldos.reduce((a, c) => a + Number(c.saldo_usd), 0);
+    // Mejora 4: avisar cuentas bajo su umbral.
+    let avisoUmbral = "";
+    try {
+      const bajas = await rpc("rpc_fin_alertas_saldo", { p_user_id: cfg.USER_ID });
+      if (bajas.length) {
+        avisoUmbral = "\n⚠️ Bajo el umbral: " + bajas.map((b) => `${b.nombre} (${fmtMoneda(b.saldo_moneda, b.moneda)} < ${fmtMoneda(b.umbral_bajo, b.moneda)})`).join(", ");
+      }
+    } catch { /* sin umbrales configurados o RPC no disponible: se omite */ }
     out({
       ok: true, codigo: "saldos", cuentas: saldos,
-      mensaje: `Saldos:\n${lineas.join("\n")}\nPatrimonio: $${fmtUsd(total)}`,
+      mensaje: `Saldos:\n${lineas.join("\n")}\nPatrimonio: $${fmtUsd(total)}${avisoUmbral}`,
     });
   }
 
@@ -218,6 +265,90 @@ try {
       ok: true, codigo: "anulado", id: r.id,
       mensaje: `Anulado: ${fmtMoneda(m.monto, m.moneda)} · ${m.categoria ?? m.tipo} (${m.fecha}). El historial se conserva.`,
     });
+  }
+
+  // ── conciliar <cuenta> [monto banco] [ajustar] — mejora 3 (plan 2026-10-01) ──
+  // OJO: se parsea sobre `q` crudo porque norm() elimina los puntos decimales.
+  if (/^conciliar\b/.test(nq)) {
+    let resto = q.replace(/^\s*conciliar\b/i, "").trim();
+    const ajustar = /\bajustar\s*$/i.test(resto);
+    if (ajustar) resto = resto.replace(/\bajustar\s*$/i, "").trim();
+    const mNum = resto.match(/([\d.,]+)\s*$/);
+    let montoBanco = null;
+    if (mNum) {
+      montoBanco = parseMontoEsVe(mNum[1]);
+      resto = resto.slice(0, mNum.index).trim();
+    }
+    const saldos = await rpc("rpc_fin_saldos", { p_user_id: cfg.USER_ID });
+    const cuentas = saldos.map((c) => ({ id: c.id, nombre: c.nombre, moneda: c.moneda, saldo_moneda: c.saldo_moneda }));
+    const cands = matchCuenta(cuentas, resto);
+    let cuenta = null;
+    if (cands.length === 1) cuenta = cands[0].c;
+    else if (cands.length > 1) {
+      out({ ok: false, codigo: "ambiguo", pregunta: `¿Qué cuenta concilio? ${cands.map((x) => x.c.nombre).join(", ")}.`, opciones: cands.map((x) => x.c.nombre), detalle: "varias cuentas coinciden" });
+    } else {
+      out({ ok: false, codigo: "sin-match", detalle: `No encontré la cuenta "${resto}". Di «finanzas conciliar <cuenta>».` });
+    }
+    const saldoLibros = Math.round(Number(cuenta.saldo_moneda) * 100) / 100;
+    if (montoBanco === null) {
+      out({
+        ok: true, codigo: "conciliar_pregunta", cuenta: cuenta.nombre,
+        saldo_libros: saldoLibros, moneda: cuenta.moneda,
+        mensaje: `En libros, ${cuenta.nombre} tiene ${fmtMoneda(saldoLibros, cuenta.moneda)}. ¿Cuánto dice el banco? Responde «conciliar ${cuenta.nombre} <monto>».`,
+      });
+    }
+    const dif = Math.round((montoBanco - saldoLibros) * 100) / 100;
+    if (Math.abs(dif) < 0.01) {
+      out({ ok: true, codigo: "conciliado", cuenta: cuenta.nombre, mensaje: `✅ ${cuenta.nombre} conciliado: libros ${fmtMoneda(saldoLibros, cuenta.moneda)} = banco ${fmtMoneda(montoBanco, cuenta.moneda)}.` });
+    }
+    if (!ajustar) {
+      const dir = dif > 0 ? "el banco tiene de más" : "en libros hay de más";
+      out({
+        ok: true, codigo: "conciliar_diferencia", cuenta: cuenta.nombre,
+        saldo_libros: saldoLibros, saldo_banco: montoBanco, diferencia: dif, moneda: cuenta.moneda,
+        mensaje: `Diferencia en ${cuenta.nombre}: ${dir} ${fmtMoneda(Math.abs(dif), cuenta.moneda)} (libros ${fmtMoneda(saldoLibros, cuenta.moneda)} vs banco ${fmtMoneda(montoBanco, cuenta.moneda)}). Responde «conciliar ${cuenta.nombre} ${montoBanco} ajustar» para registrar el ajuste.`,
+      });
+    }
+    const rAj = await rpc("rpc_fin_registrar", {
+      p_user_id: cfg.USER_ID,
+      p_tipo: dif > 0 ? "ingreso" : "egreso",
+      p_monto: Math.abs(dif),
+      p_cuenta: cuenta.id,
+      p_categoria: null,
+      p_nota: "ajuste conciliación",
+      p_clave_evento: `wa-conc-${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`,
+    });
+    out({
+      ok: true, codigo: "ajuste_registrado", id: rAj.id, cuenta: cuenta.nombre,
+      diferencia: dif, moneda: cuenta.moneda,
+      mensaje: `Ajuste registrado en ${cuenta.nombre}: ${dif > 0 ? "+" : "−"}${fmtMoneda(Math.abs(dif), cuenta.moneda)} (ajuste conciliación). Ahora libros = banco.`,
+    });
+  }
+
+  // ── alerta <cuenta> <monto> | alerta <cuenta> off — mejora 4 (plan 2026-10-01) ──
+  // OJO: se parsea sobre `q` crudo porque norm() elimina los puntos decimales.
+  if (/^alerta\b/.test(nq)) {
+    let resto = q.replace(/^\s*alerta\b/i, "").trim();
+    const off = /\b(off|quitar|ningun[oa])\s*$/i.test(resto);
+    if (off) resto = resto.replace(/\b(off|quitar|ningun[oa])\s*$/i, "").trim();
+    const mNum = resto.match(/([\d.,]+)\s*$/);
+    let umbral = null;
+    if (mNum && !off) {
+      umbral = parseMontoEsVe(mNum[1]);
+      resto = resto.slice(0, mNum.index).trim();
+    }
+    if (!resto) out({ ok: false, codigo: "args", detalle: 'Di «finanzas alerta <cuenta> <monto>» o «finanzas alerta <cuenta> off».' });
+    try {
+      const r = await rpc("rpc_fin_cuenta_umbral", { p_user_id: cfg.USER_ID, p_cuenta: resto, p_umbral: umbral });
+      out({
+        ok: true, codigo: "alerta_umbral", cuenta: r.cuenta, umbral_bajo: r.umbral_bajo,
+        mensaje: umbral === null
+          ? `Alerta de saldo bajo desactivada para ${r.cuenta}.`
+          : `Te avisaré cuando ${r.cuenta} baje de ${fmtMoneda(umbral, "VES")}.`,
+      });
+    } catch (e) {
+      out({ ok: false, codigo: "error", detalle: String(e.message || e).replace(/^.*?: /, "").slice(0, 200) });
+    }
   }
 
   // ── registrar ──
@@ -300,12 +431,41 @@ try {
   if (r.duplicado) {
     out({ ok: true, codigo: "duplicado", id: r.id, mensaje: "Ese movimiento ya estaba registrado." });
   }
+  let extras = "";
+  // Mejora 6: comisión automática de pago móvil (regla de luigi: 0,33%).
+  if (tipo === "egreso" && /pago.?movil/.test(nq)) {
+    const com = Math.round(monto * 0.0033 * 100) / 100;
+    if (com >= 0.01) {
+      try {
+        await rpc("rpc_fin_registrar", {
+          p_user_id: cfg.USER_ID,
+          p_tipo: "egreso",
+          p_monto: com,
+          p_cuenta: cuenta.id,
+          p_categoria: "servicios",
+          p_nota: "comisión pago móvil (0,33%)",
+          p_clave_evento: `wa-com-${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`,
+        });
+        extras += ` Comisión pago móvil (0,33%): ${fmtMoneda(com, r.moneda)} registrada aparte.`;
+      } catch { /* si falla la comisión, el gasto principal ya quedó */ }
+    }
+  }
+  // Mejora 7: aviso si el gasto acerca la categoría a su presupuesto.
+  if (tipo === "egreso" && r.categoria) {
+    try {
+      const pres = await rpc("rpc_fin_presupuestos", { p_user_id: cfg.USER_ID });
+      const p = pres.find((x) => x.categoria === r.categoria);
+      if (p && Number(p.pct) >= 80) {
+        extras += ` ⚠️ Presupuesto ${p.categoria}: ${p.pct}% usado ($${fmtUsd(p.gastado_usd)} de $${fmtUsd(p.limite_usd)}).`;
+      }
+    } catch { /* sin presupuestos: se omite */ }
+  }
   let mensaje;
   if (tipo === "transferencia") {
     mensaje = `Transferencia registrada: ${fmtMoneda(r.monto, r.moneda)} de ${r.cuenta} a ${r.destino} (${fmtMoneda(r.monto_destino, r.moneda_destino)}).`;
   } else {
     const que = r.categoria ?? (nota || tipo);
-    mensaje = `${tipo === "ingreso" ? "Ingreso" : "Gasto"} registrado: ${fmtMoneda(r.monto, r.moneda)} en ${r.cuenta} (${que}).`;
+    mensaje = `${tipo === "ingreso" ? "Ingreso" : "Gasto"} registrado: ${fmtMoneda(r.monto, r.moneda)} en ${r.cuenta} (${que}).${extras}`;
   }
   out({
     ok: true, codigo: "registrado", id: r.id, tipo: r.tipo,

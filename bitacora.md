@@ -899,3 +899,42 @@ luigi reportó que OpenAI está bloqueado en Venezuela → se descartó `text-em
 - Prueba en vivo: guardar → buscar ("dónde compro el arroz" recuperó "el arroz lo compro en Makro", distancia 0.12) → borrar → buscar vacío. Todo ok contra Supabase real.
 - Quirks de instalación (documentados también en inteligencia.md): el proxy de egress tumba tarballs grandes (sharp falló 2×; resuelto con `npm cache add` del tgz bajado por curl + `--prefer-offline --ignore-scripts`); el binario nativo de onnxruntime necesitó `TMPDIR=~/workspace/.tmp` porque /tmp (tmpfs 512MB) se llenó (ENOSPC).
 - Sin commit (pendiente de revisión de luigi).
+
+## 2026-09-30 — Mercado: punto de reorden por producto (pedido de luigi por voz)
+
+luigi: no todo debe pasar a la lista de compras al llegar a cero; cada producto tiene su umbral (ej. harina PAN → 2 kg). Al cruzarlo, el producto entra solo a la lista + se le avisa.
+- Migración `0037_mercado_punto_reorden.sql` (aplicada, HTTP 201): columna `mer_productos.stock_minimo numeric(18,3) not null default 0`; helper interno `mer_pasar_a_lista_si_reorden()` (inserta/reactiva en `mer_lista` como pendiente, devuelve true solo si la lista cambió); `rpc_mer_producto_actualizar` ahora acepta `p_stock_minimo` (firma vieja eliminada por PGRST203) y evalúa al cambiar el umbral; `rpc_mer_movimiento` evalúa tras cada movimiento y devuelve `paso_a_lista`; `rpc_mer_inventario` expone `stock_minimo` + `bajo_minimo`. Auth dual vía `rpc_mer_llamada_ok` (patrón 0028/0029).
+- `scripts/whatsapp-mercado.mjs`: nuevo intent `mercado umbral 2kg de harina` / `mercado mínimo harina 2kg` (también `umbral X 0` = solo en cero); aviso ⚠️ en consumo / se acabó / se dañó / factura cuando cruza el mínimo; `inventario` marca ⚠ y lista "En su mínimo"; ayuda actualizada. Mock actualizado.
+- `scripts/test-punto-reorden.mjs`: E2E contra DB real con producto desechable (desactivado al final), 8/8 asserts ok (fijar umbral con stock 0 → pasa a lista; compra sobre umbral no re-avisa; consumo bajo umbral reactiva; inventario expone campos).
+- En producción: harina de maíz precocida (Mary) con umbral 2 kg (stock actual 3 kg). Nota: luigi dijo "harina PAN"; en el sistema la precocida es Mary — quedó el umbral ahí, él dirá si también quiere en la de trigo (1.5 kg).
+- Sin commit (pendiente de revisión de luigi).
+
+## 2026-10-01 — Mercado a tasa BCV + conciliación BDV (pedido de luigi)
+
+Regla de luigi: "El mercado y la despensa/alacena se calculan a tasa BCV".
+- Migración `0038_mercado_tasa_bcv.sql` (aplicada, HTTP 200): helper `fin_tasa_usd_bcv(p_moneda)` (USD/USDT→1, VES→1/bcv); `rpc_mer_movimiento` redefinido (copia de 0037): el lado Mercado (tasa_usd, tasa_ves guardadas y precio_usd_unitario) usa BCV; el egreso en Finanzas (v_monto_cuenta) sigue convirtiendo con el paralelo — el monto en Bs no cambia. Verificado: `fin_tasa_usd_bcv('VES')` = 1/860,18 con bcv=860,18 / paralelo=954,06. No se reescriben snapshots históricos.
+- Corrección huevo (luigi: "medio cartón son 15 huevos", "Si" a corregir precio): la factura de Distribuidora La Bonanza trae error de imprenta — línea HUEVOS dice Bs 2.398,43 pero 0,500 × 4.798,86 = Bs 2.399,43; el total Bs 7.925,85 sí cuadra y coincide con el cargo del banco. Vía SQL directo (Management API /database/query): compra de huevo 0,5 und @ 2.398,43 → 15 und @ 2.399,43 con tasa BCV (tasa_usd=1/860,18, tasa_ves=860,18); eliminado el ajuste +14,5 und que había puesto como parche; egreso en fin_movimientos 2.398,43 → 2.399,43 (mismo id, se conserva el link). Inventario: Huevo 15 und, $0,19/und, Bs 159,96/und.
+- Conciliación BDV: el banco mostraba Bs 764,86 vs Bs 15.465,86 en libros. Causa: los Bs 14.700 estaban duplicados — (a) venta de $15 en efectivo registrada 12:09 como transferencia $15→Bs 14.311,80 + "diferencia favor venta" Bs 388,20 (= 14.700 exactos), y (b) "pago móvil recibido de otro banco" Bs 14.700 registrado desde la captura. El banco muestra un solo pago móvil de 14.700 y Efectivo quedó en $0 → se anuló (b) vía `rpc_fin_anular`. Más el Bs 1 del huevo, el BDV quedó en Bs 764,86 exactos = banco.
+- Pendiente: movimientos del banco del 29/09 (+7.500, −1.100, −1.500, par ±14.600) no están uno a uno en libros; quedaron absorbidos en los "ajuste conciliación" (+5.400/−3.551,90) de ese día. El total cuadra, pero conviene desglosarlo con luigi. El traspaso de Bs 14.600 sigue sin registrar (espera instrucciones de luigi).
+- Sin commit (pendiente de revisión de luigi).
+
+## 2026-10-01 — Plan de mejoras Senda: Finanzas/Control (pedido de luigi)
+
+luigi pidió el resumen de su economía desde los logs + qué mejorar de Senda; luego "crea un plan de mejoras y aplicarlas".
+- Plan en `plan-mejoras-senda.md` (7 mejoras). Hallazgo de auditoría: `0024_control.sql` YA traía `fin_deudas` (por_cobrar/por_pagar + abonar), `fin_presupuestos` y `fin_recordatorios` con sus RPC — las mejoras son capa WhatsApp + 1 migración chica, no tablas nuevas.
+- Migración `0039_mejoras_finanzas.sql` (aplicada, HTTP 201): `fin_cuentas.umbral_bajo numeric(18,2)` + `rpc_fin_cuenta_umbral` (fijar/limpiar por nombre) + `rpc_fin_alertas_saldo` (cuentas bajo umbral). Verificado en vivo: set 2000 → BDV aparece (764,86 < 2000) → clear → vacío. Umbral real pendiente de que luigi defina el monto.
+- `scripts/whatsapp-finanzas.mjs`:
+  - Mejora 1: `detectarCategoria` con mapa de palabras clave (mercado: queso/huevo/verduras/atún…; servicios: comisión/mantenimiento/banca móvil…; transporte: ridery/taxi…; salud; vivienda). La mención explícita mantiene prioridad. Verificado en mock: "gasté 2400 bs en queso" → mercado.
+  - Mejora 3: `finanzas conciliar <cuenta> [monto] [ajustar]` — muestra saldo en libros, calcula la diferencia contra el banco y con `ajustar` registra el ajuste (la palabra es la confirmación explícita; el monto viaja en el texto, sin estado entre mensajes). Verificado en mock y en vivo (solo lectura): "finanzas conciliar bdv" → Bs 764,86 en libros.
+  - Mejora 4: `finanzas alerta <cuenta> <monto>` / `... off`; `finanzas saldo` añade ⚠️ con las cuentas bajo el umbral.
+  - Mejora 6: si el egreso menciona pago móvil, registra aparte la comisión 0,33% (categoría servicios) y la reporta en la confirmación. Verificado en mock: 4300 → comisión Bs 14,19.
+  - Mejora 7: tras un egreso con categoría bajo presupuesto, si el % usado ≥ 80 añade el aviso a la confirmación.
+  - `out` migrado a `writeSync` (lección de inteligencia.md: console.log+exit trunca por pipe).
+- `scripts/whatsapp-control.mjs`:
+  - Mejora 2: `control me debe Ezequiel 4300` / `control le presté 4300 a Ezequiel` → `rpc_fin_deuda_upsert` por_cobrar (VES por defecto, cuenta BDV por la regla Bs→BDV); `control me pagó Ezequiel 1000` → `rpc_fin_deuda_abonar` (genera el ingreso); `control deudas` ahora muestra "X te debe / le debes a X" con fecha límite.
+  - Mejora 5: `control recuerda <nombre> <monto> cada <día>` → `rpc_fin_recordatorio_upsert` (USD por defecto, aviso 3 días); `control no recordar <nombre>` lo desactiva.
+  - Mejora 7: `control presupuesto <categoría> <monto>` → `rpc_fin_presupuesto_upsert` (USD por defecto, "bs" → VES).
+  - Rama mock agregada a `crearRpc` (no tenía) para verificar sin tocar datos reales; `out` a `writeSync`.
+- Bugs encontrados al probar: (1) `norm()` elimina los puntos decimales — los intents nuevos parsean montos del texto crudo `q`, no de `nq`; (2) `\b` no funciona tras vocal acentuada sin flag `u` ("le presté"/"me pagó") — se usa `(?=\s|$)`; (3) faltaba rama explícita de VES en `detectarMonedaControl` al parametrizar el defecto.
+- Verificación: `node --check` ok, eslint limpio (2 warnings de var no usada corregidos), mocks de todos los intents nuevos ok, RPC reales de lectura vía router ok (conciliar/saldo/deudas/estado).
+- Datos pendientes del "sí" de luigi (no se escribieron): migrar el préstamo Ezequiel Bs 4.300 a por_cobrar (vence 04/10), monto del internet para el recordatorio del día 27, monto del presupuesto de mercado, umbral de alerta para BDV.
