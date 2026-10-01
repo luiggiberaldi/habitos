@@ -228,14 +228,22 @@ async function main() {
     }
     const moneda = detectarMonedaControl(restoQ, "USD");
     try {
+      // Si ya existe un recordatorio activo con ese nombre, se actualiza (no se duplica).
+      const existentes = await rpc("rpc_fin_recordatorios", P);
+      const mismo = existentes.filter((r) => r.activo && norm(r.nombre) === nombre);
       const r = await rpc("rpc_fin_recordatorio_upsert", {
         ...P, p_nombre: nombre, p_monto: monto, p_moneda: moneda,
         p_dia_mes: dia, p_dias_aviso: 3, p_tipo: "egreso",
+        p_categoria: "servicios",
         p_cuenta_id: await cuentaPorMoneda(moneda),
+        ...(mismo.length === 1 ? { p_id: mismo[0].id } : {}),
       });
       return out({
         ok: true, codigo: "recordatorio_creado", id: r.id, nombre, monto, moneda, dia,
-        mensaje: `Recordatorio creado: ${nombre} ${fmtMonto(monto, moneda)} cada día ${dia} (aviso 3 días antes). Para pagarlo di «control pagué ${nombre}».`,
+        actualizado: mismo.length === 1,
+        mensaje: mismo.length === 1
+          ? `Recordatorio "${nombre}" actualizado: ${fmtMonto(monto, moneda)} cada día ${dia}.`
+          : `Recordatorio creado: ${nombre} ${fmtMonto(monto, moneda)} cada día ${dia} (aviso 3 días antes). Para pagarlo di «control pagué ${nombre}».`,
       });
     } catch (e) {
       return out({ ok: false, codigo: "error", detalle: String(e.message || e).replace(/^.*?: /, "").slice(0, 200) });

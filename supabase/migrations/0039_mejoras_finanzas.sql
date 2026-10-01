@@ -19,6 +19,7 @@ as $$
 declare
   v_id uuid;
   v_nombre text;
+  v_moneda text;
 begin
   if not public.rpc_fin_secret_ok() then
     raise exception 'no_autorizado';
@@ -29,7 +30,7 @@ begin
   if p_umbral is not null and p_umbral < 0 then
     raise exception 'umbral_invalido';
   end if;
-  select c.id, c.nombre into v_id, v_nombre
+  select c.id, c.nombre, c.moneda into v_id, v_nombre, v_moneda
   from public.fin_cuentas c
   where not c.archivada
     and c.nombre ilike '%' || trim(p_cuenta) || '%'
@@ -49,7 +50,7 @@ begin
     raise exception 'cuenta_no_encontrada';
   end if;
   update public.fin_cuentas set umbral_bajo = p_umbral where id = v_id;
-  return jsonb_build_object('ok', true, 'cuenta', v_nombre, 'umbral_bajo', p_umbral);
+  return jsonb_build_object('ok', true, 'cuenta', v_nombre, 'moneda', v_moneda, 'umbral_bajo', p_umbral);
 end;
 $$;
 

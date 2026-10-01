@@ -73,7 +73,7 @@ Migración 0039 → scripts (finanzas: 1, 3, 6, 7-aviso, 4; control: 2, 5, 7-alt
 deploy → respaldo Drive.
 
 ## Datos que necesitan el "sí" de luigi (no se tocan sin confirmación)
-- Migrar préstamo Ezequiel Bs 4.300 a por_cobrar (vence 04/10).
-- Monto del internet para el recordatorio del día 27.
-- Monto del presupuesto de mercado.
-- Umbral de alerta para BDV.
+- [x] Migrar préstamo Ezequiel Bs 4.300 a por_cobrar (vence 04/10) → **migrado 2026-10-01** (id 51be759e…, fecha límite 2026-10-04, cuenta BDV).
+- [x] Monto del internet para el recordatorio del día 27 → **$15 a tasa BCV = Bs 12.902,70** (BCV 860,18 del 01/10). Recordatorio creado: día 27, cuenta BDV, categoría servicios. OJO: al pagarlo se registra el monto del recordatorio; si la BCV se movió, la diferencia se absorbe en la conciliación.
+- [ ] Monto del presupuesto de mercado → **se deduce con el tiempo**. Línea base 2026-10-01: $10,65 (3 egresos desde el 27/09; solo cuentan los etiquetados 'mercado' — la categorización automática es nueva de hoy).
+- [x] Umbral de alerta para BDV → **luigi lo cambió: umbral en Binance, 10 USDT** (fijado 2026-10-01).

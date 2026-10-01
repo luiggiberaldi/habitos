@@ -331,20 +331,23 @@ try {
     let resto = q.replace(/^\s*alerta\b/i, "").trim();
     const off = /\b(off|quitar|ningun[oa])\s*$/i.test(resto);
     if (off) resto = resto.replace(/\b(off|quitar|ningun[oa])\s*$/i, "").trim();
-    const mNum = resto.match(/([\d.,]+)\s*$/);
+    // El monto puede ir en cualquier posición ("alerta binance 10 usdt").
+    const mNum = resto.match(/(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/);
     let umbral = null;
     if (mNum && !off) {
       umbral = parseMontoEsVe(mNum[1]);
-      resto = resto.slice(0, mNum.index).trim();
+      resto = (resto.slice(0, mNum.index) + " " + resto.slice(mNum.index + mNum[0].length)).replace(/\s+/g, " ").trim();
     }
+    // Quitar menciones de moneda del nombre de la cuenta.
+    resto = resto.replace(/\b(bs|bolivares?|ves|dolares?|usd|usdt|tether|cop|pesos?)\b/gi, " ").replace(/\$/g, " ").replace(/\s+/g, " ").trim();
     if (!resto) out({ ok: false, codigo: "args", detalle: 'Di «finanzas alerta <cuenta> <monto>» o «finanzas alerta <cuenta> off».' });
     try {
       const r = await rpc("rpc_fin_cuenta_umbral", { p_user_id: cfg.USER_ID, p_cuenta: resto, p_umbral: umbral });
       out({
-        ok: true, codigo: "alerta_umbral", cuenta: r.cuenta, umbral_bajo: r.umbral_bajo,
+        ok: true, codigo: "alerta_umbral", cuenta: r.cuenta, moneda: r.moneda, umbral_bajo: r.umbral_bajo,
         mensaje: umbral === null
           ? `Alerta de saldo bajo desactivada para ${r.cuenta}.`
-          : `Te avisaré cuando ${r.cuenta} baje de ${fmtMoneda(umbral, "VES")}.`,
+          : `Te avisaré cuando ${r.cuenta} baje de ${fmtMoneda(umbral, r.moneda || "VES")}.`,
       });
     } catch (e) {
       out({ ok: false, codigo: "error", detalle: String(e.message || e).replace(/^.*?: /, "").slice(0, 200) });

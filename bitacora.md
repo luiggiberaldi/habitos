@@ -938,3 +938,16 @@ luigi pidió el resumen de su economía desde los logs + qué mejorar de Senda; 
 - Bugs encontrados al probar: (1) `norm()` elimina los puntos decimales — los intents nuevos parsean montos del texto crudo `q`, no de `nq`; (2) `\b` no funciona tras vocal acentuada sin flag `u` ("le presté"/"me pagó") — se usa `(?=\s|$)`; (3) faltaba rama explícita de VES en `detectarMonedaControl` al parametrizar el defecto.
 - Verificación: `node --check` ok, eslint limpio (2 warnings de var no usada corregidos), mocks de todos los intents nuevos ok, RPC reales de lectura vía router ok (conciliar/saldo/deudas/estado).
 - Datos pendientes del "sí" de luigi (no se escribieron): migrar el préstamo Ezequiel Bs 4.300 a por_cobrar (vence 04/10), monto del internet para el recordatorio del día 27, monto del presupuesto de mercado, umbral de alerta para BDV.
+
+- Cierre del ciclo: commit `327a47a` (6 archivos, 592 inserciones), push a `luiggiberaldi/senda` ok (master f2d210d0 → 327a47ac), deploy a producción `habitos-5c32ths73-luiggi2.vercel.app` (Ready, https://habitos-amber.vercel.app/ 200), respaldo Drive actualizado (hash `eec140adba0609a99d20bcde09e4aa7ab0c5c49156aa0cb2a148ad871878a2c4`, 2.1M).
+
+## 2026-10-01 — Datos reales de luigi para el plan de mejoras (segunda parte)
+
+luigi dio el "sí":
+- **Préstamo Ezequiel → por_cobrar**: creado vía `control me debe Ezequiel 4300 bs` (id `51be759e-8dcd-4ef2-950a-ebf4519876a6`) y actualizado por RPC directo con `fecha_limite 2026-10-04`, cuenta BDV, nota "préstamo 2026-09-28 (mov db6c9f30); cobro domingo 04/10 18:00". `control deudas`/`estado` lo muestran pendiente (Bs 4.300). Nota técnica: el `crearRpc` de `whatsapp-comun.mjs` usa `x-habitos-rpc-secret`; los RPC de finanzas exigen `x-fin-rpc-secret` (y el campo de config es `ANON_KEY`, no `SUPABASE_ANON_KEY`) — documentado en AGENTS.md.
+- **Internet $15 a tasa BCV**: BCV del 01/10 = 860,18 → recordatorio `internet` Bs 12.902,70, día 27, cuenta BDV, categoría servicios. Decisión de diseño: se guarda en VES porque Finanzas convierte USD→VES al paralelo y el pago real es a BCV (si se guardara en USD, "control pagué internet" registraría de más). Si la BCV se mueve, la diferencia se absorbe en la conciliación.
+- **Presupuesto de mercado**: no se fija todavía; se deduce con el tiempo. Línea base 2026-10-01: $10,65 en 3 egresos desde el 27/09 (solo los etiquetados 'mercado'; la categorización automática es nueva de hoy, así que el histórico previo puede estar sub-etiquetado).
+- **Umbral en Binance 10 USDT** (no en BDV): fijado vía `finanzas alerta binance 10 usdt` (saldo actual 17,25, sin alerta).
+- Mejora en `recuerda`: si ya existe un recordatorio activo con el mismo nombre, lo actualiza (p_id) en vez de duplicar — verificado en vivo (segunda llamada devolvió `actualizado:true`).
+- Bug en `alerta`: el parser exigía el número al final ("alerta binance 10 usdt" fallaba con cuenta_no_encontrada). Ahora el monto se extrae de cualquier posición y se limpian las menciones de moneda del nombre de la cuenta. Además `rpc_fin_cuenta_umbral` ahora devuelve `moneda` y el mensaje usa la moneda real (antes hardcodeaba VES).
+- Goal de Ezequiel actualizado (el monto correcto Bs 4.300; la guía aún decía 5.300).
