@@ -1006,3 +1006,13 @@ luigi: "los productos en 0 no deben aparecer en la despensa/alacena, deben apare
 - **WhatsApp** (`scripts/whatsapp-mercado.mjs`, intent `inventario`): muestra solo stock > 0 y agrega la línea "En cero (están en la lista de compras): …". El `matchProducto` sigue usando el inventario completo para no romper "compré / gasté / precio de X".
 - Decisión de diseño: NO se cambió la firma de `rpc_mer_inventario` (el filtro es de presentación; cambiar el default habría roto el matcheo y arriesgado un PGRST203).
 - Verificación: tsc limpio, eslint limpio, mock de `mercado inventario` ok, lógica de filtros probada con datos de ejemplo.
+
+- Cierre del ciclo: commit `7936da1`, push a `luiggiberaldi/senda` ok (master ea01b1c5 → 7936da1f), deploy a producción (https://habitos-amber.vercel.app/ 200). Respaldo Drive: el primer intento falló en el upload (transitorio); reintento ok (hash `38596d34e045809826ac38bfae68603574173cefb36a699998f7b6fc58ab1b5d`, 2.1M).
+- **Pendiente**: aplicar la migración 0040 en Supabase — el token de Management (`custom.supabase-mgmt`) caducó (401). Pedir a luigi reconectarlo con la tarjeta segura.
+
+## 2026-10-03 — Migración 0040 aplicada (continuación)
+
+- El token de Supabase Management se reconectó (luigi lo regeneró). Migración aplicada: HTTP 201.
+- **Hallazgo del E2E**: `rpc_mer_producto_upsert` (crear) NO evaluaba el punto de reorden — un producto creado en 0 nacía invisible (fuera de la alacena por la regla nueva y fuera de la lista). Se agregó la evaluación al upsert (0040b, copia de 0023 + `mer_pasar_a_lista_si_reorden`).
+- **Higiene**: al desactivar un producto sale de `mer_lista` (0040c); `rpc_mer_lista` ignora productos inactivos; limpieza de pendientes huérfanos incluida. (El test viejo había dejado "Prueba Umbral" como pendiente huérfano.)
+- Verificación: `test-cero-a-lista.mjs` 8/8 PASS (crear en 0 → lista; compra directa → sale de lista; consumo a 0 → vuelve); `test-punto-reorden.mjs` actualizado (el alta en 0 ya mete a la lista, y el test es idempotente normalizando stock) y pasando. WhatsApp real: `mercado inventario` muestra 15 con stock + "En cero (están en la lista)".
