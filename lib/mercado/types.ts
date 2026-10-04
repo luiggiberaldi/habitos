@@ -18,6 +18,8 @@ export interface MerInventarioItem {
   nombre: string;
   unidad: string;
   categoria: string;
+  marca: string | null;
+  presentacion: string | null;
   stock: number;
   ultimo_precio: number | null;
   ultima_moneda: string | null;
@@ -55,6 +57,8 @@ export interface MerListaItem {
   producto_id: string;
   nombre: string;
   unidad: string;
+  marca: string | null;
+  presentacion: string | null;
   cantidad: number;
   estado: "pendiente" | "comprado";
   creado_en: string;

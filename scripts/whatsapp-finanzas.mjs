@@ -131,10 +131,12 @@ function extraerMonto(texto) {
 
 function detectarMoneda(texto) {
   const n = norm(texto);
-  if (/\b(usdt|tether)\b/.test(n)) return "USDT";
-  if (/\b(bs|bolivares?|ves)\b/.test(n)) return "VES";
-  if (/\b(cop|pesos?)\b/.test(n)) return "COP";
-  if (/\$|\b(dolar(es)?|bucks?)\b/.test(n)) return "USD";
+  // (?:\b|\d): la unidad puede ir pegada al monto ("3.07usdt" -> norm "3 07usdt").
+  if (/(?:\b|\d)(usdt|tether)\b/.test(n)) return "USDT";
+  if (/(?:\b|\d)(bs|bolivares?|ves)\b/.test(n)) return "VES";
+  if (/\bpago.?movil\b/.test(n)) return "VES"; // el pago móvil siempre es en Bs
+  if (/(?:\b|\d)(cop|pesos?)\b/.test(n)) return "COP";
+  if (/\$|(?:\b|\d)(usd|dolar(es)?|bucks?)\b/.test(n)) return "USD";
   return null;
 }
 
@@ -403,10 +405,14 @@ try {
     });
   } else {
     // Sin mención: una sola cuenta → esa; varias → filtrar por moneda mencionada.
+    // Regla de Luigi (2026-10-03): USDT siempre es Binance.
     let pool = cuentas;
     if (pool.length > 1 && monedaMencion) pool = pool.filter((c) => c.moneda === monedaMencion);
     if (pool.length === 1) cuenta = pool[0];
-    else {
+    else if (monedaMencion === "USDT") {
+      cuenta = cuentas.find((c) => norm(c.nombre).includes("binance")) || cuentas.find((c) => c.moneda === "USDT") || null;
+    }
+    if (!cuenta) {
       out({
         ok: false, codigo: "ambiguo",
         pregunta: `¿En qué cuenta registro ${fmtMoneda(monto, monedaMencion ?? "USD")}? ${pool.map((c) => `${c.nombre} (${c.moneda})`).join(", ")}.`,
@@ -435,23 +441,23 @@ try {
     out({ ok: true, codigo: "duplicado", id: r.id, mensaje: "Ese movimiento ya estaba registrado." });
   }
   let extras = "";
-  // Mejora 6: comisión automática de pago móvil (regla de luigi: 0,33%).
-  if (tipo === "egreso" && /pago.?movil/.test(nq)) {
-    const com = Math.round(monto * 0.0033 * 100) / 100;
-    if (com >= 0.01) {
-      try {
-        await rpc("rpc_fin_registrar", {
-          p_user_id: cfg.USER_ID,
-          p_tipo: "egreso",
-          p_monto: com,
-          p_cuenta: cuenta.id,
-          p_categoria: "servicios",
-          p_nota: "comisión pago móvil (0,33%)",
-          p_clave_evento: `wa-com-${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`,
-        });
-        extras += ` Comisión pago móvil (0,33%): ${fmtMoneda(com, r.moneda)} registrada aparte.`;
-      } catch { /* si falla la comisión, el gasto principal ya quedó */ }
-    }
+  // Mejora 6: comisión de pago móvil (regla de Luigi 2026-09-28: Bs 14 fijos, no 0,33%).
+  // Solo aplica en Bs (el pago móvil es del BDV); la nota evita "pago móvil" para que
+  // el router no la confunda con un pago nuevo y le sume otra comisión.
+  if (tipo === "egreso" && /pago.?movil/.test(nq) && r.moneda === "VES") {
+    const com = 14;
+    try {
+      await rpc("rpc_fin_registrar", {
+        p_user_id: cfg.USER_ID,
+        p_tipo: "egreso",
+        p_monto: com,
+        p_cuenta: cuenta.id,
+        p_categoria: "servicios",
+        p_nota: "comisión banco",
+        p_clave_evento: `wa-com-${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`,
+      });
+      extras += ` Comisión pago móvil (Bs 14): ${fmtMoneda(com, r.moneda)} registrada aparte.`;
+    } catch { /* si falla la comisión, el gasto principal ya quedó */ }
   }
   // Mejora 7: aviso si el gasto acerca la categoría a su presupuesto.
   if (tipo === "egreso" && r.categoria) {

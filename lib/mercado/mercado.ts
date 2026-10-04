@@ -37,6 +37,8 @@ export const merRpc = {
     categoria: string;
     precioRef?: number | null;
     stockInicial?: number | null;
+    marca?: string | null;
+    presentacion?: string | null;
   }) =>
     rpc<{ ok: boolean; id: string; nombre: string; nuevo?: boolean }>("rpc_mer_producto_upsert", {
       p_nombre: p.nombre,
@@ -44,6 +46,8 @@ export const merRpc = {
       p_categoria: p.categoria,
       p_precio_ref: p.precioRef ?? null,
       p_stock_inicial: p.stockInicial ?? null,
+      p_marca: p.marca ?? null,
+      p_presentacion: p.presentacion ?? null,
     }),
   movimiento: (p: {
     productoId: string;
@@ -95,6 +99,8 @@ export const merRpc = {
     productoId: string;
     nombre?: string | null;
     categoria?: string | null;
+    marca?: string | null;
+    presentacion?: string | null;
     horizonteDias?: number | null;
     consumoSemanalEstim?: number | null;
     quitarEstimado?: boolean;
@@ -106,6 +112,8 @@ export const merRpc = {
         p_producto_id: p.productoId,
         p_nombre: p.nombre ?? null,
         p_categoria: p.categoria ?? null,
+        p_marca: p.marca ?? null,
+        p_presentacion: p.presentacion ?? null,
         p_horizonte_dias: p.horizonteDias ?? null,
         p_consumo_semanal_estim: p.consumoSemanalEstim ?? null,
         p_quitar_estimado: p.quitarEstimado ?? false,

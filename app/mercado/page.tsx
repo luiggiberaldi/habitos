@@ -236,7 +236,14 @@ function TarjetaProducto({
     <div className="rounded-2xl bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-foreground">{item.nombre}</p>
+          <p className="truncate text-sm font-bold text-foreground">
+            {item.nombre}
+            {(item.marca || item.presentacion) && (
+              <span className="font-medium text-muted">
+                {" "}· {[item.marca, item.presentacion].filter(Boolean).join(" ")}
+              </span>
+            )}
+          </p>
           <p className="text-xs text-muted">{item.categoria}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -435,6 +442,8 @@ function SheetEditar({
 }) {
   const [nombre, setNombre] = useState(item.nombre);
   const [categoria, setCategoria] = useState(item.categoria);
+  const [marca, setMarca] = useState(item.marca ?? "");
+  const [presentacion, setPresentacion] = useState(item.presentacion ?? "");
   const [horizonte, setHorizonte] = useState(String(item.horizonte_compra_dias ?? 14));
   const [estimado, setEstimado] = useState(
     item.consumo_semanal_estim !== null && item.consumo_semanal_estim !== undefined
@@ -460,6 +469,8 @@ function SheetEditar({
         productoId: item.id,
         nombre: nombre.trim() || null,
         categoria: categoria.trim() || null,
+        marca: marca.trim() || null,
+        presentacion: presentacion.trim() || null,
         horizonteDias: hz,
         consumoSemanalEstim: est,
         quitarEstimado: estimado.trim() === "" && item.consumo_semanal_estim !== null,
@@ -502,6 +513,14 @@ function SheetEditar({
                 <option key={c} value={c} />
               ))}
             </datalist>
+          </label>
+          <label className="block">
+            <span className={tituloCls}>Marca</span>
+            <input className={inputCls} value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="Mavesa" />
+          </label>
+          <label className="block">
+            <span className={tituloCls}>Presentación</span>
+            <input className={inputCls} value={presentacion} onChange={(e) => setPresentacion(e.target.value)} placeholder="445gr" />
           </label>
           <label className="block">
             <span className={tituloCls}>Horizonte de compra (días)</span>
@@ -616,6 +635,8 @@ export default function MercadoPage() {
   const [pNombre, setPNombre] = useState("");
   const [pUnidad, setPUnidad] = useState<MerUnidad>("und");
   const [pCategoria, setPCategoria] = useState("");
+  const [pMarca, setPMarca] = useState("");
+  const [pPresentacion, setPPresentacion] = useState("");
   const [pPrecioRef, setPPrecioRef] = useState("");
   const [pStock, setPStock] = useState("");
   // Formulario de movimiento.
@@ -728,8 +749,10 @@ export default function MercadoPage() {
         categoria: pCategoria.trim(),
         precioRef: pPrecioRef ? Number(pPrecioRef) : null,
         stockInicial: stockIni,
+        marca: pMarca.trim() || null,
+        presentacion: pPresentacion.trim() || null,
       });
-      setPNombre(""); setPCategoria(""); setPPrecioRef(""); setPStock("");
+      setPNombre(""); setPCategoria(""); setPMarca(""); setPPresentacion(""); setPPrecioRef(""); setPStock("");
       setAviso("Producto creado.");
       await recargar();
     } catch (e) {
@@ -991,6 +1014,11 @@ export default function MercadoPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-foreground">
                       {item.nombre}
+                      {(item.marca || item.presentacion) && (
+                        <span className="font-medium text-muted">
+                          {" "}· {[item.marca, item.presentacion].filter(Boolean).join(" ")}
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-muted">
                       {fmtCantidad(item.cantidad)} {item.unidad}
@@ -1046,6 +1074,24 @@ export default function MercadoPage() {
                         <option key={c} value={c} />
                       ))}
                     </datalist>
+                  </label>
+                  <label className="block">
+                    <span className={tituloCls}>Marca (opcional)</span>
+                    <input
+                      className={inputCls}
+                      value={pMarca}
+                      onChange={(e) => setPMarca(e.target.value)}
+                      placeholder="Mavesa"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={tituloCls}>Presentación (opcional)</span>
+                    <input
+                      className={inputCls}
+                      value={pPresentacion}
+                      onChange={(e) => setPPresentacion(e.target.value)}
+                      placeholder="445gr"
+                    />
                   </label>
                   <label className="block">
                     <span className={tituloCls}>Cantidad inicial (0 si no tienes)</span>

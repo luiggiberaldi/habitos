@@ -132,6 +132,18 @@ function parsearItem(chunk, crudo) {
   return { cantidad: Math.round(cantidad * 1000) / 1000, unidad, nombre, precio, moneda };
 }
 
+/** "mayonesa 445gr" → { nombre: "mayonesa", presentacion: "445gr" }.
+ *  La presentación (tamaño del empaque) vive en el producto, no en el nombre:
+ *  "Mayonesa" sigue siendo un solo producto aunque cambie de 175gr a 445gr. */
+function extraerPresentacion(nombre) {
+  const m = nombre.match(/(\d+(?:[.,]\d+)?)\s*(gr|g|kg|l|lt|ml|cc|oz)\s*$/i);
+  if (!m) return { nombre, presentacion: null };
+  return {
+    nombre: nombre.slice(0, m.index).trim(),
+    presentacion: `${m[1].replace(",", ".")}${m[2].toLowerCase()}`,
+  };
+}
+
 function dividirItems(texto) {
   return texto
     .split(/;|,(?=\s*\d)|\s+y\s+(?=\d)/)
@@ -196,13 +208,16 @@ try {
     const registrados = [];
     let idx = 0;
     for (const it of items) {
-      if (!it.producto_id) {
+      // Nuevo, o existente con marca/presentación distinta: upsert (misma producto, otra presentación).
+      const cambiaFicha = !it.producto_id || it.marca || it.presentacion;
+      if (cambiaFicha) {
         if (!it.categoria) {
           out({ ok: false, codigo: "falta_categoria", pregunta: `¿En qué categoría va "${it.nombre}"?`, detalle: "producto nuevo sin categoría" });
         }
         const up = await rpc("rpc_mer_producto_upsert", {
           p_user_id: cfg.USER_ID, p_nombre: it.nombre, p_unidad: it.unidad,
           p_categoria: it.categoria, p_precio_ref: null,
+          p_marca: it.marca ?? null, p_presentacion: it.presentacion ?? null,
         });
         it.producto_id = up.id;
       }
@@ -243,7 +258,7 @@ try {
   if (/^ayuda$/.test(nq)) {
     out({
       ok: true, codigo: "ayuda", modulo: "mercado",
-      mensaje: "Mercado por WhatsApp:\n• factura 2kg arroz 8$, 1L leche 150bs en Makro → te muestro el resumen y lo confirmas\n• compré 2kg de arroz en 8$ → igual que factura\n• gasté 1L de leche → registra consumo\n• se acabó el arroz → stock a cero\n• se dañó 1kg de arroz\n• inventario → qué hay y qué se acaba\n• lista → lista de compras\n• agrega 2kg de arroz a la lista\n• umbral 2kg de harina → pasa a la lista al llegar a 2kg o menos\n• presupuesto → gasto mensual estimado\n• precio del arroz → último precio y rango",
+      mensaje: "Mercado por WhatsApp:\n• factura 2kg arroz 8$, 1L leche 150bs en Makro → te muestro el resumen y lo confirmas\n• la presentación sale del texto («1und mayonesa 445gr» → Mayonesa 445gr); la marca se pregunta solo si el producto es nuevo\n• compré 2kg de arroz en 8$ → igual que factura\n• gasté 1L de leche → registra consumo\n• se acabó el arroz → stock a cero\n• se dañó 1kg de arroz\n• inventario → qué hay y qué se acaba\n• lista → lista de compras\n• agrega 2kg de arroz a la lista\n• umbral 2kg de harina → pasa a la lista al llegar a 2kg o menos\n• presupuesto → gasto mensual estimado\n• precio del arroz → último precio y rango",
     });
   }
 
@@ -258,7 +273,8 @@ try {
     const enCero = inv.filter((p) => (p.stock ?? 0) <= 0);
     const lineas = conStock.map((p) => {
       const alerta = (p.bajo_minimo || (p.dias_agotamiento !== null && p.dias_agotamiento <= 7)) ? " ⚠" : "";
-      return `• ${p.nombre}: ${fmtN(p.stock)} ${p.unidad}${alerta}`;
+      const d = [p.marca, p.presentacion].filter(Boolean).join(" ");
+      return `• ${p.nombre}${d ? ` (${d})` : ""}: ${fmtN(p.stock)} ${p.unidad}${alerta}`;
     });
     const criticos = conStock.filter((p) => p.dias_agotamiento !== null && p.dias_agotamiento <= 7);
     const enMinimo = conStock.filter((p) => p.bajo_minimo);
@@ -276,7 +292,10 @@ try {
     const lista = await rpc("rpc_mer_lista", { p_user_id: cfg.USER_ID });
     const pend = lista.filter((l) => l.estado === "pendiente");
     if (!pend.length) out({ ok: true, codigo: "lista", items: lista, mensaje: "La lista de compras está vacía." });
-    const lineas = pend.map((l) => `• ${fmtN(l.cantidad)} ${l.unidad} ${l.nombre}`);
+    const lineas = pend.map((l) => {
+      const d = [l.marca, l.presentacion].filter(Boolean).join(" ");
+      return `• ${fmtN(l.cantidad)} ${l.unidad} ${l.nombre}${d ? ` (${d})` : ""}`;
+    });
     out({ ok: true, codigo: "lista", items: lista, mensaje: `Lista de compras:\n${lineas.join("\n")}` });
   }
 
@@ -446,6 +465,11 @@ try {
         out({ ok: false, codigo: "ambiguo", pregunta: `¿En cuánto salió "${it.nombre}"?`, detalle: "artículo sin precio" });
       }
       it.moneda = it.moneda ?? detectarMonedaChunk(ch) ?? "VES";
+      // La presentación sale del nombre ("mayonesa 445gr") al campo del producto.
+      const ep = extraerPresentacion(it.nombre);
+      it.nombre = ep.nombre;
+      it.presentacion = ep.presentacion;
+      it.marca = null; // la marca la confirma el agente (o queda la guardada)
       items.push(it);
     }
 
@@ -459,6 +483,10 @@ try {
         it.producto_id = prod.id;
         it.nombre = prod.nombre; // nombre canónico
         it.unidad = prod.unidad; // la unidad del producto manda
+        it.categoria = prod.categoria;
+        it.marca = prod.marca ?? null;
+        // Si la compra trae otra presentación, el producto se actualiza (es el mismo).
+        if (!it.presentacion) it.presentacion = prod.presentacion ?? null;
       } else {
         it.nuevo = true;
       }
@@ -476,15 +504,18 @@ try {
     }
 
     const nuevosSinCategoria = items.filter((it) => it.nuevo);
-    const lineas = items.map((it) =>
-      `• ${fmtN(it.cantidad)} ${it.unidad} ${it.nombre} — ${fmtPrecio(it.precio, it.moneda)}${it.nuevo ? " (nuevo)" : ""}`);
+    const detalle = (it) => [it.marca, it.presentacion].filter(Boolean).join(" ");
+    const lineas = items.map((it) => {
+      const d = detalle(it);
+      return `• ${fmtN(it.cantidad)} ${it.unidad} ${it.nombre}${d ? ` (${d})` : ""} — ${fmtPrecio(it.precio, it.moneda)}${it.nuevo ? " (nuevo)" : ""}`;
+    });
     const porMoneda = {};
     for (const it of items) porMoneda[it.moneda] = (porMoneda[it.moneda] ?? 0) + it.precio;
     const totales = Object.entries(porMoneda).map(([m, t]) => fmtPrecio(t, m)).join(" + ");
 
     const preguntas = [];
     if (preguntaCuenta) preguntas.push(preguntaCuenta);
-    for (const it of nuevosSinCategoria) preguntas.push(`"${it.nombre}" es nuevo: ¿en qué categoría va? (ej. granos, lacteos, limpieza)`);
+    for (const it of nuevosSinCategoria) preguntas.push(`"${it.nombre}" es nuevo: ¿en qué categoría va? (ej. granos, lacteos, limpieza) ¿Marca? (opcional)`);
 
     const mensaje =
       `Resumen de factura${comercio ? ` — ${comercio}` : ""} (${items.length} artículo${items.length === 1 ? "" : "s"}):\n` +
@@ -499,7 +530,8 @@ try {
         items: items.map((it) => ({
           nombre: it.nombre, cantidad: it.cantidad, unidad: it.unidad,
           precio: it.precio, moneda: it.moneda,
-          producto_id: it.producto_id ?? null, categoria: null,
+          producto_id: it.producto_id ?? null, categoria: it.categoria ?? null,
+          marca: it.marca ?? null, presentacion: it.presentacion ?? null,
         })),
         cuenta: cuentaId,
         comercio,

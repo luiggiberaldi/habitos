@@ -2,6 +2,30 @@
 
 > Cronología verificable de cambios relevantes. Añadir entradas al avanzar; respetar las que existan.
 
+## 2026-10-03 (Mercado: marca y presentación por producto)
+
+- luigi: la mayonesa "pasó de tener 0 a 445gr, es el mismo producto" — no va a la lista de compras; cada producto debe tener marca y presentación (ej. Mayonesa Mavesa 445gr; antes Mavesa 175gr).
+- Migraciones aplicadas (HTTP 201 vía Management API):
+  - `0041_mercado_marca_presentacion.sql`: columnas `marca` / `presentacion` en `mer_productos`; `rpc_mer_producto_upsert` acepta `p_marca`/`p_presentacion` (en update solo pisan si vienen con valor); `rpc_mer_inventario` las devuelve.
+  - `0042_mercado_actualizar_marca_presentacion.sql`: `rpc_mer_producto_actualizar` acepta `p_marca`/`p_presentacion` (los usa la hoja de edición).
+  - `0043_mercado_lista_marca_presentacion.sql`: `rpc_mer_lista` devuelve marca/presentación.
+- Data fix: "Mayonesa" consolidada (marca Mavesa, presentación 445gr, stock 1, fuera de la lista); eliminado el duplicado "Mayonesa 445gr" creado por error (+ su movimiento); Toddy y Leche líquida con stock 1 y fuera de la lista (ya comprados).
+- WhatsApp (`scripts/whatsapp-mercado.mjs`): `extraerPresentacion()` saca el tamaño del nombre ("mayonesa 445gr" → presentación 445gr, el producto matchea igual); el resumen muestra "Mayonesa (Mavesa 445gr)" y pregunta marca solo si el producto es nuevo; `--confirmar` pasa marca/presentación al upsert (actualiza la ficha aunque el producto exista).
+- App (`app/mercado/page.tsx`, `lib/mercado/`): campos Marca/Presentación en Registrar y en Editar; se muestran en la alacena y en la lista ("Mayonesa · Mavesa 445gr").
+- Verificación: harness `extraerPresentacion` 14/14 PASS (incluye "vitamina b12"/"omega 3" sin falsos positivos); `node --check` ambos scripts; `tsc --noEmit` limpio; `rpc_mer_producto_actualizar` en vivo OK; `mercado inventario` real muestra "Mayonesa (Mavesa 445gr): 1 und".
+- Quirks nuevos en ~/AGENTS.md: idempotencia de `rpc_mer_movimiento` por clave NO filtra por producto; altas de stock sin precio → `p_tipo:"ajuste"` (compra exige precio).
+
+## 2026-10-03 (Finanzas por WhatsApp: USDT→Binance, pago móvil→Bs, comisión Bs 14 fija)
+
+- luigi: "cuando te hable de usdt siempre es binance" → regla permanente en MEMORY.md.
+- `scripts/whatsapp-finanzas.mjs`:
+  - `detectarMoneda` ahora acepta la unidad pegada al monto ("3.07usdt": `norm()` la deja como "3 07usdt" sin frontera de palabra; se usa `(?:\b|\d)`). Aplica igual a "100bs", "50cop".
+  - "pago móvil" implica VES (siempre es en Bs) → el gasto va a BDV sin preguntar.
+  - Rama registrar: si la moneda es USDT y no se mencionó cuenta, se usa Binance (regla de Luigi, aunque existan varias cuentas USDT).
+  - Mejora 6 (comisión pago móvil): era 0,33% (Bs 28,71 en una compra de 8.700) — ahora **Bs 14 fijos** según la regla del 2026-09-28, solo en egresos VES, nota "comisión banco" (sin "pago móvil" para que el router no la duplique).
+- Validación: harness `/tmp/test-usdt-binance.mjs` con `detectarMoneda`/`matchCuenta`/`norm` reales extraídas del fuente — 10/10 PASS (incluye el mensaje original que falló y regresiones Bs/USD/sin-moneda). `node --check` limpio.
+- Registros reales de luigi: egreso 3,07 USDT en Binance (publicidad); egreso Bs 8.700 en BDV (mercado: leche 1L, toddy, mayonesa grande) + comisión Bs 14 aparte.
+
 ## 2026-09-28 (Catálogo: editar y borrar productos — DESPLEGADO a producción)
 
 - luigi (viendo captura del Catálogo): "añade aca un boton para editar y borrar productos del catalogo".
