@@ -14,6 +14,7 @@
 - App (`app/mercado/page.tsx`, `lib/mercado/`): campos Marca/Presentación en Registrar y en Editar; se muestran en la alacena y en la lista ("Mayonesa · Mavesa 445gr").
 - Verificación: harness `extraerPresentacion` 14/14 PASS (incluye "vitamina b12"/"omega 3" sin falsos positivos); `node --check` ambos scripts; `tsc --noEmit` limpio; `rpc_mer_producto_actualizar` en vivo OK; `mercado inventario` real muestra "Mayonesa (Mavesa 445gr): 1 und".
 - Quirks nuevos en ~/AGENTS.md: idempotencia de `rpc_mer_movimiento` por clave NO filtra por producto; altas de stock sin precio → `p_tipo:"ajuste"` (compra exige precio).
+- Deploy a producción 2026-10-03 22:25 (luigi lo aprobó): `vercel --prod` → https://habitos-amber.vercel.app lista en 51s. Commit f5647815 pusheado a `luiggiberaldi/senda` (rama master).
 
 ## 2026-10-03 (Finanzas por WhatsApp: USDT→Binance, pago móvil→Bs, comisión Bs 14 fija)
 
