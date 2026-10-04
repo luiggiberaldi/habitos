@@ -951,3 +951,58 @@ luigi dio el "sí":
 - Mejora en `recuerda`: si ya existe un recordatorio activo con el mismo nombre, lo actualiza (p_id) en vez de duplicar — verificado en vivo (segunda llamada devolvió `actualizado:true`).
 - Bug en `alerta`: el parser exigía el número al final ("alerta binance 10 usdt" fallaba con cuenta_no_encontrada). Ahora el monto se extrae de cualquier posición y se limpian las menciones de moneda del nombre de la cuenta. Además `rpc_fin_cuenta_umbral` ahora devuelve `moneda` y el mensaje usa la moneda real (antes hardcodeaba VES).
 - Goal de Ezequiel actualizado (el monto correcto Bs 4.300; la guía aún decía 5.300).
+
+- Cierre del ciclo: commit `ea01b1c`, push a `luiggiberaldi/senda` ok (master 327a47ac → ea01b1c5), deploy a producción (https://habitos-amber.vercel.app/ 200), respaldo Drive actualizado (hash `c47ad1219c95351667bc331f7f07f619026b938393c172a4f679d07d5360d849`, 2.1M).
+
+## 2026-10-02 — Conciliación BDV: movimientos del 02/10 + 14.600 del amigo
+
+luigi identificó los 6 movimientos del 02/10 (registrados vía router con "bs" explícito — sin eso el parser los toma como USD):
+- Ingreso 30.320,93: venta de turkesterone a Dropanas.
+- Egreso 18.550: costo del turkesterone a Dropanas. Ganancia: 11.770,93.
+- Egreso 1.600: aserrín para los gatos.
+- Egreso 14: comisión pago móvil.
+- Ingreso 97.158: pago de Construacero Carabobo (ERP + app de nómina y finanzas). Le deben 50 USDT (pendiente: ¿por cobrar?).
+- Egreso 11.000: pago a su mamá.
+- Quirk: registrar la nota "comisión pago móvil" disparó la auto-comisión del 0,33% (+Bs 0,05); se anuló el movimiento espurio vía SQL. Lección en AGENTS.md: la nota de la comisión no debe decir "pago móvil".
+- Hallazgo: el BDV cobra **Bs 14 fijos** por pago móvil, no 0,33% (medido 2 veces: 14 sobre 4.300 y 14 sobre 1.600). Regla corregida en MEMORY.md.
+- El traspaso de 14.600 del 30/09 (Transferencias a terceros BDV): era plata de un amigo para comprarle USDT en Binance — no es de luigi. Registrado en dos puntas con fecha 30/09 vía SQL (ingreso + egreso, tasa 1/954,55): neto cero, el saldo no se mueve.
+- BDV verificado: Bs 97.079,79 = banco exacto.
+- Pendiente: desglose del 29/09 (+7.500, −1.100, −1.500 siguen absorbidos en ajustes de conciliación).
+
+## 2026-10-02 — Compra P2P Binance 90.000 Bs → 91,78 USDT
+
+- Orden 22939435156904538112 completada: 90.000 Bs → 91,78 USDT a 979,888 Bs/USDT. Registrada como transferencia BDV→Binance vía SQL (el router no maneja bien transferencias con montos distintos por moneda).
+- BDV: 97.079,79 → 7.079,79. Binance: 17,25 → 109,03 USDT.
+- El wallet mostraba 109,27 (0,24 más). luigi no sabe de dónde vienen; registrados como ingreso "varios" en Binance → 109,27 = wallet.
+
+## 2026-10-03 — Arriendo semanal pagado
+
+- luigi pagó los $5 (Bs 4.350) del arriendo a los abuelos de su novia desde el BDV. Registrado como egreso vivienda ("arriendo abuelos novia"). La semana del 28/09 queda confirmada como paga en el tracker; el recordatorio cada 3 días sigue activo.
+
+## 2026-10-03 — Conciliación BDV (7 movimientos pendientes) + venta P2P
+
+- De las capturas del BDV quedaban 7 movimientos sin registrar; luigi los identificó todos:
+  - Venta P2P Binance orden 22939819588070268928: 20,61 USDT → Bs 20.000 (tasa orden 973,2; 20.000/20,61 = 970,4 — discrepancia menor como en la compra del 02/10). Registrada en 2 patas porque el router no maneja transferencia con montos exactos por moneda y el mgmt API daba 401: egreso 20,61 USDT Binance ("salida p2p", `51aaca2e`) + ingreso Bs 20.000 BDV (`70d59794`, cae en "ventas" por keyword p2p — es regla configurada, se deja).
+  - Ingreso Bs 30.250 BDV (ventas): venta de un turkesterone (`04dfd673`).
+  - Egreso Bs 10.600 BDV: pago a Dropanas (`103b6837`).
+  - Egreso Bs 1.800 BDV (mercado): compra jabón líquido + cloro (`ed7501b8`). No se metió a Mercado (faltan cantidades por producto); preguntar a luigi.
+  - Compra 1 kg Gatarina Miringo Bs 5.046 con tarjeta: vía flujo factura Mercado (resumen → --confirmar), creó el egreso en Finanzas solo y subió stock 0 → 1 kg; se marcó "comprado" en la lista.
+  - 2× comisión Bs 14 (nota "comisión banco", nunca "pago móvil"): una del arriendo (01:10 AM) y una del pago móvil de 1.800 (07:42 PM).
+- BDV esperado tras todo: Bs 35.505,79 (parte de 2.729,79 no re-verificado en banco).
+
+## 2026-10-03 — Bug: "mercado compré" con tilde no parseaba
+
+- `whatsapp-mercado.mjs` detectaba la factura sobre el texto normalizado (`nq`, sin tildes) pero pelaba el prefijo sobre el texto crudo con `/^(factura|compr[ée]|compra)\b/`. En JS `\b` es ASCII-only: tras "é" no hay word boundary, así que "compré ..." nunca se pelaba y el chunk llegaba con el verbo incluido → "artículo sin parsear".
+- Fix: lookahead negativo en vez de `\b`: `/^(factura|compr[ée]|compra)(?![a-záéíóúñü])[:,]?\s*/i`. Harness determinista 6/6 PASS (con/sin tilde, factura, compra, y "facturas viejas" que no debe pelarse) + verificación end-to-end por router.
+
+## 2026-10-03 — Mercado: productos en 0 van a la lista, no a la alacena (regla de luigi)
+
+luigi: "los productos en 0 no deben aparecer en la despensa/alacena, deben aparecer en la lista de compra o mercado".
+- **Migración `0040_mercado_cero_a_lista.sql`** (ESCRITA, pendiente de aplicar: el token de Supabase Management caducó — 401 hasta en un GET simple; hay que reconectarlo):
+  - `rpc_mer_movimiento` (copia de 0038 + cambio): al registrar una **compra**, el producto sale de `mer_lista` antes de evaluar el reorden (que lo re-agrega si el stock sigue ≤ mínimo). Cierra el hueco real: "mercado compré X" por WhatsApp dejaba el pendiente obsoleto en la lista. `rpc_mer_lista_comprar` ya borraba; ahora todo camino de compra lo hace.
+  - Backfill: productos activos con stock ≤ stock_minimo sin pendiente en la lista → pasan por `mer_pasar_a_lista_si_reorden`.
+- **Verificación de datos reales**: los 15 productos en cero (café, caraota, condones, leche en polvo, mantequilla, masa de pastelito, papel de baño, pega loca, picante, sal, salsa de soya, salsa de tomate, toallas sanitarias, toallitas húmedas, toddy) YA están todos en la lista como pendientes — el reorden viene funcionando desde la 0037. El backfill sería no-op hoy.
+- **UI** (`app/mercado/page.tsx`): la pestaña Alacena filtra `stock > 0` (memo `filtrados` sobre `conStock`); si todo está en cero muestra "Todo está en cero: lo que falta está en la lista de compras." El formulario "Movimiento de alacena" sigue usando la lista completa (hay que poder comprar lo que está en cero). `app/page.tsx`: el resumen del home cuenta solo productos con stock.
+- **WhatsApp** (`scripts/whatsapp-mercado.mjs`, intent `inventario`): muestra solo stock > 0 y agrega la línea "En cero (están en la lista de compras): …". El `matchProducto` sigue usando el inventario completo para no romper "compré / gasté / precio de X".
+- Decisión de diseño: NO se cambió la firma de `rpc_mer_inventario` (el filtro es de presentación; cambiar el default habría roto el matcheo y arriesgado un PGRST203).
+- Verificación: tsc limpio, eslint limpio, mock de `mercado inventario` ok, lógica de filtros probada con datos de ejemplo.

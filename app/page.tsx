@@ -93,13 +93,15 @@ export default function Hub() {
     merRpc.inventario()
       .then((inv) => {
         if (!vivo) return;
-        const bajos = inv.filter((i) => i.dias_agotamiento !== null && i.dias_agotamiento <= 7).length;
+        // La alacena cuenta solo lo que hay (stock > 0); lo en cero está en la lista.
+        const conStock = inv.filter((i) => (i.stock ?? 0) > 0);
+        const bajos = conStock.filter((i) => i.dias_agotamiento !== null && i.dias_agotamiento <= 7).length;
         setMercadoResumen(
-          inv.length === 0
+          conStock.length === 0
             ? "Inventario, lista de compras y precios"
             : bajos === 0
-              ? `${inv.length} producto${inv.length === 1 ? "" : "s"} en inventario`
-              : `${bajos} por agotarse · ${inv.length} en inventario`,
+              ? `${conStock.length} producto${conStock.length === 1 ? "" : "s"} en inventario`
+              : `${bajos} por agotarse · ${conStock.length} en inventario`,
         );
       })
       .catch(() => { if (vivo) setMercadoResumen("Inventario, lista de compras y precios"); });

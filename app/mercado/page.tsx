@@ -694,10 +694,17 @@ export default function MercadoPage() {
     [inventario],
   );
   const filtrados = useMemo(() => {
+    // Regla de luigi (2026-10-03): la alacena muestra solo lo que hay (stock > 0).
+    // Lo que está en cero vive en la lista de compras.
+    const conStock = inventario.filter((i) => (i.stock ?? 0) > 0);
     const q = buscador.trim().toLowerCase();
-    if (!q) return inventario;
-    return inventario.filter((i) => i.nombre.toLowerCase().includes(q));
+    if (!q) return conStock;
+    return conStock.filter((i) => i.nombre.toLowerCase().includes(q));
   }, [inventario, buscador]);
+  const hayEnCero = useMemo(
+    () => inventario.length > 0 && inventario.every((i) => (i.stock ?? 0) <= 0),
+    [inventario],
+  );
   const sinCalibracion = useMemo(
     () => inventario.length > 0 && inventario.every((i) => i.consumo_diario === null),
     [inventario],
@@ -878,7 +885,7 @@ export default function MercadoPage() {
                   </p>
                 </div>
               )}
-              {inventario.length > 0 && (
+              {inventario.length > 0 && filtrados.length > 0 && (
                 <input
                   className={inputCls}
                   value={buscador}
@@ -892,7 +899,12 @@ export default function MercadoPage() {
                   Sin productos todavía. Crea el primero en la pestaña Registrar.
                 </p>
               )}
-              {filtrados.length === 0 && inventario.length > 0 && (
+              {hayEnCero && (
+                <p className="rounded-2xl bg-surface p-6 text-center text-sm text-muted">
+                  Todo está en cero: lo que falta está en la lista de compras.
+                </p>
+              )}
+              {!hayEnCero && buscador.trim() && filtrados.length === 0 && inventario.length > 0 && (
                 <p className="rounded-2xl bg-surface p-6 text-center text-sm text-muted">
                   Nada coincide con «{buscador.trim()}».
                 </p>

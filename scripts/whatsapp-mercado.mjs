@@ -43,15 +43,16 @@ function crearRpc(cfg) {
   return async function rpc(fn, params) {
     if (process.env.HABITOS_MOCK) {
       if (fn === "rpc_mer_inventario") return [
-        { id: "p1", nombre: "Arroz", unidad: "kg", categoria: "granos", stock: 0.5, dias_agotamiento: 5, sugerido_comprar: 1.5, precio_usd_unitario: 0.8, ultima_moneda: "USD" },
-        { id: "p2", nombre: "Leche", unidad: "L", categoria: "lacteos", stock: 3, dias_agotamiento: 40, sugerido_comprar: 0, precio_usd_unitario: 1.2, ultima_moneda: "USD" },
+        { id: "p1", nombre: "Arroz", unidad: "kg", categoria: "granos", stock: 0.5, stock_minimo: 1, bajo_minimo: true, dias_agotamiento: 5, sugerido_comprar: 1.5, precio_usd_unitario: 0.8, ultima_moneda: "USD" },
+        { id: "p2", nombre: "Leche", unidad: "L", categoria: "lacteos", stock: 3, stock_minimo: 0, bajo_minimo: false, dias_agotamiento: 40, sugerido_comprar: 0, precio_usd_unitario: 1.2, ultima_moneda: "USD" },
       ];
       if (fn === "rpc_mer_lista") return [
         { id: "l1", producto_id: "p1", nombre: "Arroz", unidad: "kg", cantidad: 2, estado: "pendiente" },
       ];
       if (fn === "rpc_mer_lista_toggle") return { ok: true, estado: params.p_estado, producto: "Arroz", cantidad: params.p_cantidad };
       if (fn === "rpc_mer_producto_upsert") return { ok: true, id: "mock-p", nombre: params.p_nombre };
-      if (fn === "rpc_mer_movimiento") return { ok: true, id: "mock-m", tipo: params.p_tipo, producto: "Arroz", cantidad: params.p_cantidad, unidad: "kg", fin_movimiento_id: params.p_tipo === "compra" && params.p_cuenta_id ? "mock-fin" : null };
+      if (fn === "rpc_mer_producto_actualizar") return { ok: true, id: params.p_producto_id, nombre: "Mock", stock_minimo: params.p_stock_minimo ?? 0, paso_a_lista: false };
+      if (fn === "rpc_mer_movimiento") return { ok: true, id: "mock-m", tipo: params.p_tipo, producto: "Arroz", cantidad: params.p_cantidad, unidad: "kg", paso_a_lista: false, fin_movimiento_id: params.p_tipo === "compra" && params.p_cuenta_id ? "mock-fin" : null };
       if (fn === "rpc_mer_presupuesto") return { total_usd: 12.5, items: [{ producto: "Arroz", unidad: "kg", consumo_mensual: 2, precio_usd_unitario: 0.8, costo_mensual_usd: 1.6 }] };
       if (fn === "rpc_fin_saldos") return [
         { id: "c1", nombre: "Efectivo", moneda: "USD", saldo_moneda: "120.50" },
@@ -160,6 +161,11 @@ function matchCuenta(cuentas, texto) {
 }
 
 const fmtN = (n) => new Intl.NumberFormat("es-VE", { maximumFractionDigits: 2 }).format(n);
+// Aviso cuando un movimiento cruzó el punto de reorden (el RPC devolvió paso_a_lista).
+const avisoReorden = (r, prod) =>
+  r && r.paso_a_lista
+    ? `\n⚠️ ${r.producto || prod?.nombre} llegó a su mínimo (${fmtN(prod?.stock_minimo ?? 0)} ${r.unidad || prod?.unidad}) y pasó a la lista de compras.`
+    : "";
 const fmtPrecio = (precio, moneda) => {
   const s = moneda === "VES" ? "Bs" : moneda === "COP" ? "COP" : moneda === "USDT" ? "USDT" : "$";
   return moneda === "USDT" ? `${fmtN(precio)} USDT` : `${s} ${fmtN(precio)}`;
@@ -213,7 +219,7 @@ try {
         p_nota: "factura por WhatsApp",
         p_clave_evento: clave,
       });
-      registrados.push({ producto: r.producto, cantidad: it.cantidad, unidad: it.unidad, egreso: !!r.fin_movimiento_id, duplicado: !!r.duplicado });
+      registrados.push({ producto: r.producto, cantidad: it.cantidad, unidad: it.unidad, egreso: !!r.fin_movimiento_id, duplicado: !!r.duplicado, paso_a_lista: !!r.paso_a_lista });
     }
     const nDup = registrados.filter((r) => r.duplicado).length;
     if (nDup === registrados.length) {
@@ -221,9 +227,12 @@ try {
         mensaje: `Esta factura ya estaba registrada (${registrados.length} artículos). No se duplicó nada.` });
     }
     const lineas = registrados.map((r) => `• ${fmtN(r.cantidad)} ${r.unidad} ${r.producto}`);
+    const avisos = registrados.filter((r) => r.paso_a_lista)
+      .map((r) => `⚠️ ${r.producto} quedó bajo su mínimo y pasó a la lista de compras.`);
     out({
       ok: true, codigo: "factura_registrada", items: registrados,
-      mensaje: `Factura registrada (${registrados.length} artículos):\n${lineas.join("\n")}\nEgreso creado en Finanzas.`,
+      mensaje: `Factura registrada (${registrados.length} artículos):\n${lineas.join("\n")}\nEgreso creado en Finanzas.` +
+        (avisos.length ? `\n${avisos.join("\n")}` : ""),
     });
   }
 
@@ -234,7 +243,7 @@ try {
   if (/^ayuda$/.test(nq)) {
     out({
       ok: true, codigo: "ayuda", modulo: "mercado",
-      mensaje: "Mercado por WhatsApp:\n• factura 2kg arroz 8$, 1L leche 150bs en Makro → te muestro el resumen y lo confirmas\n• compré 2kg de arroz en 8$ → igual que factura\n• gasté 1L de leche → registra consumo\n• se acabó el arroz → stock a cero\n• se dañó 1kg de arroz\n• inventario → qué hay y qué se acaba\n• lista → lista de compras\n• agrega 2kg de arroz a la lista\n• presupuesto → gasto mensual estimado\n• precio del arroz → último precio y rango",
+      mensaje: "Mercado por WhatsApp:\n• factura 2kg arroz 8$, 1L leche 150bs en Makro → te muestro el resumen y lo confirmas\n• compré 2kg de arroz en 8$ → igual que factura\n• gasté 1L de leche → registra consumo\n• se acabó el arroz → stock a cero\n• se dañó 1kg de arroz\n• inventario → qué hay y qué se acaba\n• lista → lista de compras\n• agrega 2kg de arroz a la lista\n• umbral 2kg de harina → pasa a la lista al llegar a 2kg o menos\n• presupuesto → gasto mensual estimado\n• precio del arroz → último precio y rango",
     });
   }
 
@@ -242,15 +251,23 @@ try {
   if (/^(inventario|que hay|stock|existencias)\b/.test(nq)) {
     const inv = await rpc("rpc_mer_inventario", { p_user_id: cfg.USER_ID });
     if (!inv.length) out({ ok: true, codigo: "inventario", items: [], mensaje: "Inventario vacío. Agrega productos en la app (Mercado → Registrar)." });
-    const lineas = inv.map((p) => {
-      const alerta = p.dias_agotamiento !== null && p.dias_agotamiento <= 7 ? " ⚠" : "";
+    // Regla de luigi (2026-10-03): la alacena muestra solo lo que hay (stock > 0);
+    // lo que está en cero vive en la lista de compras. El matcheo de productos
+    // sigue usando la lista completa (comprar lo que está en cero debe funcionar).
+    const conStock = inv.filter((p) => (p.stock ?? 0) > 0);
+    const enCero = inv.filter((p) => (p.stock ?? 0) <= 0);
+    const lineas = conStock.map((p) => {
+      const alerta = (p.bajo_minimo || (p.dias_agotamiento !== null && p.dias_agotamiento <= 7)) ? " ⚠" : "";
       return `• ${p.nombre}: ${fmtN(p.stock)} ${p.unidad}${alerta}`;
     });
-    const criticos = inv.filter((p) => p.dias_agotamiento !== null && p.dias_agotamiento <= 7);
+    const criticos = conStock.filter((p) => p.dias_agotamiento !== null && p.dias_agotamiento <= 7);
+    const enMinimo = conStock.filter((p) => p.bajo_minimo);
     out({
       ok: true, codigo: "inventario", items: inv,
-      mensaje: `Inventario (${inv.length}):\n${lineas.join("\n")}` +
-        (criticos.length ? `\n\nPor agotarse: ${criticos.map((p) => p.nombre).join(", ")}.` : ""),
+      mensaje: `Inventario (${conStock.length}):\n${lineas.join("\n")}` +
+        (criticos.length ? `\n\nPor agotarse: ${criticos.map((p) => p.nombre).join(", ")}.` : "") +
+        (enMinimo.length ? `\nEn su mínimo (ya pasaron a la lista): ${enMinimo.map((p) => `${p.nombre} (${fmtN(p.stock_minimo)} ${p.unidad})`).join(", ")}.` : "") +
+        (enCero.length ? `\nEn cero (están en la lista de compras): ${enCero.map((p) => p.nombre).join(", ")}.` : ""),
     });
   }
 
@@ -278,6 +295,34 @@ try {
         p_cantidad: it.cantidad, p_estado: "pendiente",
       });
       out({ ok: true, codigo: "lista_agregado", mensaje: `${r.producto} agregado a la lista (${fmtN(it.cantidad)} ${prod.unidad}).` });
+    }
+  }
+
+  // ── umbral: punto de reorden → pasa solo a la lista al llegar al mínimo ──
+  {
+    // Acepta "umbral 2kg de harina" y "umbral harina 2kg" (también "mínimo").
+    const mUm = nq.match(/^(?:umbral|m[ií]nimo)\s+(?:([\d.,]+)\s*(kg|g|und|l|ml)?\s+de\s+(.+)|(.+?)\s+([\d.,]+)\s*(kg|g|und|l|ml)?)$/);
+    if (mUm) {
+      const nombreProd = (mUm[3] ?? mUm[4] ?? "").trim();
+      const cantTxt = mUm[1] ?? mUm[5];
+      const inv = await rpc("rpc_mer_inventario", { p_user_id: cfg.USER_ID });
+      const prod = matchProducto(inv, nombreProd);
+      if (!prod) {
+        out({ ok: false, codigo: "producto_no_encontrado", pregunta: `No encontré "${nombreProd}" en el inventario.`, detalle: "producto inexistente" });
+      }
+      let cant = numEsVe(cantTxt);
+      if (cant === null && /^0+([.,]0+)?$/.test(cantTxt.trim())) cant = 0; // "umbral X 0" = solo al llegar a cero
+      if (cant === null) out({ ok: false, codigo: "ambiguo", pregunta: "¿Cuál es el mínimo? Ej. «umbral 2kg de harina».", detalle: "cantidad inválida" });
+      const r = await rpc("rpc_mer_producto_actualizar", {
+        p_user_id: cfg.USER_ID, p_producto_id: prod.id, p_stock_minimo: Math.round(cant * 1000) / 1000,
+      });
+      const base = cant > 0
+        ? `${r.nombre || prod.nombre} pasará a la lista de compras cuando queden ${fmtN(cant)} ${prod.unidad} o menos.`
+        : `${r.nombre || prod.nombre} solo pasará a la lista al llegar a cero.`;
+      out({
+        ok: true, codigo: "umbral",
+        mensaje: base + (r.paso_a_lista ? `\n⚠️ Ya está en ${fmtN(prod.stock)} ${prod.unidad}: pasó a la lista de compras.` : ""),
+      });
     }
   }
 
@@ -315,7 +360,7 @@ try {
         p_user_id: cfg.USER_ID, p_producto_id: prod.id, p_tipo: "consumo",
         p_cantidad: it.cantidad, p_nota: "consumo por WhatsApp",
       });
-      out({ ok: true, codigo: "consumo", mensaje: `Consumo registrado: ${fmtN(it.cantidad)} ${prod.unidad} de ${r.producto}.` });
+      out({ ok: true, codigo: "consumo", mensaje: `Consumo registrado: ${fmtN(it.cantidad)} ${prod.unidad} de ${r.producto}.${avisoReorden(r, prod)}` });
     }
   }
 
@@ -329,11 +374,11 @@ try {
       if (!prod.stock || prod.stock <= 0) {
         out({ ok: true, codigo: "sin_stock", mensaje: `${prod.nombre} ya está en cero.` });
       }
-      await rpc("rpc_mer_movimiento", {
+      const rFin = await rpc("rpc_mer_movimiento", {
         p_user_id: cfg.USER_ID, p_producto_id: prod.id, p_tipo: "consumo",
         p_cantidad: prod.stock, p_nota: "se acabó (WhatsApp)",
       });
-      out({ ok: true, codigo: "agotado", mensaje: `${prod.nombre} marcado como agotado (stock a 0).` });
+      out({ ok: true, codigo: "agotado", mensaje: `${prod.nombre} marcado como agotado (stock a 0).${avisoReorden(rFin, prod)}` });
     }
   }
 
@@ -346,11 +391,11 @@ try {
       const inv = await rpc("rpc_mer_inventario", { p_user_id: cfg.USER_ID });
       const prod = matchProducto(inv, it.nombre);
       if (!prod) out({ ok: false, codigo: "producto_no_encontrado", pregunta: `No encontré "${it.nombre}" en el inventario.`, detalle: "producto inexistente" });
-      await rpc("rpc_mer_movimiento", {
+      const rDan = await rpc("rpc_mer_movimiento", {
         p_user_id: cfg.USER_ID, p_producto_id: prod.id, p_tipo: "danado",
         p_cantidad: it.cantidad, p_nota: "se dañó (WhatsApp)",
       });
-      out({ ok: true, codigo: "danado", mensaje: `Registrado: se dañaron ${fmtN(it.cantidad)} ${prod.unidad} de ${prod.nombre}. No afecta el historial de precios.` });
+      out({ ok: true, codigo: "danado", mensaje: `Registrado: se dañaron ${fmtN(it.cantidad)} ${prod.unidad} de ${prod.nombre}. No afecta el historial de precios.${avisoReorden(rDan, prod)}` });
     }
   }
 
@@ -381,7 +426,8 @@ try {
   // ── factura / compré → RESUMEN (nunca se ejecuta directo) ──
   const esFactura = /^(factura|compre|compra)\b/.test(nq);
   if (esFactura) {
-    let cuerpo = q.replace(/^(factura|compr[ée]|compra)\b[:,]?\s*/i, "").trim();
+    // \b no sirve tras "é" (JS lo considera no-word char): usar lookahead negativo.
+    let cuerpo = q.replace(/^(factura|compr[ée]|compra)(?![a-záéíóúñü])[:,]?\s*/i, "").trim();
     // Comercio al final: "en Makro".
     let comercio = null;
     const mCom = cuerpo.match(/\ben\s+([a-záéíóúñü]{2,}(?:\s+[a-záéíóúñü]{2,})?)\s*$/i);
